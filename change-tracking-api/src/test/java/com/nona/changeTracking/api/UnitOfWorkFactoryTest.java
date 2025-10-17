@@ -1,57 +1,102 @@
 package com.nona.changeTracking.api;
 
+import com.nona.changeTracking.domain.capability.TrackingCapability;
 import com.nona.changeTracking.domain.model.changeset.ChangeSet;
+import com.nona.changeTracking.domain.model.changeset.FieldChange;
 import com.nona.changeTracking.domain.model.unitofwork.UnitOfWork;
-import com.nona.changeTracking.spi.CreationContext;
-import com.nona.changeTracking.spi.SnapshotStrategy;
-import com.nona.changeTracking.spi.SnapshotStrategyProvider;
+import com.nona.changeTracking.spi.TrackingCapabilityProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+
+import java.util.List;
+import java.util.ServiceLoader;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
-@DisplayName("UnitOfWorkFactory 测试")
+@DisplayName("UnitOfWorkFactory (API) 测试")
 class UnitOfWorkFactoryTest {
 
-    // --- Test Data & Mocks ---
+    // --- Test Data ---
     static class User {
         String name;
         User(String name) { this.name = name; }
     }
 
-    @Test
-    @DisplayName("默认构建器应能创建一个功能完备的 UnitOfWork")
-    void defaultBuilder_shouldCreateFunctionalUnitOfWork() {
-        // --- Arrange ---
-        // 使用默认配置构建 UnitOfWork
-        final UnitOfWork uow = UnitOfWorkFactory.builder().withDefaults().build();
-        assertNotNull(uow, "创建的 UnitOfWork 实例不应为 null");
-
-        final User user = new User("Alice");
-        uow.registerClean(user);
-        user.name = "Alicia"; // 修改对象
-
-        // --- Act ---
-        final ChangeSet changeSet = uow.calculateChanges();
-
-        // --- Assert ---
-        // 这是一个端到端的冒烟测试，验证默认组件被正确接线
-        assertFalse(changeSet.isEmpty(), "应检测到变更");
-        assertEquals(1, changeSet.getDirtyObjects().size());
-        assertEquals("name", changeSet.getDirtyObjects().get(0).fieldChanges().get(0).fieldName());
+    // --- Mocks & Stubs ---
+    // 一个用于测试的、可被 mock 的 Provider 实现
+    public static class CustomTestCapabilityProvider implements TrackingCapabilityProvider {
+        public static final String NAME = "custom-test-capability";
+        @Override public String getName() { return NAME; }
+        @Override public TrackingCapability create() {
+            // 在真实的测试中，create() 的行为会被 mock
+            return null;
+        }
     }
 
     @Test
-    @DisplayName("选择一个不存在的快照策略时应抛出异常")
-    void build_shouldThrowExceptionForNonExistentStrategy() {
+    @DisplayName("默认构建器应能创建一个使用默认能力的 UnitOfWork (端到端)")
+    void defaultBuilder_shouldCreateFunctionalUnitOfWork() {
+        // 这个测试保持不变，它验证的是 ServiceLoader 能否加载 core 模块自己 provide 的服务
+        final UnitOfWork uow = UnitOfWorkFactory.builder().withDefaults().build();
+        assertNotNull(uow);
+
+        final User user = new User("Alice");
+        uow.registerClean(user);
+        user.name = "Alicia";
+
+        final ChangeSet changeSet = uow.calculateChanges();
+
+        assertFalse(changeSet.isEmpty());
+        assertEquals(1, changeSet.getLeafChanges().size());
+        final FieldChange change = (FieldChange) changeSet.getLeafChanges().get(0);
+        assertEquals("name", change.path());
+        assertEquals("Alice", change.oldValue());
+        assertEquals("Alicia", change.newValue());
+    }
+
+    @Test
+    @DisplayName("Builder 应能从已加载的 Provider 中选择一个自定义 Capability")
+    void builder_shouldSelectCustomCapabilityFromLoadedProviders() {
         // --- Arrange ---
-        final UnitOfWorkFactory.Builder builder = UnitOfWorkFactory.builder().withDefaults();
+        final TrackingCapabilityProvider defaultProvider = mock(TrackingCapabilityProvider.class);
+        when(defaultProvider.getName()).thenReturn("default-reflection");
+        final TrackingCapabilityProvider customProvider = mock(TrackingCapabilityProvider.class);
+        when(customProvider.getName()).thenReturn(CustomTestCapabilityProvider.NAME);
+        // **【核心修正点】** 必须为 create() 方法提供一个返回值
+        final TrackingCapability mockCapability = mock(TrackingCapability.class);
+        when(customProvider.create()).thenReturn(mockCapability);
+        final ServiceLoader<TrackingCapabilityProvider> mockedLoader = mock(ServiceLoader.class);
+        when(mockedLoader.iterator()).thenReturn(List.of(defaultProvider, customProvider).iterator());
+        try (MockedStatic<ServiceLoader> mockedServiceLoader = mockStatic(ServiceLoader.class)) {
+            mockedServiceLoader.when(() -> ServiceLoader.load(TrackingCapabilityProvider.class)).thenReturn(mockedLoader);
+            final UnitOfWorkFactory.Builder builder = UnitOfWorkFactory.builder().withDefaults();
+            // --- Act ---
+            builder.capability(CustomTestCapabilityProvider.NAME);
+            final UnitOfWork uow = builder.build();
+            // --- Assert ---
+            verify(customProvider, times(1)).create();
+            verify(defaultProvider, never()).create();
+            assertNotNull(uow); // 确保 uow 被成功创建
+        }
+    }
 
-        // --- Act & Assert ---
-        final var exception = assertThrows(IllegalArgumentException.class, () -> {
-            builder.snapshotStrategy("non-existent-strategy").build();
-        });
-
-        assertTrue(exception.getMessage().contains("non-existent-strategy"));
+    @Test
+    @DisplayName("选择一个不存在的能力时应抛出异常")
+    void build_shouldThrowExceptionForNonExistentCapability() {
+        // --- Arrange ---
+        final TrackingCapabilityProvider defaultProvider = mock(TrackingCapabilityProvider.class);
+        when(defaultProvider.getName()).thenReturn("default-reflection");
+        final ServiceLoader<TrackingCapabilityProvider> mockedLoader = mock(ServiceLoader.class);
+        when(mockedLoader.iterator()).thenReturn(List.of(defaultProvider).iterator());
+        try (MockedStatic<ServiceLoader> mockedServiceLoader = mockStatic(ServiceLoader.class)) {
+            mockedServiceLoader.when(() -> ServiceLoader.load(TrackingCapabilityProvider.class)).thenReturn(mockedLoader);
+            final UnitOfWorkFactory.Builder builder = UnitOfWorkFactory.builder().withDefaults();
+            // --- Act & Assert ---
+            final var exception = assertThrows(IllegalArgumentException.class, () -> builder.capability("non-existent-capability").build());
+            assertTrue(exception.getMessage().contains("non-existent-capability"));
+            assertTrue(exception.getMessage().contains("default-reflection"));
+        }
     }
 }

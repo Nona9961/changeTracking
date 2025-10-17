@@ -5,6 +5,6 @@
     exports com.nona.changeTracking.api;
 
     requires transitive change.tracking.core;
-    uses com.nona.changeTracking.spi.SnapshotStrategyProvider;
+    uses com.nona.changeTracking.spi.TrackingCapabilityProvider;
     opens com.nona.changeTracking.api to change.tracking.core;
 }

@@ -4,14 +4,16 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
-/**
- * 一个内部工具类，提供与反射相关的静态辅助方法。
- * <p>
- * 这个类的目的是封装通用的反射操作，以避免在代码库中出现重复。
- * 此类不应被外部用户直接使用。
- */
 public final class ReflectionUtils {
+
+    /**
+     * 包含所有包装类类型和原始类型的集合。
+     */
+    private static final Set<Class<?>> WRAPPER_TYPES = Set.of(
+            Boolean.class, Character.class, Byte.class, Short.class, Integer.class, Long.class, Float.class, Double.class, Void.class
+    );
 
     /**
      * 私有构造函数，防止实例化。
@@ -26,14 +28,23 @@ public final class ReflectionUtils {
      * @param clazz 目标类。
      * @return 包含所有字段的列表，包括私有和父类的字段。
      */
-    public static List<Field> getAllFields(Class<?> clazz) {
+    public static List<Field> getAllFields(final Class<?> clazz) {
         final List<Field> fields = new ArrayList<>();
         Class<?> currentClass = clazz;
         while (currentClass != null && currentClass != Object.class) {
             fields.addAll(Arrays.asList(currentClass.getDeclaredFields()));
-            // 修正了语法错误：getSuperclass -> getSuperclass()
             currentClass = currentClass.getSuperclass();
         }
         return fields;
+    }
+
+    /**
+     * 检查给定的类型是否是原始类型或其对应的包装类。
+     *
+     * @param clazz 要检查的类。
+     * @return 如果是原始类型或包装类，则为 true。
+     */
+    public static boolean isPrimitiveOrWrapper(final Class<?> clazz) {
+        return clazz.isPrimitive() || WRAPPER_TYPES.contains(clazz);
     }
 }

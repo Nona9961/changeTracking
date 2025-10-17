@@ -1,4 +1,4 @@
-package com.nona.changeTracking.domain.model.unitofwork;
+package com.nona.changeTracking.domain.model.snapshot;
 
 /**
  * 一个泛型化的值对象接口，作为领域对象状态快照的数据容器。
@@ -9,7 +9,7 @@ package com.nona.changeTracking.domain.model.unitofwork;
  *
  * @param <T> 快照内部数据的具体类型。
  */
-public sealed interface Snapshot<T> permits MapSnapshot, ObjectSnapshot {
+public sealed interface Snapshot<T> permits ValueNodeSnapshot  {
 
     /**
      * 获取快照所持有的内部数据。
