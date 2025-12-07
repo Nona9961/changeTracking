@@ -29,6 +29,9 @@ class UnitOfWorkFactoryTest {
     public static class CustomTestCapabilityProvider implements TrackingCapabilityProvider {
         public static final String NAME = "custom-test-capability";
         @Override public String getName() { return NAME; }
+        @Override public <T> TrackingCapabilityProvider withIdentifier(Class<T> type, java.util.function.Function<T, Object> extractor) { return this; }
+        @Override public TrackingCapabilityProvider withValueType(Class<?> type) { return this; }
+        @Override public TrackingCapabilityProvider withValuePackage(String packageName) { return this; }
         @Override public TrackingCapability create() {
             // 在真实的测试中，create() 的行为会被 mock
             return null;

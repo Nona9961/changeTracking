@@ -1,7 +1,7 @@
 package com.nona.changeTracking.internal.snapshot;
 
+import com.nona.changeTracking.domain.capability.TrackingConfiguration;
 import com.nona.changeTracking.domain.model.snapshot.*;
-import lombok.Data;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -20,7 +20,7 @@ class ValueNodeSnapshotStrategyTest {
 
     @BeforeEach
     void setUp() {
-        strategy = new ValueNodeSnapshotStrategy();
+        strategy = new ValueNodeSnapshotStrategy(TrackingConfiguration.empty());
     }
 
     @Nested
@@ -56,16 +56,14 @@ class ValueNodeSnapshotStrategyTest {
     @DisplayName("复杂对象和集合处理")
     class ComplexObjectTests {
 
-        @Data
         static class Address {
-            private String street = "123 Main St";
+            String street = "123 Main St";
         }
 
-        @Data
         static class User {
-            private String name = "Alice";
-            private Address address = new Address();
-            private List<String> tags = List.of("vip", "local");
+            String name = "Alice";
+            Address address = new Address();
+            List<String> tags = List.of("vip", "local");
         }
 
         @Test
@@ -105,7 +103,7 @@ class ValueNodeSnapshotStrategyTest {
         @DisplayName("应能正确处理对象字段为 null 的情况")
         void shouldHandleNullFieldsInObject() {
             final User user = new User();
-            user.setName(null);
+            user.name = null;
             final ValueNodeSnapshot snapshot = strategy.createSnapshot(user);
             final ObjectNode userNode = (ObjectNode) snapshot.getSnapshotData();
 
@@ -117,13 +115,11 @@ class ValueNodeSnapshotStrategyTest {
     @DisplayName("循环引用处理")
     class CircularReferenceTests {
 
-        @Data
         static class Parent {
             String name = "P1";
             Child child;
         }
 
-        @Data
         static class Child {
             String name = "C1";
             Parent parent;
@@ -134,8 +130,8 @@ class ValueNodeSnapshotStrategyTest {
         void shouldHandleCircularReferencesWithoutStackOverflow() {
             final Parent parent = new Parent();
             final Child child = new Child();
-            parent.setChild(child);
-            child.setParent(parent);
+            parent.child = child;
+            child.parent = parent;
 
             // 如果不处理循环引用，这里会抛出 StackOverflowError
             final ValueNodeSnapshot snapshot = assertDoesNotThrow(() -> strategy.createSnapshot(parent));
