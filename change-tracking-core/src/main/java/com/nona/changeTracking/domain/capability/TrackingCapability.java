@@ -10,13 +10,17 @@ import com.nona.changeTracking.spi.SnapshotStrategy;
  */
 public interface TrackingCapability<S extends Snapshot<?>> {
 
+    /**
+     * 获取与此能力单元关联的快照创建策略。
+     *
+     * @return 用于创建对象快照的 {@link SnapshotStrategy} 实例。
+     */
     SnapshotStrategy getSnapshotStrategy();
 
     /**
-
      * 获取与此能力单元关联的、类型安全的快照比较策略。
      *
-     * @return 一个保证能处理类型 S 的 ComparisonStrategy 实例。
+     * @return 一个保证能处理类型 S 的 {@link ComparisonStrategy} 实例。
      */
     ComparisonStrategy<S> getComparisonStrategy();
 }

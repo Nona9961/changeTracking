@@ -9,17 +9,23 @@ import java.util.stream.Collectors;
 /**
  * 代表一个工作单元内所有变更的集合。
  * <p>
- * 这是框架最终输出的顶层值对象。它提供了获取不同粒度变更视图的方法。
+ * 这是框架最终输出的顶层值对象。它提供了获取不同粒度变更视图的方法：
+ * <ul>
+ *   <li>{@link #getAllChanges()} - 包含容器变更的完整视图</li>
+ *   <li>{@link #getLeafChanges()} - 仅包含叶子变更的扁平视图</li>
+ * </ul>
  *
- * @param changes -- GETTER --
- *                获取所有被追踪对象的变更列表。
+ * @param changes 所有被追踪对象的变更列表。
  */
 public record ChangeSet(List<ObjectChange> changes) {
 
     /**
      * 构造一个 ChangeSet。
+     * <p>
+     * 传入的列表会被复制为不可变列表，确保 ChangeSet 的不可变性。
      *
-     * @param changes 包含所有对象变更的列表。
+     * @param changes 包含所有对象变更的列表，不能为 null。
+     * @throws NullPointerException 如果 changes 为 null。
      */
     public ChangeSet(final List<ObjectChange> changes) {
         this.changes = List.copyOf(Objects.requireNonNull(changes, "Changes list cannot be null."));
@@ -64,10 +70,13 @@ public record ChangeSet(List<ObjectChange> changes) {
         return changes.isEmpty();
     }
 
-    // --- 递归辅助方法 ---
-
+    /**
+     * 递归收集所有变更（包括容器变更）。
+     *
+     * @param node        当前遍历的变更节点。
+     * @param accumulator 用于收集变更的列表。
+     */
     private void collectAllChanges(final ChangeNode node, final List<Change> accumulator) {
-        // 跳过没有路径的根节点
         if (!node.path().isEmpty()) {
             accumulator.add(toChange(node, true));
         }
@@ -79,18 +88,31 @@ public record ChangeSet(List<ObjectChange> changes) {
         }
     }
 
+    /**
+     * 递归收集叶子变更（排除容器变更）。
+     *
+     * @param node        当前遍历的变更节点。
+     * @param accumulator 用于收集变更的列表。
+     */
     private void collectLeafChanges(final ChangeNode node, final List<Change> accumulator) {
         if (node instanceof ContainerChangeNode container) {
             for (final ChangeNode child : container.children()) {
                 collectLeafChanges(child, accumulator);
             }
         } else {
-            // 所有非 ContainerNode 都是叶子节点
             accumulator.add(toChange(node, false));
         }
     }
 
-    private Change toChange(final ChangeNode node, boolean deep) {
+    /**
+     * 将 ChangeNode 转换为 Change。
+     *
+     * @param node 要转换的变更节点。
+     * @param deep 是否递归转换子节点（仅对 ContainerChangeNode 有效）。
+     * @return 转换后的 Change 对象。
+     * @throws IllegalStateException 如果遇到未知的 ChangeNode 类型。
+     */
+    private Change toChange(final ChangeNode node, final boolean deep) {
         if (node instanceof FieldChangeNode fcn) {
             return new FieldChange(fcn.path(), fcn.oldValue(), fcn.newValue());
         }

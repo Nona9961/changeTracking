@@ -17,6 +17,11 @@ import java.util.ServiceLoader;
  */
 public final class UnitOfWorkFactory {
 
+    /**
+     * 私有构造函数，防止实例化。
+     * <p>
+     * 此类仅通过静态方法 {@link #builder()} 提供功能。
+     */
     private UnitOfWorkFactory() {}
 
     /**
@@ -28,10 +33,20 @@ public final class UnitOfWorkFactory {
         return new Builder();
     }
 
+    /**
+     * {@link UnitOfWork} 的构建器。
+     * <p>
+     * 提供流式 API 来配置和创建 UnitOfWork 实例。
+     * 支持通过 SPI 自动发现追踪能力，也支持手动选择特定的追踪能力。
+     */
     public static final class Builder {
+
         private final Map<String, TrackingCapabilityProvider> providers = new HashMap<>();
         private String selectedCapabilityName;
 
+        /**
+         * 私有构造函数，仅通过 {@link UnitOfWorkFactory#builder()} 创建实例。
+         */
         private Builder() {}
 
         /**
