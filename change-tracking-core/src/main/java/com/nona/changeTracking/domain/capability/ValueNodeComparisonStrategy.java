@@ -4,7 +4,6 @@ import com.nona.changeTracking.domain.model.changeset.*;
 import com.nona.changeTracking.domain.model.snapshot.*;
 
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -123,7 +122,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
     /**
      * 比较两个 CollectionNode 的所有项。
      * <p>
-     * 使用 {@link ObjectNode#identityHashCode()} 作为项的匹配标识，
+     * 使用 {@link ObjectNode#identifier()} 作为项的匹配标识，
      * 检测新增、删除和修改的项。
      *
      * @param oldColl 旧集合节点。
@@ -133,11 +132,11 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     private List<ChangeNode> diffCollectionChildren(final CollectionNode oldColl, final CollectionNode newColl, final String path) {
         final List<ChangeNode> changes = new ArrayList<>();
-        final Map<Integer, ValueNode> oldItemsById = mapByIdentity(oldColl.items());
-        final Map<Integer, ValueNode> newItemsById = mapByIdentity(newColl.items());
+        final Map<Object, ValueNode> oldItemsById = mapByIdentity(oldColl.items());
+        final Map<Object, ValueNode> newItemsById = mapByIdentity(newColl.items());
 
-        for (final Map.Entry<Integer, ValueNode> newItemEntry : newItemsById.entrySet()) {
-            final int identity = newItemEntry.getKey();
+        for (final Map.Entry<Object, ValueNode> newItemEntry : newItemsById.entrySet()) {
+            final Object identity = newItemEntry.getKey();
             final ValueNode newItem = newItemEntry.getValue();
             if (!oldItemsById.containsKey(identity)) {
                 changes.add(new ItemAddedNode(path, newItem));
@@ -148,7 +147,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             }
         }
 
-        for (final Map.Entry<Integer, ValueNode> oldItemEntry : oldItemsById.entrySet()) {
+        for (final Map.Entry<Object, ValueNode> oldItemEntry : oldItemsById.entrySet()) {
             if (!newItemsById.containsKey(oldItemEntry.getKey())) {
                 changes.add(new ItemRemovedNode(path, oldItemEntry.getValue()));
             }
@@ -157,38 +156,47 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
     }
 
     /**
-     * 将集合中的 ObjectNode 按 identityHashCode 映射为 Map。
+     * 将集合中的 ObjectNode 按 identifier 映射为 Map。
+     * <p>
+     * 对于 ObjectNode，使用其 {@link ObjectNode#identifier()} 作为键；
+     * 对于 PrimitiveNode，使用其 {@link PrimitiveNode#value()} 作为键；
+     * 其他类型（NullNode、CollectionNode）暂不参与匹配。
      *
      * @param nodes 要映射的节点集合。
-     * @return 以 identityHashCode 为键的 Map。
+     * @return 以 identifier 为键的 Map。
      */
-    private Map<Integer, ValueNode> mapByIdentity(final Collection<ValueNode> nodes) {
-        return nodes.stream()
-                .filter(ObjectNode.class::isInstance)
-                .map(ObjectNode.class::cast)
-                .collect(Collectors.toMap(ObjectNode::identityHashCode, Function.identity(), (a, b) -> a));
+    private Map<Object, ValueNode> mapByIdentity(final Collection<ValueNode> nodes) {
+        final Map<Object, ValueNode> result = new HashMap<>();
+        for (final ValueNode node : nodes) {
+            if (node instanceof ObjectNode objNode && objNode.identifier() != null) {
+                result.putIfAbsent(objNode.identifier(), node);
+            } else if (node instanceof PrimitiveNode primNode && primNode.value() != null) {
+                result.putIfAbsent(primNode.value(), node);
+            }
+            // NullNode 和 CollectionNode 暂不参与基于标识的匹配
+        }
+        return result;
     }
 
     /**
      * 构建集合项的路径表示。
      * <p>
-     * 优先使用 "id" 字段的值，否则使用 identityHashCode。
+     * 对于 ObjectNode，使用其 {@link ObjectNode#identifier()} 生成路径；
+     * 对于 PrimitiveNode，使用其值生成路径。
      *
      * @param basePath 集合的基础路径。
      * @param itemNode 集合项节点。
      * @return 集合项的完整路径。
      */
     private String buildItemPath(final String basePath, final ValueNode itemNode) {
-        if (itemNode instanceof ObjectNode objNode && objNode.fields().containsKey("id")) {
-            final ValueNode idNode = objNode.fields().get("id");
-            if (idNode instanceof PrimitiveNode primNode && primNode.value() != null) {
-                return basePath + "[" + primNode.value() + "]";
-            }
+        if (itemNode instanceof ObjectNode objNode && objNode.identifier() != null) {
+            return basePath + "[" + objNode.identifier() + "]";
         }
-        if (itemNode instanceof ObjectNode objNode) {
-            return basePath + "[hash:" + objNode.identityHashCode() + "]";
+        if (itemNode instanceof PrimitiveNode primNode && primNode.value() != null) {
+            return basePath + "[" + primNode.value() + "]";
         }
-        return basePath + "[hash:" + itemNode.hashCode() + "]";
+        // 对于无法确定标识的情况，使用 hashCode 作为回退
+        return basePath + "[" + itemNode.hashCode() + "]";
     }
 
     /**

@@ -212,10 +212,10 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
      * @return 对象的 ObjectNode 表示。
      */
     private ObjectNode processComplexObject(final Object obj, final Map<Object, ValueNode> visited) {
-        final int identityHashCode = extractIdentityHashCode(obj);
+        final Object identifier = extractIdentifier(obj);
 
         final Map<String, ValueNode> fieldsMap = new HashMap<>();
-        final ObjectNode objectNode = new ObjectNode(fieldsMap, identityHashCode);
+        final ObjectNode objectNode = new ObjectNode(fieldsMap, identifier);
         visited.put(obj, objectNode);
 
         final Map<String, ValueNode> populatedFields = ReflectionUtils.getAllFields(obj.getClass()).stream()
@@ -238,20 +238,61 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
     }
 
     /**
-     * 提取对象的标识哈希码。
+     * 提取对象的业务标识符。
      * <p>
-     * 优先使用用户配置的业务标识提取器，如果没有配置则使用 {@link System#identityHashCode(Object)}。
-     * 业务标识的 {@code hashCode()} 将用于集合项匹配。
+     * 查找顺序：
+     * <ol>
+     *   <li>精确匹配：查找对象类型的标识提取器</li>
+     *   <li>继承链匹配：遍历父类和接口查找提取器</li>
+     *   <li>默认值：使用 {@link System#identityHashCode(Object)} 包装为 {@link Integer}</li>
+     * </ol>
+     * <p>
+     * 返回的标识符对象将直接用于集合项匹配（作为 Map key），
+     * 因此必须正确实现 {@link Object#equals(Object)} 和 {@link Object#hashCode()}。
      *
      * @param obj 要提取标识的对象。
-     * @return 对象的标识哈希码。
+     * @return 对象的业务标识符，不会返回 null。
      */
-    private int extractIdentityHashCode(final Object obj) {
-        final Function<Object, Object> extractor = this.identifierExtractors.get(obj.getClass());
+    private Object extractIdentifier(final Object obj) {
+        final Function<Object, Object> extractor = findExtractor(obj.getClass());
         if (extractor != null) {
             final Object id = extractor.apply(obj);
-            return id != null ? id.hashCode() : 0;
+            // 如果提取器返回 null，回退到 identityHashCode
+            return id != null ? id : System.identityHashCode(obj);
         }
         return System.identityHashCode(obj);
+    }
+
+    /**
+     * 在继承链中查找标识提取器。
+     * <p>
+     * 查找顺序：当前类 → 父类链 → 接口（广度优先）
+     *
+     * @param type 要查找的类型。
+     * @return 找到的提取器，如果没有则返回 null。
+     */
+    private Function<Object, Object> findExtractor(final Class<?> type) {
+        // 1. 精确匹配
+        if (this.identifierExtractors.containsKey(type)) {
+            return this.identifierExtractors.get(type);
+        }
+
+        // 2. 遍历父类链
+        Class<?> superClass = type.getSuperclass();
+        while (superClass != null && superClass != Object.class) {
+            if (this.identifierExtractors.containsKey(superClass)) {
+                return this.identifierExtractors.get(superClass);
+            }
+            superClass = superClass.getSuperclass();
+        }
+
+        // 3. 遍历接口（仅直接接口，不递归）
+        for (final Class<?> iface : type.getInterfaces()) {
+            if (this.identifierExtractors.containsKey(iface)) {
+                return this.identifierExtractors.get(iface);
+            }
+        }
+
+        return null;
     }
 }

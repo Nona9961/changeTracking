@@ -130,7 +130,8 @@ class ValueNodeComparisonStrategyTest {
     @DisplayName("集合复杂变更测试")
     class CollectionTests {
         private ObjectNode createItemNode(String id, String value) {
-            return new ObjectNode(Map.of("id", new PrimitiveNode(id), "value", new PrimitiveNode(value)), id.hashCode());
+            // 使用 id 字符串作为业务标识符
+            return new ObjectNode(Map.of("id", new PrimitiveNode(id), "value", new PrimitiveNode(value)), id);
         }
 
         @Test

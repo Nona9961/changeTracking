@@ -33,6 +33,9 @@ public class DefaultTrackingCapabilityProvider implements TrackingCapabilityProv
 
     /**
      * 标识符提取器映射。
+     * <p>
+     * 用于从对象中提取业务标识符（如 ID），该标识符将用于集合项的匹配。
+     * 支持继承链查找：如果子类没有配置提取器，会自动使用父类的提取器。
      */
     private final Map<Class<?>, Function<Object, Object>> identifierExtractors = new HashMap<>();
 
