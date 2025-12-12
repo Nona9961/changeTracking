@@ -19,7 +19,7 @@ import java.util.stream.Stream;
  *   <li>{@code diffChildren} - 低层方法，负责遍历和收集</li>
  * </ul>
  * <p>
- * 集合项匹配基于 {@link ObjectNode#identityHashCode()}，
+ * 集合项匹配基于 {@link ObjectNode#identifier()} 业务标识符，
  * 允许检测集合中项的新增、删除和修改。
  */
 public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNodeSnapshot> {
