@@ -7,9 +7,11 @@ import com.nona.changeTracking.domain.model.changeset.ChangeNode;
 import com.nona.changeTracking.domain.model.changeset.ChangeSet;
 import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
 import com.nona.changeTracking.domain.model.changeset.FieldChangeNode;
+import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
 import com.nona.changeTracking.domain.model.snapshot.ValueNodeSnapshot;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -26,11 +28,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class UnitOfWorkTest {
 
-    @Mock
+    @Mock(lenient = true)
     private TrackingCapability<?> capability;
-    @Mock
+    @Mock(lenient = true)
     private SnapshotStrategy snapshotStrategy;
-    @Mock
+    @Mock(lenient = true)
     private ComparisonStrategy<ValueNodeSnapshot> comparisonStrategy;
 
     private UnitOfWork uow;
@@ -38,6 +40,7 @@ class UnitOfWorkTest {
     // --- Test Data ---
     static class User { String name; }
     private final User user1 = new User();
+    private final User user2 = new User();
     private final ValueNodeSnapshot oldSnapshot = new ValueNodeSnapshot(null);
     private final ValueNodeSnapshot newSnapshot = new ValueNodeSnapshot(null);
     private final ChangeNode changeTree = new ContainerChangeNode("user", List.of(new FieldChangeNode("user.name", "a", "b")));
@@ -51,66 +54,211 @@ class UnitOfWorkTest {
         uow = new UnitOfWork(capability);
     }
 
-    @Test
-    @DisplayName("对于已变更的 clean 对象，应调用比较策略并生成 ChangeSet")
-    void calculateChanges_forDirtyCleanObject_shouldCallComparisonAndCreateChangeSet() {
-        // --- Arrange ---
-        // **【核心修正点】** 对所有返回泛型的方法，全面使用 doReturn(...).when(...)
-        doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
-        uow.registerClean(user1);
+    @Nested
+    @DisplayName("基本变更检测")
+    class BasicChangeDetection {
 
-        when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeTree);
+        @Test
+        @DisplayName("对于已变更的 clean 对象，应调用比较策略并生成 ChangeSet")
+        void calculateChanges_forDirtyCleanObject_shouldCallComparisonAndCreateChangeSet() {
+            // --- Arrange ---
+            doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
+            uow.registerClean(user1);
 
-        // --- Act ---
-        final ChangeSet changeSet = uow.calculateChanges();
+            when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeTree);
 
-        // --- Assert ---
-        assertFalse(changeSet.isEmpty());
-        assertEquals(1, changeSet.changes().size());
-        assertEquals(user1, changeSet.changes().get(0).target());
-        assertEquals(changeTree, changeSet.changes().get(0).changeTree());
+            // --- Act ---
+            final ChangeSet changeSet = uow.calculateChanges();
 
-        verify(snapshotStrategy, times(2)).createSnapshot(user1);
-        verify(comparisonStrategy, times(1)).compare(oldSnapshot, newSnapshot);
+            // --- Assert ---
+            assertFalse(changeSet.isEmpty());
+            assertEquals(1, changeSet.changes().size());
+            assertEquals(user1, changeSet.changes().get(0).target());
+            assertEquals(changeTree, changeSet.changes().get(0).changeTree());
+
+            verify(snapshotStrategy, times(2)).createSnapshot(user1);
+            verify(comparisonStrategy, times(1)).compare(oldSnapshot, newSnapshot);
+        }
+
+        @Test
+        @DisplayName("对于未变更的 clean 对象，不应生成变更")
+        void calculateChanges_forUnchangedCleanObject_shouldNotCreateChange() {
+            // --- Arrange ---
+            doReturn(oldSnapshot, oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
+            uow.registerClean(user1);
+
+            when(comparisonStrategy.compare(oldSnapshot, oldSnapshot)).thenReturn(noChangeTree);
+
+            // --- Act ---
+            final ChangeSet changeSet = uow.calculateChanges();
+
+            // --- Assert ---
+            assertTrue(changeSet.isEmpty());
+            verify(comparisonStrategy, times(1)).compare(oldSnapshot, oldSnapshot);
+        }
+
+        @Test
+        @DisplayName("对于 new 对象，不应调用比较策略，且不生成变更")
+        void calculateChanges_forNewObject_shouldNotCallComparisonAndNotCreateChange() {
+            uow.registerNew(user1);
+            final ChangeSet changeSet = uow.calculateChanges();
+            assertTrue(changeSet.isEmpty());
+            verifyNoInteractions(snapshotStrategy);
+            verifyNoInteractions(comparisonStrategy);
+        }
+
+        @Test
+        @DisplayName("对于 removed 对象，不应调用比较策略，且不生成变更")
+        void calculateChanges_forRemovedObject_shouldNotCallComparisonAndNotCreateChange() {
+            doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
+            uow.registerClean(user1);
+            uow.registerRemoved(user1);
+            final ChangeSet changeSet = uow.calculateChanges();
+            assertTrue(changeSet.isEmpty());
+            verify(comparisonStrategy, never()).compare(any(), any());
+        }
     }
 
-    @Test
-    @DisplayName("对于未变更的 clean 对象，不应生成变更")
-    void calculateChanges_forUnchangedCleanObject_shouldNotCreateChange() {
-        // --- Arrange ---
-        // **【核心修正点】** 全面使用 doReturn(...).when(...)
-        doReturn(oldSnapshot, oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
-        uow.registerClean(user1);
+    @Nested
+    @DisplayName("重复注册行为")
+    class DuplicateRegistration {
 
-        when(comparisonStrategy.compare(oldSnapshot, oldSnapshot)).thenReturn(noChangeTree);
+        @Test
+        @DisplayName("重复注册 clean 对象应被忽略")
+        void registerClean_duplicate_shouldBeIgnored() {
+            doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
 
-        // --- Act ---
-        final ChangeSet changeSet = uow.calculateChanges();
+            uow.registerClean(user1);
+            uow.registerClean(user1); // 重复注册
 
-        // --- Assert ---
-        assertTrue(changeSet.isEmpty());
-        verify(comparisonStrategy, times(1)).compare(oldSnapshot, oldSnapshot);
+            // 只应调用一次快照创建
+            verify(snapshotStrategy, times(1)).createSnapshot(user1);
+        }
+
+        @Test
+        @DisplayName("已注册为 clean 的对象再注册为 new 应被忽略")
+        void registerNew_afterClean_shouldBeIgnored() {
+            doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
+
+            uow.registerClean(user1);
+            uow.registerNew(user1); // 尝试再注册为 new
+
+            when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeTree);
+
+            // 仍然应该追踪变更
+            final ChangeSet changeSet = uow.calculateChanges();
+            assertFalse(changeSet.isEmpty());
+        }
+
+        @Test
+        @DisplayName("已注册为 new 的对象再注册为 clean 应被忽略")
+        void registerClean_afterNew_shouldBeIgnored() {
+            uow.registerNew(user1);
+            uow.registerClean(user1); // 尝试再注册为 clean
+
+            // 不应调用快照策略
+            verifyNoInteractions(snapshotStrategy);
+
+            // 仍然应该不产生变更
+            final ChangeSet changeSet = uow.calculateChanges();
+            assertTrue(changeSet.isEmpty());
+        }
+
+        @Test
+        @DisplayName("重复注册 removed 对象应被忽略")
+        void registerRemoved_duplicate_shouldBeIgnored() {
+            doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
+
+            uow.registerClean(user1);
+            uow.registerRemoved(user1);
+            uow.registerRemoved(user1); // 重复移除
+
+            // 不应抛出异常，变更集应为空
+            final ChangeSet changeSet = uow.calculateChanges();
+            assertTrue(changeSet.isEmpty());
+        }
     }
 
-    @Test
-    @DisplayName("对于 new 对象，不应调用比较策略，且不生成变更")
-    void calculateChanges_forNewObject_shouldNotCallComparisonAndNotCreateChange() {
-        uow.registerNew(user1);
-        final ChangeSet changeSet = uow.calculateChanges();
-        assertTrue(changeSet.isEmpty());
-        verifyNoInteractions(snapshotStrategy);
-        verifyNoInteractions(comparisonStrategy);
+    @Nested
+    @DisplayName("多对象追踪")
+    class MultipleObjectTracking {
+
+        @Test
+        @DisplayName("应能同时追踪多个对象的变更")
+        void shouldTrackMultipleObjects() {
+            // 使用不同的 snapshotData 来区分每个快照，避免 record 的 equals() 导致 Mockito 参数匹配混乱
+            final ValueNodeSnapshot oldSnapshot1 = new ValueNodeSnapshot(new PrimitiveNode("old1"));
+            final ValueNodeSnapshot newSnapshot1 = new ValueNodeSnapshot(new PrimitiveNode("new1"));
+            final ValueNodeSnapshot oldSnapshot2 = new ValueNodeSnapshot(new PrimitiveNode("old2"));
+            final ValueNodeSnapshot newSnapshot2 = new ValueNodeSnapshot(new PrimitiveNode("new2"));
+
+            doReturn(oldSnapshot1, newSnapshot1).when(snapshotStrategy).createSnapshot(user1);
+            doReturn(oldSnapshot2, newSnapshot2).when(snapshotStrategy).createSnapshot(user2);
+
+            uow.registerClean(user1);
+            uow.registerClean(user2);
+
+            final ChangeNode changeTree1 = new ContainerChangeNode("user1", List.of(new FieldChangeNode("name", "a", "b")));
+            final ChangeNode changeTree2 = new ContainerChangeNode("user2", List.of(new FieldChangeNode("name", "c", "d")));
+
+            when(comparisonStrategy.compare(oldSnapshot1, newSnapshot1)).thenReturn(changeTree1);
+            when(comparisonStrategy.compare(oldSnapshot2, newSnapshot2)).thenReturn(changeTree2);
+
+            final ChangeSet changeSet = uow.calculateChanges();
+
+            assertEquals(2, changeSet.changes().size());
+        }
+
+        @Test
+        @DisplayName("一个对象变更一个对象未变更时，只应生成一个变更")
+        void oneChangedOneUnchanged_shouldProduceOneChange() {
+            // 使用不同的 snapshotData 来区分每个快照
+            final ValueNodeSnapshot snapshot1 = new ValueNodeSnapshot(new PrimitiveNode("s1"));
+            final ValueNodeSnapshot newSnapshot1 = new ValueNodeSnapshot(new PrimitiveNode("ns1"));
+            final ValueNodeSnapshot snapshot2 = new ValueNodeSnapshot(new PrimitiveNode("s2"));
+
+            doReturn(snapshot1, newSnapshot1).when(snapshotStrategy).createSnapshot(user1);
+            doReturn(snapshot2, snapshot2).when(snapshotStrategy).createSnapshot(user2);
+
+            uow.registerClean(user1);
+            uow.registerClean(user2);
+
+            when(comparisonStrategy.compare(snapshot1, newSnapshot1)).thenReturn(changeTree);
+            when(comparisonStrategy.compare(snapshot2, snapshot2)).thenReturn(noChangeTree);
+
+            final ChangeSet changeSet = uow.calculateChanges();
+
+            assertEquals(1, changeSet.changes().size());
+            assertEquals(user1, changeSet.changes().get(0).target());
+        }
     }
 
-    @Test
-    @DisplayName("对于 removed 对象，不应调用比较策略，且不生成变更")
-    void calculateChanges_forRemovedObject_shouldNotCallComparisonAndNotCreateChange() {
-        // **【核心修正点】** 全面使用 doReturn(...).when(...)
-        doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
-        uow.registerClean(user1);
-        uow.registerRemoved(user1);
-        final ChangeSet changeSet = uow.calculateChanges();
-        assertTrue(changeSet.isEmpty());
-        verify(comparisonStrategy, never()).compare(any(), any());
+    @Nested
+    @DisplayName("参数验证")
+    class ParameterValidation {
+
+        @Test
+        @DisplayName("构造函数传入 null 应抛出 NullPointerException")
+        void constructor_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> new UnitOfWork(null));
+        }
+
+        @Test
+        @DisplayName("registerClean 传入 null 应抛出 NullPointerException")
+        void registerClean_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> uow.registerClean(null));
+        }
+
+        @Test
+        @DisplayName("registerNew 传入 null 应抛出 NullPointerException")
+        void registerNew_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> uow.registerNew(null));
+        }
+
+        @Test
+        @DisplayName("registerRemoved 传入 null 应抛出 NullPointerException")
+        void registerRemoved_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> uow.registerRemoved(null));
+        }
     }
 }

@@ -2,7 +2,7 @@
  * @author nona9961
  * @since 2025/10/12
  */module change.tracking.core {
-    requires transitive lombok;
+    requires static transitive lombok;
     exports com.nona.changeTracking.domain.model.changeset;
     exports com.nona.changeTracking.domain.model.snapshot;
     exports com.nona.changeTracking.domain.model.unitofwork;
