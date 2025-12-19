@@ -144,12 +144,22 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
         if (obj instanceof Map<?, ?> map) {
             return new CollectionNode(
                     map.entrySet().stream()
-                            .map(entry -> toValueRecursive(entry, visited))
+                            .map(entry -> createMapEntryNode(entry, visited))
                             .collect(Collectors.toList())
             );
         }
 
         return processComplexObject(obj, visited);
+    }
+
+    /**
+     * 为 Map.Entry 创建 ObjectNode，通过接口方法获取 key/value，避免反射访问 JDK 内部类。
+     */
+    private ObjectNode createMapEntryNode(final Map.Entry<?, ?> entry, final Map<Object, ValueNode> visited) {
+        final Map<String, ValueNode> fields = new HashMap<>();
+        fields.put("key", toValueRecursive(entry.getKey(), visited));
+        fields.put("value", toValueRecursive(entry.getValue(), visited));
+        return new ObjectNode(fields, entry.getKey());
     }
 
     /**

@@ -1,6 +1,6 @@
 # Change Tracking Framework
 
-一个轻量级的 Java 属性级变更追踪框架，基于工作单元（Unit of Work）模式设计，支持嵌套对象和集合的深度比较。使用 Java 17 JPMS 模块化架构，通过 SPI 机制支持灵活扩展。
+一个轻量级的 Java 属性级变更追踪框架，基于工作单元（Unit of Work）模式设计，支持嵌套对象和集合的深度比较。通过 SPI 机制支持灵活扩展。
 
 ## 特性
 
@@ -9,7 +9,7 @@
 - **SPI 扩展机制**：通过 `ServiceLoader` 支持自定义追踪能力
 - **双视图变更表示**：`getAllChanges()` 树形视图 和 `getLeafChanges()` 扁平视图
 - **循环引用处理**：自动检测和处理对象间的循环引用
-- **JPMS 模块化**：完整的 Java 模块系统支持
+- **零配置反射**：无需 JVM 参数即可正常使用反射功能
 
 ## 快速开始
 
@@ -183,8 +183,9 @@ public class JsonTrackingCapabilityProvider implements TrackingCapabilityProvide
     public TrackingCapability<?> create() { ... }
 }
 
-// 3. 在 module-info.java 中声明
-provides TrackingCapabilityProvider with JsonTrackingCapabilityProvider;
+// 3. 在 META-INF/services 中注册
+// 创建文件: META-INF/services/com.nona.changeTracking.spi.TrackingCapabilityProvider
+// 内容: com.example.JsonTrackingCapabilityProvider
 
 // 4. 使用
 UnitOfWorkFactory.builder()
