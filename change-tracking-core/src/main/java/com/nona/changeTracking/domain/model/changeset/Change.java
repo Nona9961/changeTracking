@@ -31,4 +31,33 @@ public sealed interface Change permits FieldChange, ContainerChange, ItemAddedCh
      * @return 完整路径，如 {@code "items[1].name"}。
      */
     String fullPath();
+
+    /**
+     * 获取此变更的纯字段名（不含索引）。
+     * <p>
+     * 例如：{@code "items[1]"} 返回 {@code "items"}，
+     * {@code "[1]"} 返回 {@code null}，
+     * {@code "name"} 返回 {@code "name"}。
+     *
+     * @return 纯字段名，纯索引路径返回 null。
+     */
+    String fieldName();
+
+    /**
+     * 获取此变更所属的最近一层集合字段名。
+     * <p>
+     * 例如：{@code "items[1].subItems[101].name"} 返回 {@code "subItems"}，
+     * {@code "items[1].name"} 返回 {@code "items"}，
+     * {@code "status"} 返回 {@code null}（主表字段）。
+     *
+     * @return 所属集合字段名，主表字段返回 null。
+     */
+    String collectionFieldName();
+
+    /**
+     * 判断父节点是否为集合。
+     *
+     * @return 如果父节点是集合则返回 true。
+     */
+    boolean isParentCollection();
 }

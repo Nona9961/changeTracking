@@ -84,14 +84,20 @@ provider.withIdentifier(Order.class, Order::getId)
 
 ### 路径访问
 
-每个 `Change` 提供两种路径访问方式：
-- `path()`：相对路径，如 `"name"`
+每个 `Change` 提供多种路径和元数据访问方式：
+- `path()`：相对路径，如 `"name"` 或 `"[1]"`
 - `fullPath()`：从根到当前节点的完整路径，如 `"items[1].name"`
+- `fieldName()`：纯字段名（不含索引），如 `"items[1]"` 返回 `"items"`，`"[1]"` 返回 `null`
+- `collectionFieldName()`：所属集合字段名，主表字段返回 `null`
+- `isParentCollection()`：父节点是否为集合
 
 ```java
 for (Change change : changeSet.getLeafChanges()) {
-    String relativePath = change.path();      // "name"
-    String absolutePath = change.fullPath();  // "items[1].name"
+    String relativePath = change.path();              // "name"
+    String absolutePath = change.fullPath();          // "items[1].name"
+    String fieldName = change.fieldName();            // "name"
+    String collection = change.collectionFieldName(); // "items"
+    boolean inCollection = change.isParentCollection(); // true
 }
 ```
 

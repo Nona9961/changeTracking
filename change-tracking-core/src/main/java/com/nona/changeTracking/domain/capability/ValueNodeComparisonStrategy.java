@@ -63,10 +63,6 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
 
         final List<ChangeNode> childrenChanges = diffChildren(oldNode, newNode, path);
 
-        // 集合节点不包裹，直接返回子变更
-        if (!childrenChanges.isEmpty() && oldNode instanceof CollectionNode) {
-            return childrenChanges;
-        }
         if (!childrenChanges.isEmpty()) {
             return List.of(new ContainerChangeNode(path, childrenChanges));
         }
@@ -128,6 +124,9 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * <p>
      * 使用 {@link ObjectNode#identifier()} 作为项的匹配标识，
      * 检测新增、删除和修改的项。
+     * <p>
+     * 返回的变更列表中，每个变更的 path 只包含索引部分（如 {@code "[id]"}），
+     * 便于在 ChangeSet 转换时计算相对路径。
      *
      * @param oldColl 旧集合节点。
      * @param newColl 新集合节点。
@@ -143,7 +142,8 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             final Object identity = newItemEntry.getKey();
             final ValueNode newItem = newItemEntry.getValue();
             if (!oldItemsById.containsKey(identity)) {
-                changes.add(new ItemAddedNode(path, newItem));
+                final String itemPath = buildItemPath(path, newItem);
+                changes.add(new ItemAddedNode(itemPath, newItem));
             } else {
                 final ValueNode oldItem = oldItemsById.get(identity);
                 final String itemPath = buildItemPath(path, oldItem);
@@ -153,7 +153,8 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
 
         for (final Map.Entry<Object, ValueNode> oldItemEntry : oldItemsById.entrySet()) {
             if (!newItemsById.containsKey(oldItemEntry.getKey())) {
-                changes.add(new ItemRemovedNode(path, oldItemEntry.getValue()));
+                final String itemPath = buildItemPath(path, oldItemEntry.getValue());
+                changes.add(new ItemRemovedNode(itemPath, oldItemEntry.getValue()));
             }
         }
         return changes;
