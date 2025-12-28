@@ -17,8 +17,9 @@ class ChangeTest {
     @Test
     @DisplayName("FieldChange 应能正确存储字段变更信息")
     void fieldChange_shouldHoldFieldChangeData() {
-        final FieldChange change = new FieldChange("path", "old", "new");
+        final FieldChange change = new FieldChange("path", "full.path", "old", "new");
         assertEquals("path", change.path());
+        assertEquals("full.path", change.fullPath());
         assertEquals("old", change.oldValue());
         assertEquals("new", change.newValue());
     }
@@ -26,9 +27,10 @@ class ChangeTest {
     @Test
     @DisplayName("ContainerChange 应能正确存储路径和子变更")
     void containerChange_shouldHoldPathAndChildren() {
-        final List<Change> children = List.of(new FieldChange("child.path", "a", "b"));
-        final ContainerChange change = new ContainerChange("path", children);
+        final List<Change> children = List.of(new FieldChange("child.path", "parent.child.path", "a", "b"));
+        final ContainerChange change = new ContainerChange("path", "full.path", children);
         assertEquals("path", change.path());
+        assertEquals("full.path", change.fullPath());
         assertSame(children, change.children());
     }
 

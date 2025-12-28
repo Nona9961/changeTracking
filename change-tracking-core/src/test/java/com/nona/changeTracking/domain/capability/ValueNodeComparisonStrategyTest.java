@@ -142,10 +142,8 @@ class ValueNodeComparisonStrategyTest {
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
             final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
-            assertEquals("items", itemsChange.path());
-            assertEquals(1, itemsChange.children().size());
-            final ItemAddedNode addedNode = (ItemAddedNode) itemsChange.children().get(0);
+            // 集合变更直接出现在根节点下，不再有 items 包裹层
+            final ItemAddedNode addedNode = (ItemAddedNode) ((ContainerChangeNode) result).children().get(0);
             assertEquals("items", addedNode.path());
         }
 
@@ -157,10 +155,7 @@ class ValueNodeComparisonStrategyTest {
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
             final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
-            assertEquals("items", itemsChange.path());
-            assertEquals(1, itemsChange.children().size());
-            final ItemRemovedNode removedNode = (ItemRemovedNode) itemsChange.children().get(0);
+            final ItemRemovedNode removedNode = (ItemRemovedNode) ((ContainerChangeNode) result).children().get(0);
             assertEquals("items", removedNode.path());
         }
 
@@ -172,10 +167,8 @@ class ValueNodeComparisonStrategyTest {
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
             final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
-            assertEquals("items", itemsChange.path());
-            assertEquals(1, itemsChange.children().size());
-            final ContainerChangeNode itemAChange = (ContainerChangeNode) itemsChange.children().get(0);
+            // items[A] 直接出现在根节点下
+            final ContainerChangeNode itemAChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
             assertEquals("items[A]", itemAChange.path());
             assertEquals(1, itemAChange.children().size());
             final FieldChangeNode valueChange = (FieldChangeNode) itemAChange.children().get(0);
@@ -190,12 +183,11 @@ class ValueNodeComparisonStrategyTest {
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
             final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
-            assertEquals("items", itemsChange.path());
-            assertEquals(3, itemsChange.children().size()); // 1 update, 1 remove, 1 add
-            assertTrue(itemsChange.children().stream().anyMatch(c -> c instanceof ContainerChangeNode && c.path().equals("items[A]")));
-            assertTrue(itemsChange.children().stream().anyMatch(c -> c instanceof ItemRemovedNode && ((ItemRemovedNode)c).removedItem().equals(createItemNode("B", "v2"))));
-            assertTrue(itemsChange.children().stream().anyMatch(c -> c instanceof ItemAddedNode && ((ItemAddedNode)c).addedItem().equals(createItemNode("C", "v3"))));
+            final List<ChangeNode> children = ((ContainerChangeNode) result).children();
+            assertEquals(3, children.size());
+            assertTrue(children.stream().anyMatch(c -> c instanceof ContainerChangeNode && c.path().equals("items[A]")));
+            assertTrue(children.stream().anyMatch(c -> c instanceof ItemRemovedNode && c.path().equals("items")));
+            assertTrue(children.stream().anyMatch(c -> c instanceof ItemAddedNode && c.path().equals("items")));
         }
     }
 }

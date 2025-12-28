@@ -114,39 +114,40 @@ public record ChangeSet(List<ObjectChange> changes) {
      */
     private Change toChange(final ChangeNode node, final boolean deep) {
         if (node instanceof FieldChangeNode fcn) {
-            return new FieldChange(fcn.path(), fcn.oldValue(), fcn.newValue());
+            return new FieldChange(fcn.path(), fcn.path(), fcn.oldValue(), fcn.newValue());
         }
         if (node instanceof ItemAddedNode ian) {
-            return new ItemAddedChange(ian.path(), ian.addedItem());
+            return new ItemAddedChange(ian.path(), ian.path(), ian.addedItem());
         }
         if (node instanceof ItemRemovedNode irn) {
-            return new ItemRemovedChange(irn.path(), irn.removedItem());
+            return new ItemRemovedChange(irn.path(), irn.path(), irn.removedItem());
         }
         if (node instanceof ContainerChangeNode ccn) {
             final List<Change> children = deep
                     ? ccn.children().stream().map(child -> toChangeWithRelativePath(child, ccn.path())).collect(Collectors.toList())
                     : Collections.emptyList();
-            return new ContainerChange(ccn.path(), children);
+            return new ContainerChange(ccn.path(), ccn.path(), children);
         }
         throw new IllegalStateException("Unknown ChangeNode type: " + node.getClass());
     }
 
     private Change toChangeWithRelativePath(final ChangeNode node, final String parentPath) {
         final String relativePath = toRelativePath(node.path(), parentPath);
+        final String fullPath = node.path();
         if (node instanceof FieldChangeNode fcn) {
-            return new FieldChange(relativePath, fcn.oldValue(), fcn.newValue());
+            return new FieldChange(relativePath, fullPath, fcn.oldValue(), fcn.newValue());
         }
         if (node instanceof ItemAddedNode ian) {
-            return new ItemAddedChange(relativePath, ian.addedItem());
+            return new ItemAddedChange(relativePath, fullPath, ian.addedItem());
         }
         if (node instanceof ItemRemovedNode irn) {
-            return new ItemRemovedChange(relativePath, irn.removedItem());
+            return new ItemRemovedChange(relativePath, fullPath, irn.removedItem());
         }
         if (node instanceof ContainerChangeNode ccn) {
             final List<Change> children = ccn.children().stream()
                     .map(child -> toChangeWithRelativePath(child, ccn.path()))
                     .collect(Collectors.toList());
-            return new ContainerChange(relativePath, children);
+            return new ContainerChange(relativePath, fullPath, children);
         }
         throw new IllegalStateException("Unknown ChangeNode type: " + node.getClass());
     }

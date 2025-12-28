@@ -82,6 +82,19 @@ provider.withIdentifier(Order.class, Order::getId)
 | `ItemAddedChange` | 集合项新增 |
 | `ItemRemovedChange` | 集合项删除 |
 
+### 路径访问
+
+每个 `Change` 提供两种路径访问方式：
+- `path()`：相对路径，如 `"name"`
+- `fullPath()`：从根到当前节点的完整路径，如 `"items[1].name"`
+
+```java
+for (Change change : changeSet.getLeafChanges()) {
+    String relativePath = change.path();      // "name"
+    String absolutePath = change.fullPath();  // "items[1].name"
+}
+```
+
 ### 变更视图
 
 - `getAllChanges()`：返回完整的树形结构，包含容器节点

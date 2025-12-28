@@ -19,12 +19,16 @@ package com.nona.changeTracking.domain.model.changeset;
 public sealed interface Change permits FieldChange, ContainerChange, ItemAddedChange, ItemRemovedChange {
 
     /**
-     * 获取此变更的路径。
-     * <p>
-     * 路径使用点号分隔字段名，使用方括号表示集合项索引。
-     * 例如：{@code "address.street"} 或 {@code "items[123]"}。
+     * 获取此变更的相对路径。
      *
-     * @return 变更的路径。
+     * @return 相对于父节点的路径。
      */
     String path();
+
+    /**
+     * 获取此变更从根到当前节点的完整路径。
+     *
+     * @return 完整路径，如 {@code "items[1].name"}。
+     */
+    String fullPath();
 }

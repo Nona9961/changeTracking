@@ -63,6 +63,10 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
 
         final List<ChangeNode> childrenChanges = diffChildren(oldNode, newNode, path);
 
+        // 集合节点不包裹，直接返回子变更
+        if (!childrenChanges.isEmpty() && oldNode instanceof CollectionNode) {
+            return childrenChanges;
+        }
         if (!childrenChanges.isEmpty()) {
             return List.of(new ContainerChangeNode(path, childrenChanges));
         }
