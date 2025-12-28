@@ -124,10 +124,43 @@ public record ChangeSet(List<ObjectChange> changes) {
         }
         if (node instanceof ContainerChangeNode ccn) {
             final List<Change> children = deep
-                    ? ccn.children().stream().map(child -> toChange(child, true)).collect(Collectors.toList())
+                    ? ccn.children().stream().map(child -> toChangeWithRelativePath(child, ccn.path())).collect(Collectors.toList())
                     : Collections.emptyList();
             return new ContainerChange(ccn.path(), children);
         }
         throw new IllegalStateException("Unknown ChangeNode type: " + node.getClass());
+    }
+
+    private Change toChangeWithRelativePath(final ChangeNode node, final String parentPath) {
+        final String relativePath = toRelativePath(node.path(), parentPath);
+        if (node instanceof FieldChangeNode fcn) {
+            return new FieldChange(relativePath, fcn.oldValue(), fcn.newValue());
+        }
+        if (node instanceof ItemAddedNode ian) {
+            return new ItemAddedChange(relativePath, ian.addedItem());
+        }
+        if (node instanceof ItemRemovedNode irn) {
+            return new ItemRemovedChange(relativePath, irn.removedItem());
+        }
+        if (node instanceof ContainerChangeNode ccn) {
+            final List<Change> children = ccn.children().stream()
+                    .map(child -> toChangeWithRelativePath(child, ccn.path()))
+                    .collect(Collectors.toList());
+            return new ContainerChange(relativePath, children);
+        }
+        throw new IllegalStateException("Unknown ChangeNode type: " + node.getClass());
+    }
+
+    private String toRelativePath(final String fullPath, final String parentPath) {
+        if (parentPath.isEmpty()) {
+            return fullPath;
+        }
+        if (fullPath.startsWith(parentPath + ".")) {
+            return fullPath.substring(parentPath.length() + 1);
+        }
+        if (fullPath.startsWith(parentPath + "[")) {
+            return fullPath.substring(parentPath.length());
+        }
+        return fullPath;
     }
 }

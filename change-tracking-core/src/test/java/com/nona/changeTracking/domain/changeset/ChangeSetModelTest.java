@@ -74,5 +74,22 @@ class ChangeSetModelTest {
             assertTrue(emptyChangeSet.getAllChanges().isEmpty());
             assertTrue(emptyChangeSet.getLeafChanges().isEmpty());
         }
+
+        @Test
+        @DisplayName("ContainerChange 的 children 应包含相对路径而非完整路径")
+        void containerChange_children_shouldHaveRelativePaths() {
+            final List<Change> allChanges = changeSet.getAllChanges();
+
+            // 找到 path 为 "path" 的 ContainerChange
+            final ContainerChange container = allChanges.stream()
+                    .filter(c -> c instanceof ContainerChange && c.path().equals("path"))
+                    .map(c -> (ContainerChange) c)
+                    .findFirst()
+                    .orElseThrow();
+
+            // children 应该包含相对路径 "name"，而不是完整路径 "path.name"
+            assertEquals(1, container.children().size());
+            assertEquals("name", container.children().get(0).path());
+        }
     }
 }
