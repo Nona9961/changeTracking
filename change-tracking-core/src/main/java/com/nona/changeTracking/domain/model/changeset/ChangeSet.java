@@ -109,9 +109,12 @@ public record ChangeSet(List<ObjectChange> changes) {
 
         final String relativePath = toRelativePath(node.path(), parentPath);
         final boolean currentParentIsCollection = relativePath.startsWith("[");
-        final String currentCollectionFieldName = currentParentIsCollection
-                ? extractFieldName(parentPath)
-                : collectionFieldName;
+        final String currentCollectionFieldName;
+        if (currentParentIsCollection) {
+            currentCollectionFieldName = extractFieldName(parentPath);
+        } else {
+            currentCollectionFieldName = collectionFieldName;
+        }
 
         if (node instanceof ContainerChangeNode container) {
             for (final ChangeNode child : container.children()) {
@@ -144,11 +147,14 @@ public record ChangeSet(List<ObjectChange> changes) {
             return new ItemRemovedChange(path, path, fieldName, null, false, irn.removedItem());
         }
         if (node instanceof ContainerChangeNode ccn) {
-            final List<Change> children = deep
-                    ? ccn.children().stream()
-                            .map(child -> toChangeWithRelativePath(child, ccn.path(), null, false))
-                            .collect(Collectors.toList())
-                    : Collections.emptyList();
+            final List<Change> children;
+            if (deep) {
+                children = ccn.children().stream()
+                        .map(child -> toChangeWithRelativePath(child, ccn.path(), null, false))
+                        .collect(Collectors.toList());
+            } else {
+                children = Collections.emptyList();
+            }
             return new ContainerChange(path, path, fieldName, null, false, children);
         }
         throw new IllegalStateException("Unknown ChangeNode type: " + node.getClass());
@@ -174,9 +180,12 @@ public record ChangeSet(List<ObjectChange> changes) {
         final String fieldName = extractFieldName(relativePath);
 
         final boolean currentParentIsCollection = relativePath.startsWith("[");
-        final String currentCollectionFieldName = currentParentIsCollection
-                ? extractFieldName(parentPath)
-                : collectionFieldName;
+        final String currentCollectionFieldName;
+        if (currentParentIsCollection) {
+            currentCollectionFieldName = extractFieldName(parentPath);
+        } else {
+            currentCollectionFieldName = collectionFieldName;
+        }
 
         if (node instanceof FieldChangeNode fcn) {
             return new FieldChange(relativePath, fullPath, fieldName, currentCollectionFieldName, currentParentIsCollection, fcn.oldValue(), fcn.newValue());
@@ -216,9 +225,12 @@ public record ChangeSet(List<ObjectChange> changes) {
         final String fieldName = extractFieldName(relativePath);
 
         final boolean currentParentIsCollection = relativePath.startsWith("[");
-        final String currentCollectionFieldName = currentParentIsCollection
-                ? extractFieldName(parentPath)
-                : collectionFieldName;
+        final String currentCollectionFieldName;
+        if (currentParentIsCollection) {
+            currentCollectionFieldName = extractFieldName(parentPath);
+        } else {
+            currentCollectionFieldName = collectionFieldName;
+        }
 
         if (node instanceof FieldChangeNode fcn) {
             return new FieldChange(fullPath, fullPath, fieldName, currentCollectionFieldName, currentParentIsCollection, fcn.oldValue(), fcn.newValue());
@@ -266,7 +278,12 @@ public record ChangeSet(List<ObjectChange> changes) {
         }
         // 找到最后一个 '.' 之后的字段名部分
         final int lastDotIndex = path.lastIndexOf('.');
-        final String lastSegment = lastDotIndex >= 0 ? path.substring(lastDotIndex + 1) : path;
+        final String lastSegment;
+        if (lastDotIndex >= 0) {
+            lastSegment = path.substring(lastDotIndex + 1);
+        } else {
+            lastSegment = path;
+        }
 
         // 如果最后一段以 '[' 开头，说明是纯索引
         if (lastSegment.startsWith("[")) {

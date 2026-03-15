@@ -279,7 +279,10 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
         if (extractor != null) {
             final Object id = extractor.apply(obj);
             // 如果提取器返回 null，回退到 identityHashCode
-            return id != null ? id : System.identityHashCode(obj);
+            if (id != null) {
+                return id;
+            }
+            return System.identityHashCode(obj);
         }
         return System.identityHashCode(obj);
     }

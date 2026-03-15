@@ -192,7 +192,12 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
         for (final String key : allKeys) {
             final ValueNode oldFieldNode = oldObj.fields().getOrDefault(key, new NullNode());
             final ValueNode newFieldNode = newObj.fields().getOrDefault(key, new NullNode());
-            final String fieldPath = path.isEmpty() ? key : path + "." + key;
+            final String fieldPath;
+            if (path.isEmpty()) {
+                fieldPath = key;
+            } else {
+                fieldPath = path + "." + key;
+            }
             changes.addAll(diffNode(oldFieldNode, newFieldNode, fieldPath, visiting));
         }
         return changes;
@@ -228,30 +233,47 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             final boolean useOccurrenceSuffix = oldItems.size() > 1 || newItems.size() > 1;
 
             final int common = Math.min(oldItems.size(), newItems.size());
-            for (int i = 0; i < common; i++) {
-                final String itemPath = buildItemPath(path, identity, useOccurrenceSuffix ? i + 1 : null);
-                changes.addAll(diffNode(oldItems.get(i), newItems.get(i), itemPath, visiting));
+            for (int index = 0; index < common; index++) {
+                final Integer occurrence = toOccurrence(useOccurrenceSuffix, index);
+                final String itemPath = buildItemPath(path, identity, occurrence);
+                changes.addAll(diffNode(oldItems.get(index), newItems.get(index), itemPath, visiting));
             }
 
-            for (int i = common; i < newItems.size(); i++) {
-                final String itemPath = buildItemPath(path, identity, useOccurrenceSuffix ? i + 1 : null);
-                changes.add(new ItemAddedNode(itemPath, newItems.get(i)));
+            for (int index = common; index < newItems.size(); index++) {
+                final Integer occurrence = toOccurrence(useOccurrenceSuffix, index);
+                final String itemPath = buildItemPath(path, identity, occurrence);
+                changes.add(new ItemAddedNode(itemPath, newItems.get(index)));
             }
 
-            for (int i = common; i < oldItems.size(); i++) {
-                final String itemPath = buildItemPath(path, identity, useOccurrenceSuffix ? i + 1 : null);
-                changes.add(new ItemRemovedNode(itemPath, oldItems.get(i)));
+            for (int index = common; index < oldItems.size(); index++) {
+                final Integer occurrence = toOccurrence(useOccurrenceSuffix, index);
+                final String itemPath = buildItemPath(path, identity, occurrence);
+                changes.add(new ItemRemovedNode(itemPath, oldItems.get(index)));
             }
         }
 
         return changes;
     }
 
+    private Integer toOccurrence(final boolean useOccurrenceSuffix, final int zeroBasedIndex) {
+        if (!useOccurrenceSuffix) {
+            return null;
+        }
+        return zeroBasedIndex + 1;
+    }
+
     private List<Object> sortIdentities(final Set<Object> identities) {
         final List<Object> sorted = new ArrayList<>(identities);
-        sorted.sort(Comparator.comparing((Object id) -> id == null ? "" : id.getClass().getName())
-                .thenComparing(id -> String.valueOf(id)));
+        sorted.sort(Comparator.comparing((Object identity) -> identityTypeName(identity))
+                .thenComparing(identity -> String.valueOf(identity)));
         return sorted;
+    }
+
+    private String identityTypeName(final Object identity) {
+        if (identity == null) {
+            return "";
+        }
+        return identity.getClass().getName();
     }
 
     /**
@@ -295,7 +317,12 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * 构建集合项的路径表示（支持重复项）。
      */
     private String buildItemPath(final String basePath, final Object identity, final Integer occurrence) {
-        final String identityText = identity == null ? "null" : String.valueOf(identity);
+        final String identityText;
+        if (identity == null) {
+            identityText = "null";
+        } else {
+            identityText = String.valueOf(identity);
+        }
         if (occurrence == null) {
             return basePath + "[" + identityText + "]";
         }
