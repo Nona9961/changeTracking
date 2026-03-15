@@ -4,8 +4,6 @@ import com.nona.changeTracking.domain.model.changeset.*;
 import com.nona.changeTracking.domain.model.snapshot.*;
 
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * 基于 {@link ValueNode} 树结构的快照比较策略实现。
@@ -24,6 +22,61 @@ import java.util.stream.Stream;
  */
 public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNodeSnapshot> {
 
+    private static final class VisitingPair {
+        private final ValueNode oldNode;
+        private final ValueNode newNode;
+
+        private VisitingPair(final ValueNode oldNode, final ValueNode newNode) {
+            this.oldNode = oldNode;
+            this.newNode = newNode;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof VisitingPair that)) {
+                return false;
+            }
+            return this.oldNode == that.oldNode && this.newNode == that.newNode;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * System.identityHashCode(oldNode) + System.identityHashCode(newNode);
+        }
+    }
+
+    private static final class PositionalIdentity {
+        private final int position;
+
+        private PositionalIdentity(final int position) {
+            this.position = position;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof PositionalIdentity that)) {
+                return false;
+            }
+            return this.position == that.position;
+        }
+
+        @Override
+        public int hashCode() {
+            return Integer.hashCode(position);
+        }
+
+        @Override
+        public String toString() {
+            return "pos:" + position;
+        }
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -41,7 +94,8 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
     @Override
     public ChangeNode compare(final ValueNodeSnapshot oldSnapshot, final ValueNodeSnapshot newSnapshot) {
         final String rootPath = "";
-        final List<ChangeNode> children = diffChildren(oldSnapshot.getSnapshotData(), newSnapshot.getSnapshotData(), rootPath);
+        final Set<VisitingPair> visiting = new HashSet<>();
+        final List<ChangeNode> children = diffChildren(oldSnapshot.getSnapshotData(), newSnapshot.getSnapshotData(), rootPath, visiting);
         return new ContainerChangeNode(rootPath, children);
     }
 
@@ -54,27 +108,49 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * @param oldNode 旧节点。
      * @param newNode 新节点。
      * @param path    当前节点的路径。
+     * @param visiting 当前递归路径上的节点对（用于循环引用终止）。
      * @return 代表当前路径变更的 ChangeNode 列表（通常只有一个元素或为空）。
      */
-    private List<ChangeNode> diffNode(final ValueNode oldNode, final ValueNode newNode, final String path) {
-        if (Objects.equals(oldNode, newNode)) {
+    private List<ChangeNode> diffNode(final ValueNode oldNode, final ValueNode newNode, final String path, final Set<VisitingPair> visiting) {
+        if (oldNode == newNode) {
             return Collections.emptyList();
         }
 
-        final List<ChangeNode> childrenChanges = diffChildren(oldNode, newNode, path);
-
-        if (!childrenChanges.isEmpty()) {
-            return List.of(new ContainerChangeNode(path, childrenChanges));
+        if (oldNode instanceof NullNode && newNode instanceof NullNode) {
+            return Collections.emptyList();
         }
 
-        // 节点类型不同或为基本类型时，视为字段变更
-        final boolean isTypeChanged = !oldNode.getClass().equals(newNode.getClass());
-        final boolean isPrimitive = oldNode instanceof PrimitiveNode;
-        if (isTypeChanged || isPrimitive) {
-            return List.of(new FieldChangeNode(path, extractValue(oldNode), extractValue(newNode)));
+        if (oldNode instanceof PrimitiveNode oldPrim && newNode instanceof PrimitiveNode newPrim) {
+            if (Objects.equals(oldPrim.value(), newPrim.value())) {
+                return Collections.emptyList();
+            }
+            return List.of(new FieldChangeNode(path, oldPrim.value(), newPrim.value()));
         }
 
-        return Collections.emptyList();
+        final VisitingPair pair = new VisitingPair(oldNode, newNode);
+        if (!visiting.add(pair)) {
+            // 循环引用：同一对节点在当前递归路径上再次出现，终止递归以避免 StackOverflow。
+            return Collections.emptyList();
+        }
+
+        try {
+            final List<ChangeNode> childrenChanges = diffChildren(oldNode, newNode, path, visiting);
+
+            if (!childrenChanges.isEmpty()) {
+                return List.of(new ContainerChangeNode(path, childrenChanges));
+            }
+
+            // 节点类型不同或为基本类型时，视为字段变更
+            final boolean isTypeChanged = !oldNode.getClass().equals(newNode.getClass());
+            final boolean isPrimitive = oldNode instanceof PrimitiveNode || oldNode instanceof NullNode;
+            if (isTypeChanged || isPrimitive) {
+                return List.of(new FieldChangeNode(path, extractValue(oldNode), extractValue(newNode)));
+            }
+
+            return Collections.emptyList();
+        } finally {
+            visiting.remove(pair);
+        }
     }
 
     /**
@@ -85,14 +161,15 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * @param oldNode 旧节点。
      * @param newNode 新节点。
      * @param path    当前节点的路径。
+     * @param visiting 当前递归路径上的节点对（用于循环引用终止）。
      * @return 代表子节点变更的扁平列表。
      */
-    private List<ChangeNode> diffChildren(final ValueNode oldNode, final ValueNode newNode, final String path) {
+    private List<ChangeNode> diffChildren(final ValueNode oldNode, final ValueNode newNode, final String path, final Set<VisitingPair> visiting) {
         if (oldNode instanceof ObjectNode oldObj && newNode instanceof ObjectNode newObj) {
-            return diffObjectChildren(oldObj, newObj, path);
+            return diffObjectChildren(oldObj, newObj, path, visiting);
         }
         if (oldNode instanceof CollectionNode oldColl && newNode instanceof CollectionNode newColl) {
-            return diffCollectionChildren(oldColl, newColl, path);
+            return diffCollectionChildren(oldColl, newColl, path, visiting);
         }
         return Collections.emptyList();
     }
@@ -103,18 +180,20 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * @param oldObj 旧对象节点。
      * @param newObj 新对象节点。
      * @param path   当前对象的路径。
+     * @param visiting 当前递归路径上的节点对（用于循环引用终止）。
      * @return 所有字段变更的列表。
      */
-    private List<ChangeNode> diffObjectChildren(final ObjectNode oldObj, final ObjectNode newObj, final String path) {
+    private List<ChangeNode> diffObjectChildren(final ObjectNode oldObj, final ObjectNode newObj, final String path, final Set<VisitingPair> visiting) {
         final List<ChangeNode> changes = new ArrayList<>();
-        final Set<String> allKeys = Stream.concat(oldObj.fields().keySet().stream(), newObj.fields().keySet().stream())
-                .collect(Collectors.toSet());
+        final Set<String> allKeys = new TreeSet<>();
+        allKeys.addAll(oldObj.fields().keySet());
+        allKeys.addAll(newObj.fields().keySet());
 
         for (final String key : allKeys) {
             final ValueNode oldFieldNode = oldObj.fields().getOrDefault(key, new NullNode());
             final ValueNode newFieldNode = newObj.fields().getOrDefault(key, new NullNode());
             final String fieldPath = path.isEmpty() ? key : path + "." + key;
-            changes.addAll(diffNode(oldFieldNode, newFieldNode, fieldPath));
+            changes.addAll(diffNode(oldFieldNode, newFieldNode, fieldPath, visiting));
         }
         return changes;
     }
@@ -131,77 +210,96 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * @param oldColl 旧集合节点。
      * @param newColl 新集合节点。
      * @param path    当前集合的路径。
+     * @param visiting 当前递归路径上的节点对（用于循环引用终止）。
      * @return 所有集合项变更的列表。
      */
-    private List<ChangeNode> diffCollectionChildren(final CollectionNode oldColl, final CollectionNode newColl, final String path) {
+    private List<ChangeNode> diffCollectionChildren(final CollectionNode oldColl, final CollectionNode newColl, final String path, final Set<VisitingPair> visiting) {
         final List<ChangeNode> changes = new ArrayList<>();
-        final Map<Object, ValueNode> oldItemsById = mapByIdentity(oldColl.items());
-        final Map<Object, ValueNode> newItemsById = mapByIdentity(newColl.items());
+        final Map<Object, List<ValueNode>> oldItemsById = groupByIdentity(oldColl.items());
+        final Map<Object, List<ValueNode>> newItemsById = groupByIdentity(newColl.items());
 
-        for (final Map.Entry<Object, ValueNode> newItemEntry : newItemsById.entrySet()) {
-            final Object identity = newItemEntry.getKey();
-            final ValueNode newItem = newItemEntry.getValue();
-            if (!oldItemsById.containsKey(identity)) {
-                final String itemPath = buildItemPath(path, newItem);
-                changes.add(new ItemAddedNode(itemPath, newItem));
-            } else {
-                final ValueNode oldItem = oldItemsById.get(identity);
-                final String itemPath = buildItemPath(path, oldItem);
-                changes.addAll(diffNode(oldItem, newItem, itemPath));
+        final Set<Object> allIdentities = new HashSet<>();
+        allIdentities.addAll(oldItemsById.keySet());
+        allIdentities.addAll(newItemsById.keySet());
+
+        for (final Object identity : sortIdentities(allIdentities)) {
+            final List<ValueNode> oldItems = oldItemsById.getOrDefault(identity, List.of());
+            final List<ValueNode> newItems = newItemsById.getOrDefault(identity, List.of());
+            final boolean useOccurrenceSuffix = oldItems.size() > 1 || newItems.size() > 1;
+
+            final int common = Math.min(oldItems.size(), newItems.size());
+            for (int i = 0; i < common; i++) {
+                final String itemPath = buildItemPath(path, identity, useOccurrenceSuffix ? i + 1 : null);
+                changes.addAll(diffNode(oldItems.get(i), newItems.get(i), itemPath, visiting));
+            }
+
+            for (int i = common; i < newItems.size(); i++) {
+                final String itemPath = buildItemPath(path, identity, useOccurrenceSuffix ? i + 1 : null);
+                changes.add(new ItemAddedNode(itemPath, newItems.get(i)));
+            }
+
+            for (int i = common; i < oldItems.size(); i++) {
+                final String itemPath = buildItemPath(path, identity, useOccurrenceSuffix ? i + 1 : null);
+                changes.add(new ItemRemovedNode(itemPath, oldItems.get(i)));
             }
         }
 
-        for (final Map.Entry<Object, ValueNode> oldItemEntry : oldItemsById.entrySet()) {
-            if (!newItemsById.containsKey(oldItemEntry.getKey())) {
-                final String itemPath = buildItemPath(path, oldItemEntry.getValue());
-                changes.add(new ItemRemovedNode(itemPath, oldItemEntry.getValue()));
-            }
-        }
         return changes;
     }
 
+    private List<Object> sortIdentities(final Set<Object> identities) {
+        final List<Object> sorted = new ArrayList<>(identities);
+        sorted.sort(Comparator.comparing((Object id) -> id == null ? "" : id.getClass().getName())
+                .thenComparing(id -> String.valueOf(id)));
+        return sorted;
+    }
+
     /**
-     * 将集合中的 ObjectNode 按 identifier 映射为 Map。
+     * 将集合项按“匹配标识”分组（支持重复项/Null项）。
      * <p>
-     * 对于 ObjectNode，使用其 {@link ObjectNode#identifier()} 作为键；
-     * 对于 PrimitiveNode，使用其 {@link PrimitiveNode#value()} 作为键；
-     * 其他类型（NullNode、CollectionNode）暂不参与匹配。
-     *
-     * @param nodes 要映射的节点集合。
-     * @return 以 identifier 为键的 Map。
+     * 匹配标识规则：
+     * <ul>
+     *   <li>{@link ObjectNode} → {@link ObjectNode#identifier()}（允许为 null，例如 Map 的 null key）</li>
+     *   <li>{@link PrimitiveNode} → {@link PrimitiveNode#value()}</li>
+     *   <li>{@link NullNode} → null</li>
+     *   <li>其他类型 → 使用位置标识（pos:n），保证不丢项</li>
+     * </ul>
      */
-    private Map<Object, ValueNode> mapByIdentity(final Collection<ValueNode> nodes) {
-        final Map<Object, ValueNode> result = new HashMap<>();
+    private Map<Object, List<ValueNode>> groupByIdentity(final Collection<ValueNode> nodes) {
+        final Map<Object, List<ValueNode>> result = new LinkedHashMap<>();
+        int position = 0;
         for (final ValueNode node : nodes) {
-            if (node instanceof ObjectNode objNode && objNode.identifier() != null) {
-                result.putIfAbsent(objNode.identifier(), node);
-            } else if (node instanceof PrimitiveNode primNode && primNode.value() != null) {
-                result.putIfAbsent(primNode.value(), node);
-            }
-            // NullNode 和 CollectionNode 暂不参与基于标识的匹配
+            final Object identity = extractIdentity(node, position++);
+            result.computeIfAbsent(identity, ignored -> new ArrayList<>()).add(node);
         }
         return result;
     }
 
     /**
-     * 构建集合项的路径表示。
-     * <p>
-     * 对于 ObjectNode，使用其 {@link ObjectNode#identifier()} 生成路径；
-     * 对于 PrimitiveNode，使用其值生成路径。
-     *
-     * @param basePath 集合的基础路径。
-     * @param itemNode 集合项节点。
-     * @return 集合项的完整路径。
+     * 提取集合项的匹配标识。
      */
-    private String buildItemPath(final String basePath, final ValueNode itemNode) {
-        if (itemNode instanceof ObjectNode objNode && objNode.identifier() != null) {
-            return basePath + "[" + objNode.identifier() + "]";
+    private Object extractIdentity(final ValueNode node, final int position) {
+        if (node instanceof ObjectNode objNode) {
+            return objNode.identifier();
         }
-        if (itemNode instanceof PrimitiveNode primNode && primNode.value() != null) {
-            return basePath + "[" + primNode.value() + "]";
+        if (node instanceof PrimitiveNode primNode) {
+            return primNode.value();
         }
-        // 对于无法确定标识的情况，使用 hashCode 作为回退
-        return basePath + "[" + itemNode.hashCode() + "]";
+        if (node instanceof NullNode) {
+            return null;
+        }
+        return new PositionalIdentity(position);
+    }
+
+    /**
+     * 构建集合项的路径表示（支持重复项）。
+     */
+    private String buildItemPath(final String basePath, final Object identity, final Integer occurrence) {
+        final String identityText = identity == null ? "null" : String.valueOf(identity);
+        if (occurrence == null) {
+            return basePath + "[" + identityText + "]";
+        }
+        return basePath + "[" + identityText + "#" + occurrence + "]";
     }
 
     /**

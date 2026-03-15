@@ -50,6 +50,9 @@ public record ChangeSet(List<ObjectChange> changes) {
      * 只获取最细粒度的、可直接执行的"叶子"变更（字段值的具体变化、集合中项目的增删）。
      * <p>
      * 这个视图适用于需要将变更转换为持久化操作（如 UPDATE, INSERT, DELETE）的场景。
+     * <p>
+     * 注意：此方法返回的是扁平列表，因此 {@link Change#path()} 与 {@link Change#fullPath()} 保持一致（均为完整路径）。
+     * 如需获取相对路径（相对于容器），请使用 {@link #getAllChanges()} 中 {@link ContainerChange#children()} 的子变更。
      *
      * @return 最细粒度变更的列表。
      */

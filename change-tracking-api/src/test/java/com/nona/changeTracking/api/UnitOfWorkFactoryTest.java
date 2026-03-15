@@ -102,4 +102,31 @@ class UnitOfWorkFactoryTest {
             assertTrue(exception.getMessage().contains("default-reflection"));
         }
     }
+
+    @Test
+    @DisplayName("withDefaults() 在多个 Provider 时默认选择应稳定（优先 default-reflection）")
+    void withDefaults_shouldDeterministicallySelectDefaultReflection() {
+        final TrackingCapabilityProvider defaultProvider = mock(TrackingCapabilityProvider.class);
+        when(defaultProvider.getName()).thenReturn("default-reflection");
+        final TrackingCapabilityProvider otherProvider = mock(TrackingCapabilityProvider.class);
+        when(otherProvider.getName()).thenReturn("another-provider");
+
+        final TrackingCapability mockCapability = mock(TrackingCapability.class);
+        when(defaultProvider.create()).thenReturn(mockCapability);
+        when(otherProvider.create()).thenReturn(mockCapability);
+
+        final ServiceLoader<TrackingCapabilityProvider> mockedLoader = mock(ServiceLoader.class);
+        // 刻意打乱顺序：让 default-reflection 不是第一个
+        when(mockedLoader.iterator()).thenReturn(List.of(otherProvider, defaultProvider).iterator());
+
+        try (MockedStatic<ServiceLoader> mockedServiceLoader = mockStatic(ServiceLoader.class)) {
+            mockedServiceLoader.when(() -> ServiceLoader.load(TrackingCapabilityProvider.class)).thenReturn(mockedLoader);
+
+            final UnitOfWork uow = UnitOfWorkFactory.builder().withDefaults().build();
+
+            verify(defaultProvider, times(1)).create();
+            verify(otherProvider, never()).create();
+            assertNotNull(uow);
+        }
+    }
 }

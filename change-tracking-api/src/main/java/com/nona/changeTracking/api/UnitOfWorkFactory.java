@@ -53,7 +53,11 @@ public final class UnitOfWorkFactory {
          * 使用 {@link ServiceLoader} 自动发现并加载所有在模块路径中可用的
          * {@link TrackingCapabilityProvider} 实现。
          * <p>
-         * 如果没有手动选择能力，将默认使用发现的第一个 Provider。
+         * 如果没有手动选择能力，将使用确定性的默认选择策略：
+         * <ul>
+         *   <li>优先选择名称为 {@code "default-reflection"} 的 Provider</li>
+         *   <li>否则按名称排序选择第一个 Provider</li>
+         * </ul>
          *
          * @return 当前构建器实例，以支持链式调用。
          */
@@ -62,9 +66,16 @@ public final class UnitOfWorkFactory {
             for (final TrackingCapabilityProvider provider : loader) {
                 this.providers.put(provider.getName(), provider);
             }
-            // 默认选择第一个发现的 provider (通常是 'default-reflection')
+            // 默认选择：优先 'default-reflection'，否则按名称排序取第一个
             if (this.selectedCapabilityName == null && !this.providers.isEmpty()) {
-                this.selectedCapabilityName = this.providers.keySet().iterator().next();
+                if (this.providers.containsKey("default-reflection")) {
+                    this.selectedCapabilityName = "default-reflection";
+                } else {
+                    this.selectedCapabilityName = this.providers.keySet().stream()
+                            .sorted()
+                            .findFirst()
+                            .orElse(null);
+                }
             }
             return this;
         }

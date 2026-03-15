@@ -55,7 +55,7 @@ class ChangeSetModelTest {
         }
 
         @Test
-        @DisplayName("getLeafChanges() 应只返回最细粒度的叶子节点")
+        @DisplayName("getLeafChanges() 应只返回最细粒度的叶子节点（path 为完整路径）")
         void getLeafChanges_shouldReturnOnlyLeafNodes() {
             final List<Change> leafChanges = changeSet.getLeafChanges();
 

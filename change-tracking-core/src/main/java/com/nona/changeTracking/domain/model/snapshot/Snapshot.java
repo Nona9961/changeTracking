@@ -9,7 +9,7 @@ package com.nona.changeTracking.domain.model.snapshot;
  *
  * @param <T> 快照内部数据的具体类型。
  */
-public sealed interface Snapshot<T> permits ValueNodeSnapshot  {
+public interface Snapshot<T> {
 
     /**
      * 获取快照所持有的内部数据。

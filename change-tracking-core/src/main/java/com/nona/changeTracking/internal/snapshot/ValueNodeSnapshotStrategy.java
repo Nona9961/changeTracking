@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * </ol>
  * <p>
  * 支持循环引用检测：使用 {@link IdentityHashMap} 缓存已访问对象，
- * 遇到循环引用时返回同一 ObjectNode 实例。
+ * 遇到循环引用时返回同一 {@link ValueNode} 实例（包括 {@link ObjectNode} / {@link CollectionNode}）。
  * <p>
  * 支持通过 {@link TrackingConfiguration} 配置：
  * <ul>
@@ -134,19 +134,27 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
         }
 
         if (obj instanceof Collection<?> collection) {
-            return new CollectionNode(
-                    collection.stream()
-                            .map(item -> toValueRecursive(item, visited))
-                            .collect(Collectors.toList())
-            );
+            final List<ValueNode> items = new ArrayList<>(collection.size());
+            final CollectionNode collectionNode = new CollectionNode(items);
+            visited.put(obj, collectionNode);
+
+            for (final Object item : collection) {
+                items.add(toValueRecursive(item, visited));
+            }
+
+            return collectionNode;
         }
 
         if (obj instanceof Map<?, ?> map) {
-            return new CollectionNode(
-                    map.entrySet().stream()
-                            .map(entry -> createMapEntryNode(entry, visited))
-                            .collect(Collectors.toList())
-            );
+            final List<ValueNode> items = new ArrayList<>(map.size());
+            final CollectionNode mapNode = new CollectionNode(items);
+            visited.put(obj, mapNode);
+
+            for (final Map.Entry<?, ?> entry : map.entrySet()) {
+                items.add(createMapEntryNode(entry, visited));
+            }
+
+            return mapNode;
         }
 
         return processComplexObject(obj, visited);
@@ -239,7 +247,10 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
                             } catch (IllegalAccessException e) {
                                 throw new IllegalStateException("Failed to access field: " + field.getName(), e);
                             }
-                        }
+                        },
+                        // 字段隐藏（子类同名字段覆盖父类字段）：保留更具体类型（子类）先遍历到的值。
+                        (existing, ignored) -> existing,
+                        LinkedHashMap::new
                 ));
 
         fieldsMap.putAll(populatedFields);

@@ -67,6 +67,14 @@ class ValueNodeSnapshotStrategyTest {
             List<String> tags = List.of("vip", "local");
         }
 
+        static class ParentWithShadowedField {
+            String name = "parent";
+        }
+
+        static class ChildWithShadowedField extends ParentWithShadowedField {
+            String name = "child";
+        }
+
         @Test
         @DisplayName("应能正确快照嵌套对象")
         void shouldCorrectlySnapshotNestedObjects() {
@@ -110,6 +118,18 @@ class ValueNodeSnapshotStrategyTest {
 
             assertEquals(new NullNode(), userNode.fields().get("name"));
         }
+
+        @Test
+        @DisplayName("字段隐藏：子类同名字段应覆盖父类字段且不抛 Duplicate key")
+        void fieldShadowing_shouldPreferSubclassField() {
+            final ChildWithShadowedField entity = new ChildWithShadowedField();
+
+            final ValueNodeSnapshot snapshot = assertDoesNotThrow(() -> strategy.createSnapshot(entity));
+            assertInstanceOf(ObjectNode.class, snapshot.getSnapshotData());
+
+            final ObjectNode node = (ObjectNode) snapshot.getSnapshotData();
+            assertEquals(new PrimitiveNode("child"), node.fields().get("name"));
+        }
     }
 
     @Nested
@@ -144,6 +164,40 @@ class ValueNodeSnapshotStrategyTest {
 
             // 关键断言：对父对象的反向引用应该是同一个快照节点实例
             assertSame(parentNode, backRefParentNode, "The back-reference to parent should be the same node instance.");
+        }
+
+        @Test
+        @DisplayName("应能处理自引用 Collection（list.add(list)）而不会导致 StackOverflowError")
+        void shouldHandleSelfReferentialCollectionWithoutStackOverflow() {
+            final List<Object> list = new ArrayList<>();
+            list.add(list);
+
+            final ValueNodeSnapshot snapshot = assertDoesNotThrow(() -> strategy.createSnapshot(list));
+
+            assertInstanceOf(CollectionNode.class, snapshot.getSnapshotData());
+            final CollectionNode listNode = (CollectionNode) snapshot.getSnapshotData();
+            assertEquals(1, listNode.items().size());
+
+            final ValueNode first = listNode.items().iterator().next();
+            assertSame(listNode, first, "The self-reference should point to the same CollectionNode instance.");
+        }
+
+        @Test
+        @DisplayName("应能处理自引用 Map（map.put(k,map)）而不会导致 StackOverflowError")
+        void shouldHandleSelfReferentialMapWithoutStackOverflow() {
+            final Map<String, Object> map = new HashMap<>();
+            map.put("self", map);
+
+            final ValueNodeSnapshot snapshot = assertDoesNotThrow(() -> strategy.createSnapshot(map));
+
+            assertInstanceOf(CollectionNode.class, snapshot.getSnapshotData());
+            final CollectionNode mapNode = (CollectionNode) snapshot.getSnapshotData();
+            assertEquals(1, mapNode.items().size());
+
+            final ValueNode entryNode = mapNode.items().iterator().next();
+            assertInstanceOf(ObjectNode.class, entryNode);
+            final ObjectNode mapEntryNode = (ObjectNode) entryNode;
+            assertSame(mapNode, mapEntryNode.fields().get("value"), "The self-reference should point to the same CollectionNode instance.");
         }
     }
 

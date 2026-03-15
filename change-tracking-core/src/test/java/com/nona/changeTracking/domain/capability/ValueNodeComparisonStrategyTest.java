@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -199,6 +200,122 @@ class ValueNodeComparisonStrategyTest {
             assertTrue(children.stream().anyMatch(c -> c instanceof ContainerChangeNode && c.path().equals("items[A]")));
             assertTrue(children.stream().anyMatch(c -> c instanceof ItemRemovedNode && c.path().equals("items[B]")));
             assertTrue(children.stream().anyMatch(c -> c instanceof ItemAddedNode && c.path().equals("items[C]")));
+        }
+
+        @Test
+        @DisplayName("重复 Primitive 值不应因匹配丢项（应能识别多余项删除）")
+        void duplicatePrimitiveValues_shouldNotDropChanges() {
+            final CollectionNode oldList = new CollectionNode(List.of(new PrimitiveNode("A"), new PrimitiveNode("A")));
+            final CollectionNode newList = new CollectionNode(List.of(new PrimitiveNode("A")));
+            final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
+            final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertEquals("items", itemsChange.path());
+
+            assertEquals(1, itemsChange.children().size());
+            final ItemRemovedNode removedNode = (ItemRemovedNode) itemsChange.children().get(0);
+            assertEquals("items[A#2]", removedNode.path());
+        }
+
+        @Test
+        @DisplayName("重复 identifier 不应因匹配丢项（应能识别多余项删除）")
+        void duplicateIdentifiers_shouldNotDropChanges() {
+            final CollectionNode oldList = new CollectionNode(List.of(createItemNode("A", "v1"), createItemNode("A", "v2")));
+            final CollectionNode newList = new CollectionNode(List.of(createItemNode("A", "v1")));
+            final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
+            final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertEquals("items", itemsChange.path());
+
+            assertEquals(1, itemsChange.children().size());
+            final ItemRemovedNode removedNode = (ItemRemovedNode) itemsChange.children().get(0);
+            assertEquals("items[A#2]", removedNode.path());
+        }
+
+        @Test
+        @DisplayName("集合包含 null 元素时应能识别增删（不应静默忽略）")
+        void nullElement_shouldBeReported() {
+            final CollectionNode oldList = new CollectionNode(List.of(new NullNode()));
+            final CollectionNode newList = new CollectionNode(List.of());
+            final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
+            final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertEquals("items", itemsChange.path());
+
+            assertEquals(1, itemsChange.children().size());
+            final ItemRemovedNode removedNode = (ItemRemovedNode) itemsChange.children().get(0);
+            assertEquals("items[null]", removedNode.path());
+        }
+
+        @Test
+        @DisplayName("Map null key 的 entry 不应被忽略（应能识别 value 变更）")
+        void mapNullKeyEntry_shouldNotBeIgnored() {
+            final ObjectNode oldEntry = new ObjectNode(Map.of(
+                    "key", new NullNode(),
+                    "value", new PrimitiveNode("v1")
+            ), null);
+            final ObjectNode newEntry = new ObjectNode(Map.of(
+                    "key", new NullNode(),
+                    "value", new PrimitiveNode("v2")
+            ), null);
+
+            final ObjectNode oldRoot = new ObjectNode(Map.of("map", new CollectionNode(List.of(oldEntry))));
+            final ObjectNode newRoot = new ObjectNode(Map.of("map", new CollectionNode(List.of(newEntry))));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            final ContainerChangeNode mapChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertEquals("map", mapChange.path());
+
+            final ContainerChangeNode entryChange = (ContainerChangeNode) mapChange.children().get(0);
+            assertEquals("map[null]", entryChange.path());
+
+            final FieldChangeNode valueChange = (FieldChangeNode) entryChange.children().get(0);
+            assertEquals("map[null].value", valueChange.path());
+            assertEquals("v1", valueChange.oldValue());
+            assertEquals("v2", valueChange.newValue());
+        }
+    }
+
+    @Nested
+    @DisplayName("循环引用安全测试")
+    class CycleSafeTests {
+        @Test
+        @DisplayName("循环引用对象图（A->B->A）对比不应 StackOverflow 且能识别差异")
+        void compare_cyclicGraph_shouldNotStackOverflowAndReportChanges() {
+            final Map<String, ValueNode> oldAFields = new HashMap<>();
+            final Map<String, ValueNode> oldBFields = new HashMap<>();
+            final ObjectNode oldA = new ObjectNode(oldAFields);
+            final ObjectNode oldB = new ObjectNode(oldBFields);
+            oldAFields.put("b", oldB);
+            oldBFields.put("a", oldA);
+            oldBFields.put("value", new PrimitiveNode("v1"));
+
+            final Map<String, ValueNode> newAFields = new HashMap<>();
+            final Map<String, ValueNode> newBFields = new HashMap<>();
+            final ObjectNode newA = new ObjectNode(newAFields);
+            final ObjectNode newB = new ObjectNode(newBFields);
+            newAFields.put("b", newB);
+            newBFields.put("a", newA);
+            newBFields.put("value", new PrimitiveNode("v2"));
+
+            final ChangeNode result = assertDoesNotThrow(() -> strategy.compare(snapshotOf(oldA), snapshotOf(newA)));
+            final ContainerChangeNode rootChange = (ContainerChangeNode) result;
+            assertEquals(1, rootChange.children().size());
+
+            final ContainerChangeNode bChange = (ContainerChangeNode) rootChange.children().get(0);
+            assertEquals("b", bChange.path());
+            assertEquals(1, bChange.children().size());
+
+            final FieldChangeNode valueChange = (FieldChangeNode) bChange.children().get(0);
+            assertEquals("b.value", valueChange.path());
+            assertEquals("v1", valueChange.oldValue());
+            assertEquals("v2", valueChange.newValue());
         }
     }
 }

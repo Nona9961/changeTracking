@@ -85,19 +85,29 @@ provider.withIdentifier(Order.class, Order::getId)
 ### 路径访问
 
 每个 `Change` 提供多种路径和元数据访问方式：
-- `path()`：相对路径，如 `"name"` 或 `"[1]"`
-- `fullPath()`：从根到当前节点的完整路径，如 `"items[1].name"`
+- `path()`：
+  - 在扁平视图（`getLeafChanges()` / `getAllChanges()` 返回的列表）中为**完整路径**（与 `fullPath()` 相同）
+  - 在树形视图（`ContainerChange.children()`）中为**相对路径**（相对于当前容器）
+- `fullPath()`：从根到当前节点的完整路径（始终可用），如 `"items[1].name"`
 - `fieldName()`：纯字段名（不含索引），如 `"items[1]"` 返回 `"items"`，`"[1]"` 返回 `null`
 - `collectionFieldName()`：所属集合字段名，主表字段返回 `null`
 - `isParentCollection()`：父节点是否为集合
 
 ```java
+// 扁平视图：path() == fullPath()
 for (Change change : changeSet.getLeafChanges()) {
-    String relativePath = change.path();              // "name"
-    String absolutePath = change.fullPath();          // "items[1].name"
-    String fieldName = change.fieldName();            // "name"
-    String collection = change.collectionFieldName(); // "items"
-    boolean inCollection = change.isParentCollection(); // true
+    String path = change.path();          // "address.street" / "items[1].name"
+    String fullPath = change.fullPath();  // 与 path 相同
+}
+
+// 树形视图：children() 的 path() 为相对路径
+for (Change change : changeSet.getAllChanges()) {
+    if (change instanceof ContainerChange cc) {
+        for (Change child : cc.children()) {
+            String relative = child.path();     // "street" / "[1]" / "name"
+            String absolute = child.fullPath(); // "address.street" / "items[1]" / "items[1].name"
+        }
+    }
 }
 ```
 
@@ -138,7 +148,7 @@ change-tracking/
     │   └── model/
     │       ├── unitofwork/        # 工作单元
     │       │   └── UnitOfWork
-    │       ├── snapshot/          # 快照模型 (sealed)
+    │       ├── snapshot/          # 快照模型（Snapshot 可扩展；默认 ValueNode sealed）
     │       │   ├── Snapshot<T>
     │       │   ├── ValueNodeSnapshot
     │       │   └── ValueNode (PrimitiveNode, ObjectNode, CollectionNode, NullNode)

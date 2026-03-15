@@ -19,9 +19,13 @@ package com.nona.changeTracking.domain.model.changeset;
 public sealed interface Change permits FieldChange, ContainerChange, ItemAddedChange, ItemRemovedChange {
 
     /**
-     * 获取此变更的相对路径。
+     * 获取此变更的路径。
+     * <p>
+     * 在树形视图（{@link ContainerChange#children()}）中，子变更的 {@code path()} 为相对路径（相对于当前容器）。
+     * 在扁平视图（{@link ChangeSet#getLeafChanges()} / {@link ChangeSet#getAllChanges()} 返回的列表）中，
+     * {@code path()} 与 {@link #fullPath()} 保持一致（均为完整路径）。
      *
-     * @return 相对于父节点的路径。
+     * @return 变更路径（相对或完整，取决于视图）。
      */
     String path();
 
