@@ -11,7 +11,13 @@ import java.util.function.Function;
 /**
  * 变更追踪的配置类，封装所有可定制的追踪行为。
  * <p>
- * 此类是不可变的，实现 {@link CreationContext} 接口。
+ * 此类是<b>真正不可变</b>的，实现 {@link CreationContext} 接口：
+ * <ul>
+ *   <li><b>构造时防御拷贝</b> - 构造器通过 {@link Map#copyOf} / {@link Set#copyOf}
+ *       拷贝调用方传入的集合，构造后外部对原集合的修改不影响配置内部状态</li>
+ *   <li><b>getter 返回不可变集合</b> - 内部存储即为不可变副本，任何 add/put 抛
+ *       {@link UnsupportedOperationException}</li>
+ * </ul>
  * <p>
  * 配置项包括：
  * <ul>
@@ -19,6 +25,8 @@ import java.util.function.Function;
  *   <li><b>自定义值类型</b> - 被视为原始值的额外类型</li>
  *   <li><b>自定义值类型包</b> - 被视为原始值的额外包名</li>
  * </ul>
+ * <p>
+ * 注意：拷贝语义要求传入集合不含 null 元素/key（{@code Map.copyOf}/{@code Set.copyOf} 约束）。
  *
  * @see TrackingCapability 使用此配置的能力接口
  * @see CreationContext SPI 创建上下文接口
@@ -55,6 +63,10 @@ public final class TrackingConfiguration implements CreationContext {
 
     /**
      * 创建配置实例。
+     * <p>
+     * 构造器对传入集合做防御拷贝（{@code Map.copyOf} / {@code Set.copyOf}）：
+     * 外部可变集合在构造后被切断引用，后续外部修改不影响配置内部状态；
+     * 对已不可变的输入返回原实例，零额外开销。
      *
      * @param identifierExtractors 标识符提取器映射
      * @param customValueTypes     自定义值类型集合
@@ -64,9 +76,9 @@ public final class TrackingConfiguration implements CreationContext {
             final Map<Class<?>, Function<Object, Object>> identifierExtractors,
             final Set<Class<?>> customValueTypes,
             final Set<String> customValuePackages) {
-        this.identifierExtractors = identifierExtractors;
-        this.customValueTypes = customValueTypes;
-        this.customValuePackages = customValuePackages;
+        this.identifierExtractors = Map.copyOf(identifierExtractors);
+        this.customValueTypes = Set.copyOf(customValueTypes);
+        this.customValuePackages = Set.copyOf(customValuePackages);
     }
 
     /**

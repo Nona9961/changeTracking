@@ -9,40 +9,65 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * TrackingConfiguration 不可变性特征测试。
+ * TrackingConfiguration 不可变契约测试（WU-A3 新契约）。
  * <p>
- * 现状（特征）：构造器直接引用调用方传入的集合、不拷贝；
- * getter 直接返回内部引用（可能已被外部修改）。
- * 以下测试固化该「假不可变」现状行为，供 WU-A3 修复时改写断言。
+ * 契约：
+ * <ul>
+ *   <li>构造器对传入集合做防御拷贝——构造后外部修改传入集合不影响配置内部状态</li>
+ *   <li>getter 返回不可变集合——任何 add/put 抛 {@link UnsupportedOperationException}</li>
+ * </ul>
  */
-@DisplayName("TrackingConfiguration 不可变性特征测试（现状：假不可变）")
+@DisplayName("TrackingConfiguration 不可变契约")
 class TrackingConfigurationTest {
 
     static class Money {
     }
 
-    @Test
-    @DisplayName("getCustomValueTypes() 返回的集合现状可直接修改（特征：可变泄漏）")
-    void getCustomValueTypes_shouldBeMutableInCurrentImplementation() {
-        final TrackingConfiguration config = new TrackingConfiguration(
+    private static TrackingConfiguration newConfig() {
+        return new TrackingConfiguration(
                 new HashMap<>(),
                 new HashSet<>(),
                 new HashSet<>()
         );
-
-        final boolean added = config.getCustomValueTypes().add(Money.class);
-
-        assertTrue(added, "特征：getter 返回的集合可写");
-        assertTrue(config.getCustomValueTypes().contains(Money.class));
     }
 
     @Test
-    @DisplayName("构造后修改外部传入的集合会污染配置（特征：构造器不拷贝）")
-    void externalMutation_afterConstruction_shouldPolluteConfig() {
+    @DisplayName("getCustomValueTypes() 返回集合不可变：add 抛 UnsupportedOperationException")
+    void getCustomValueTypes_shouldBeImmutable() {
+        final TrackingConfiguration config = newConfig();
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> config.getCustomValueTypes().add(Money.class));
+    }
+
+    @Test
+    @DisplayName("getCustomValuePackages() 返回集合不可变：add 抛 UnsupportedOperationException")
+    void getCustomValuePackages_shouldBeImmutable() {
+        final TrackingConfiguration config = newConfig();
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> config.getCustomValuePackages().add("com.example"));
+    }
+
+    @Test
+    @DisplayName("getIdentifierExtractors() 返回 Map 不可变：put 抛 UnsupportedOperationException")
+    void getIdentifierExtractors_shouldBeImmutable() {
+        final TrackingConfiguration config = newConfig();
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> config.getIdentifierExtractors().put(Money.class, obj -> 1L));
+    }
+
+    @Test
+    @DisplayName("构造防御拷贝：构造后外部修改传入的 Set 不影响配置内部状态")
+    void externalMutation_afterConstruction_shouldNotPolluteConfig() {
         final Set<Class<?>> valueTypes = new HashSet<>();
         final TrackingConfiguration config = new TrackingConfiguration(
                 new HashMap<>(),
@@ -52,21 +77,54 @@ class TrackingConfigurationTest {
 
         valueTypes.add(Money.class);
 
-        assertTrue(config.getCustomValueTypes().contains(Money.class), "特征：外部修改可见于配置");
+        assertFalse(config.getCustomValueTypes().contains(Money.class), "构造器应拷贝传入集合，外部修改不可见");
     }
 
     @Test
-    @DisplayName("getIdentifierExtractors() 返回的 Map 现状可直接修改（特征：可变泄漏）")
-    void getIdentifierExtractors_shouldBeMutableInCurrentImplementation() {
+    @DisplayName("构造防御拷贝：构造后外部修改传入的 Map 不影响配置内部状态")
+    void externalMapMutation_afterConstruction_shouldNotPolluteConfig() {
+        final Map<Class<?>, Function<Object, Object>> extractors = new HashMap<>();
         final TrackingConfiguration config = new TrackingConfiguration(
-                new HashMap<>(),
+                extractors,
                 new HashSet<>(),
                 new HashSet<>()
         );
         final Function<Object, Object> extractor = obj -> 1L;
 
-        config.getIdentifierExtractors().put(Money.class, extractor);
+        extractors.put(Money.class, extractor);
 
-        assertEquals(extractor, config.getIdentifierExtractors().get(Money.class), "特征：extractors 可写");
+        assertFalse(config.getIdentifierExtractors().containsKey(Money.class), "构造器应拷贝传入 Map，外部修改不可见");
+    }
+
+    @Test
+    @DisplayName("防御拷贝后配置内部状态仍可正常读取（get 语义不受影响）")
+    void defensiveCopy_shouldKeepReadSemantics() {
+        final Map<Class<?>, Function<Object, Object>> extractors = new HashMap<>();
+        final Function<Object, Object> extractor = obj -> 42L;
+        extractors.put(Money.class, extractor);
+
+        final TrackingConfiguration config = new TrackingConfiguration(
+                extractors,
+                Set.of(Money.class),
+                Set.of("com.example")
+        );
+
+        assertEquals(extractor, config.getIdentifierExtractors().get(Money.class));
+        assertTrue(config.getCustomValueTypes().contains(Money.class));
+        assertTrue(config.getCustomValuePackages().contains("com.example"));
+        assertDoesNotThrow(config::getCustomValueTypes);
+    }
+
+    @Test
+    @DisplayName("空配置单例 empty() 的集合同样不可变")
+    void emptyConfig_shouldBeImmutable() {
+        final TrackingConfiguration empty = TrackingConfiguration.empty();
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> empty.getCustomValueTypes().add(Money.class));
+        assertThrows(UnsupportedOperationException.class,
+                () -> empty.getIdentifierExtractors().put(Money.class, obj -> 1L));
+        assertThrows(UnsupportedOperationException.class,
+                () -> empty.getCustomValuePackages().add("com.example"));
     }
 }
