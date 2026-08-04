@@ -1,8 +1,10 @@
 package com.nona.changeTracking.domain.model.unitofwork;
 
 import com.nona.changeTracking.domain.capability.ComparisonStrategy;
-import com.nona.changeTracking.spi.SnapshotStrategy;
 import com.nona.changeTracking.domain.capability.TrackingCapability;
+import com.nona.changeTracking.domain.capability.TrackingConfiguration;
+import com.nona.changeTracking.internal.capability.DefaultTrackingCapability;
+import com.nona.changeTracking.spi.SnapshotStrategy;
 import com.nona.changeTracking.domain.model.changeset.ChangeNode;
 import com.nona.changeTracking.domain.model.changeset.ChangeSet;
 import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
@@ -17,8 +19,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -78,6 +88,22 @@ class UnitOfWorkTest {
 
             verify(snapshotStrategy, times(2)).createSnapshot(user1);
             verify(comparisonStrategy, times(1)).compare(oldSnapshot, newSnapshot);
+        }
+
+        @Test
+        @DisplayName("连续两次 calculateChanges 应返回相同的变更集（幂等视图特征：不更新基线）")
+        void calculateChanges_repeatedCalls_shouldReturnSameChangeSet() {
+            doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
+            uow.registerClean(user1);
+            when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeTree);
+
+            final ChangeSet firstCall = uow.calculateChanges();
+            final ChangeSet secondCall = uow.calculateChanges();
+
+            // 特征：calculateChanges 是幂等视图，不更新基线，重复调用产出相同变更集
+            assertEquals(firstCall, secondCall);
+            assertEquals(1, secondCall.changes().size());
+            verify(comparisonStrategy, times(2)).compare(oldSnapshot, newSnapshot);
         }
 
         @Test
@@ -259,6 +285,71 @@ class UnitOfWorkTest {
         @DisplayName("registerRemoved 传入 null 应抛出 NullPointerException")
         void registerRemoved_withNull_shouldThrowNPE() {
             assertThrows(NullPointerException.class, () -> uow.registerRemoved(null));
+        }
+    }
+
+    @Nested
+    @DisplayName("并发访问特征测试（现状非线程安全，仅验证无 JVM 崩溃与死锁）")
+    class ConcurrentAccessTests {
+
+        static class TrackedEntity {
+            String name = "initial";
+        }
+
+        @Test
+        @DisplayName("多线程并发 registerClean 与 calculateChanges 不应导致 JVM 崩溃或死锁")
+        void concurrentAccess_shouldNotCrashOrDeadlock() throws Exception {
+            final DefaultTrackingCapability realCapability = new DefaultTrackingCapability(TrackingConfiguration.empty());
+            final UnitOfWork uow = new UnitOfWork(realCapability);
+
+            // 预注册一批对象，产生 calculateChanges 的比较负载
+            final List<TrackedEntity> preRegistered = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                final TrackedEntity entity = new TrackedEntity();
+                preRegistered.add(entity);
+                uow.registerClean(entity);
+            }
+
+            final int threadCount = 8;
+            final int iterationsPerThread = 200;
+            final ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+            final CountDownLatch ready = new CountDownLatch(threadCount);
+            final CountDownLatch start = new CountDownLatch(1);
+            final AtomicReference<Throwable> jvmError = new AtomicReference<>();
+            final List<Future<?>> futures = new ArrayList<>();
+
+            try {
+                for (int threadIndex = 0; threadIndex < threadCount; threadIndex++) {
+                    futures.add(executor.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        for (int i = 0; i < iterationsPerThread; i++) {
+                            uow.registerClean(new TrackedEntity());
+                            uow.calculateChanges();
+                        }
+                        return null;
+                    }));
+                }
+
+                ready.await();
+                start.countDown();
+                for (final Future<?> future : futures) {
+                    try {
+                        // 带超时获取：超时即死锁信号
+                        future.get(30, TimeUnit.SECONDS);
+                    } catch (ExecutionException e) {
+                        // JVM 级错误（StackOverflowError / OutOfMemoryError 等）才是崩溃信号；
+                        // RuntimeException（如 ConcurrentModificationException）是现状非线程安全的已知特征，不在此列。
+                        if (e.getCause() instanceof Error fatal) {
+                            jvmError.compareAndSet(null, fatal);
+                        }
+                    }
+                }
+
+                assertNull(jvmError.get(), "并发访问不应导致 JVM 级错误: " + jvmError.get());
+            } finally {
+                executor.shutdownNow();
+            }
         }
     }
 }

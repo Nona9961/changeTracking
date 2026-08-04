@@ -461,5 +461,225 @@ class ValueNodeSnapshotStrategyTest {
             assertNotNull(result.identifier());
             assertInstanceOf(Integer.class, result.identifier());
         }
+
+        @Test
+        @DisplayName("接口继承链：为父接口配置提取器，实现类现状漏检（特征：不递归父接口）")
+        void interfaceInheritanceChain_shouldMissExtractorInCurrentImplementation() {
+            // interface ExtendedIdentifiable extends BaseIdentifiable；class ExtendedProduct implements ExtendedIdentifiable。
+            // 现状 findExtractor 只查直接接口（不递归父接口）→ 漏检 → identityHashCode 回退
+            final Map<Class<?>, Function<Object, Object>> extractors = new HashMap<>();
+            extractors.put(BaseIdentifiable.class, obj -> ((BaseIdentifiable) obj).getId());
+
+            final TrackingConfiguration config = new TrackingConfiguration(
+                    extractors,
+                    Collections.emptySet(),
+                    Collections.emptySet()
+            );
+            final ValueNodeSnapshotStrategy customStrategy = new ValueNodeSnapshotStrategy(config);
+
+            final ExtendedProduct product = new ExtendedProduct(123L, "测试商品");
+            final ObjectNode result = (ObjectNode) customStrategy.createSnapshot(product).getSnapshotData();
+
+            assertInstanceOf(Integer.class, result.identifier(), "特征：接口继承链漏检回退 identityHashCode");
+            assertNotEquals(123L, result.identifier(), "特征：业务 ID 未被提取");
+        }
+
+        @Test
+        @DisplayName("父类实现接口链：为接口配置提取器，子类现状漏检（特征：父类链不检查其实现的接口）")
+        void interfaceOnSuperclass_shouldMissExtractorInCurrentImplementation() {
+            // class BaseSoftDeletableEntity implements Deletable；class SoftDeletableEntity extends BaseSoftDeletableEntity。
+            // 现状父类链不检查父类实现的接口 → 漏检 → identityHashCode 回退
+            final Map<Class<?>, Function<Object, Object>> extractors = new HashMap<>();
+            extractors.put(Deletable.class, obj -> ((Deletable) obj).getDeleteKey());
+
+            final TrackingConfiguration config = new TrackingConfiguration(
+                    extractors,
+                    Collections.emptySet(),
+                    Collections.emptySet()
+            );
+            final ValueNodeSnapshotStrategy customStrategy = new ValueNodeSnapshotStrategy(config);
+
+            final SoftDeletableEntity entity = new SoftDeletableEntity("DEL-1");
+            final ObjectNode result = (ObjectNode) customStrategy.createSnapshot(entity).getSnapshotData();
+
+            assertInstanceOf(Integer.class, result.identifier(), "特征：父类实现接口漏检回退 identityHashCode");
+            assertNotEquals("DEL-1", result.identifier(), "特征：业务标识未被提取");
+        }
+
+        @Test
+        @DisplayName("非集合项 identifier 现状为 identityHashCode（特征：冗余调用后回退，Javadoc 声称应为 null）")
+        void nonCollectionComplexObject_identifier_shouldBeIdentityHashCode() {
+            final Order order = new Order(1L, "ORD-001");
+            final ObjectNode result = (ObjectNode) strategy.createSnapshot(order).getSnapshotData();
+
+            final Integer expected = System.identityHashCode(order);
+            assertEquals(expected, result.identifier(), "特征：非集合项也执行 extractIdentifier 并回退 identityHashCode");
+        }
+    }
+
+    interface BaseIdentifiable {
+        Long getId();
+    }
+
+    interface ExtendedIdentifiable extends BaseIdentifiable {
+    }
+
+    static class ExtendedProduct implements ExtendedIdentifiable {
+        Long id;
+        String name;
+
+        ExtendedProduct(Long id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        @Override
+        public Long getId() {
+            return id;
+        }
+    }
+
+    interface Deletable {
+        String getDeleteKey();
+    }
+
+    static class BaseSoftDeletableEntity implements Deletable {
+        String deleteKey;
+
+        BaseSoftDeletableEntity(String deleteKey) {
+            this.deleteKey = deleteKey;
+        }
+
+        @Override
+        public String getDeleteKey() {
+            return deleteKey;
+        }
+    }
+
+    static class SoftDeletableEntity extends BaseSoftDeletableEntity {
+        SoftDeletableEntity(String deleteKey) {
+            super(deleteKey);
+        }
+    }
+
+    @Nested
+    @DisplayName("数组快照特征测试（现状：数组落入 processComplexObject，内容静默丢失为空 ObjectNode）")
+    class ArraySnapshotTests {
+
+        static class EntityWithByteArray {
+            byte[] data = new byte[]{1, 2, 3};
+        }
+
+        @Test
+        @DisplayName("byte[] 现状快照为空 ObjectNode（内容丢失）")
+        void byteArray_shouldBeSnapshottedAsEmptyObjectNode() {
+            final byte[] data = new byte[]{1, 2, 3};
+            final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
+
+            assertInstanceOf(ObjectNode.class, result);
+            assertTrue(((ObjectNode) result).fields().isEmpty(), "特征：数组内容静默丢失");
+        }
+
+        @Test
+        @DisplayName("String[] 现状快照为空 ObjectNode（内容丢失）")
+        void stringArray_shouldBeSnapshottedAsEmptyObjectNode() {
+            final String[] data = {"a", "b", "c"};
+            final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
+
+            assertInstanceOf(ObjectNode.class, result);
+            assertTrue(((ObjectNode) result).fields().isEmpty(), "特征：数组内容静默丢失");
+        }
+
+        @Test
+        @DisplayName("int[] 现状快照为空 ObjectNode（内容丢失）")
+        void intArray_shouldBeSnapshottedAsEmptyObjectNode() {
+            final int[] data = {1, 2, 3};
+            final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
+
+            assertInstanceOf(ObjectNode.class, result);
+            assertTrue(((ObjectNode) result).fields().isEmpty(), "特征：数组内容静默丢失");
+        }
+
+        @Test
+        @DisplayName("Long[] 现状快照为空 ObjectNode（内容丢失）")
+        void longArray_shouldBeSnapshottedAsEmptyObjectNode() {
+            final Long[] data = {1L, 2L, 3L};
+            final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
+
+            assertInstanceOf(ObjectNode.class, result);
+            assertTrue(((ObjectNode) result).fields().isEmpty(), "特征：数组内容静默丢失");
+        }
+
+        @Test
+        @DisplayName("对象内数组字段现状快照为空 ObjectNode（内容丢失）")
+        void arrayField_insideObject_shouldBeSnapshottedAsEmptyObjectNode() {
+            final EntityWithByteArray entity = new EntityWithByteArray();
+            final ObjectNode node = (ObjectNode) strategy.createSnapshot(entity).getSnapshotData();
+
+            assertInstanceOf(ObjectNode.class, node.fields().get("data"));
+            assertTrue(((ObjectNode) node.fields().get("data")).fields().isEmpty(), "特征：数组内容静默丢失");
+        }
+    }
+
+    @Nested
+    @DisplayName("transient 字段处理特征测试（现状：仅过滤 static 不过滤 transient）")
+    class TransientFieldTests {
+
+        static class EntityWithTransient {
+            String name = "persisted";
+            transient String cache = "transient-value";
+        }
+
+        static class EntityWithStaticField {
+            String instanceField = "instance";
+            static String STATIC_FIELD = "static";
+        }
+
+        @Test
+        @DisplayName("transient 字段现状会被快照（特征：不过滤 transient）")
+        void transientField_shouldBeSnapshottedInCurrentImplementation() {
+            final EntityWithTransient entity = new EntityWithTransient();
+            final ObjectNode node = (ObjectNode) strategy.createSnapshot(entity).getSnapshotData();
+
+            assertEquals(new PrimitiveNode("persisted"), node.fields().get("name"));
+            assertEquals(new PrimitiveNode("transient-value"), node.fields().get("cache"), "特征：transient 字段被快照");
+        }
+
+        @Test
+        @DisplayName("static 字段现状不会被快照（对照：过滤 static）")
+        void staticField_shouldNotBeSnapshotted() {
+            final ObjectNode node = (ObjectNode) strategy.createSnapshot(new EntityWithStaticField()).getSnapshotData();
+
+            assertFalse(node.fields().containsKey("STATIC_FIELD"), "static 字段应被过滤");
+            assertEquals(new PrimitiveNode("instance"), node.fields().get("instanceField"));
+        }
+    }
+
+    @Nested
+    @DisplayName("快照节点可变性特征测试（现状：record 暴露内部集合引用，可被外部修改）")
+    class NodeMutabilityTests {
+
+        @Test
+        @DisplayName("ObjectNode.fields() 返回的 Map 现状可被外部修改")
+        void objectNode_fields_shouldBeMutableInCurrentImplementation() {
+            final Map<String, ValueNode> fields = new HashMap<>();
+            final ObjectNode node = new ObjectNode(fields);
+
+            node.fields().put("hacked", new PrimitiveNode("evil"));
+
+            assertEquals(new PrimitiveNode("evil"), node.fields().get("hacked"), "特征：fields() 可写");
+        }
+
+        @Test
+        @DisplayName("CollectionNode.items() 返回的集合现状可被外部修改")
+        void collectionNode_items_shouldBeMutableInCurrentImplementation() {
+            final List<ValueNode> items = new ArrayList<>();
+            final CollectionNode node = new CollectionNode(items);
+
+            node.items().add(new PrimitiveNode("hacked"));
+
+            assertEquals(1, node.items().size(), "特征：items() 可写");
+            assertEquals(new PrimitiveNode("hacked"), node.items().iterator().next());
+        }
     }
 }

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -316,6 +317,100 @@ class ValueNodeComparisonStrategyTest {
             assertEquals("b.value", valueChange.path());
             assertEquals("v1", valueChange.oldValue());
             assertEquals("v2", valueChange.newValue());
+        }
+    }
+
+    @Nested
+    @DisplayName("类型变化场景测试（特征测试：现状泄漏 ValueNode 实例为业务值）")
+    class TypeChangeTests {
+
+        @Test
+        @DisplayName("ObjectNode 变为 PrimitiveNode 时现状产出 FieldChangeNode 且 oldValue 泄漏 ObjectNode 实例")
+        void objectNode_toPrimitiveNode_shouldLeakObjectNodeAsOldValue() {
+            final ObjectNode oldAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
+            final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
+            final ObjectNode newUser = new ObjectNode(Map.of("address", new PrimitiveNode("42")));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+
+            assertEquals("address", change.path());
+            assertSame(oldAddress, change.oldValue(), "特征：ObjectNode 实例泄漏为 oldValue");
+            assertEquals("42", change.newValue());
+        }
+
+        @Test
+        @DisplayName("CollectionNode 变为 ObjectNode 时现状产出 FieldChangeNode 且两侧泄漏 ValueNode 实例")
+        void collectionNode_toObjectNode_shouldLeakValueNodes() {
+            final CollectionNode oldItems = new CollectionNode(List.of(new PrimitiveNode("A")));
+            final ObjectNode newItems = new ObjectNode(Map.of("id", new PrimitiveNode("1")));
+            final ObjectNode oldUser = new ObjectNode(Map.of("items", oldItems));
+            final ObjectNode newUser = new ObjectNode(Map.of("items", newItems));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+
+            assertEquals("items", change.path());
+            assertSame(oldItems, change.oldValue(), "特征：CollectionNode 实例泄漏为 oldValue");
+            assertSame(newItems, change.newValue(), "特征：ObjectNode 实例泄漏为 newValue");
+        }
+
+        @Test
+        @DisplayName("PrimitiveNode 变为 ObjectNode 时现状产出 FieldChangeNode 且 newValue 泄漏 ObjectNode 实例")
+        void primitiveNode_toObjectNode_shouldLeakObjectNodeAsNewValue() {
+            final ObjectNode oldUser = new ObjectNode(Map.of("address", new PrimitiveNode("42")));
+            final ObjectNode newAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
+            final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+
+            assertEquals("address", change.path());
+            assertEquals("42", change.oldValue());
+            assertSame(newAddress, change.newValue(), "特征：ObjectNode 实例泄漏为 newValue");
+        }
+
+        @Test
+        @DisplayName("NullNode 变为 ObjectNode 时现状产出 FieldChangeNode 且 newValue 泄漏 ObjectNode 实例")
+        void nullNode_toObjectNode_shouldLeakObjectNodeAsNewValue() {
+            final ObjectNode oldUser = new ObjectNode(Map.of("address", new NullNode()));
+            final ObjectNode newAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
+            final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+
+            assertEquals("address", change.path());
+            assertNull(change.oldValue());
+            assertSame(newAddress, change.newValue(), "特征：ObjectNode 实例泄漏为 newValue");
+        }
+    }
+
+    @Nested
+    @DisplayName("字段排序稳定性测试（特征测试：现状 TreeSet 字典序输出）")
+    class FieldOrderTests {
+
+        @Test
+        @DisplayName("多字段全部变更时现状按字典序输出而非声明序")
+        void fieldChanges_shouldBeSortedLexicographically() {
+            final Map<String, ValueNode> oldFields = new LinkedHashMap<>();
+            oldFields.put("zebra", new PrimitiveNode("z1"));
+            oldFields.put("alpha", new PrimitiveNode("a1"));
+            oldFields.put("mango", new PrimitiveNode("m1"));
+            final Map<String, ValueNode> newFields = new LinkedHashMap<>();
+            newFields.put("zebra", new PrimitiveNode("z2"));
+            newFields.put("alpha", new PrimitiveNode("a2"));
+            newFields.put("mango", new PrimitiveNode("m2"));
+
+            final ChangeNode result = strategy.compare(
+                    snapshotOf(new ObjectNode(oldFields)),
+                    snapshotOf(new ObjectNode(newFields)));
+
+            final List<ChangeNode> children = ((ContainerChangeNode) result).children();
+            assertEquals(3, children.size());
+            assertEquals(List.of("alpha", "mango", "zebra"),
+                    children.stream().map(ChangeNode::path).toList(),
+                    "特征：字段变更按字典序（TreeSet）而非声明序输出");
         }
     }
 }
