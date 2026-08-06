@@ -264,6 +264,10 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
 
     /**
      * 为 Map.Entry 创建 ObjectNode，通过接口方法获取 key/value，避免反射访问 JDK 内部类。
+     *
+     * @param entry   要转换的 Map.Entry。
+     * @param visited 已访问对象的缓存，用于检测循环引用。
+     * @return 包含 key/value 字段的 ObjectNode 表示。
      */
     private ObjectNode createMapEntryNode(final Map.Entry<?, ?> entry, final Map<Object, ValueNode> visited) {
         final Map<String, ValueNode> fields = new HashMap<>();

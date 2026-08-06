@@ -32,6 +32,9 @@ public record ValueChange(
         Object newValue
 ) implements Change {
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isParentCollection() {
         return parentIsCollection;

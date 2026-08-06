@@ -32,6 +32,9 @@ public record ObjectFieldChange(
         ValueNode newNode
 ) implements Change {
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isParentCollection() {
         return parentIsCollection;

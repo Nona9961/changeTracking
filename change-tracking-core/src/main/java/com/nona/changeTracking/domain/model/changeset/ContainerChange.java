@@ -23,6 +23,9 @@ public record ContainerChange(
         List<Change> children
 ) implements Change {
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isParentCollection() {
         return parentIsCollection;

@@ -6,6 +6,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * 反射工具类，为快照脱水提供字段收集与类型判断能力。
+ * <p>
+ * 字段收集沿继承层次递归（到 {@code Object} 为止），类型判断覆盖原始类型及其包装类。
+ */
 public final class ReflectionUtils {
 
     /**

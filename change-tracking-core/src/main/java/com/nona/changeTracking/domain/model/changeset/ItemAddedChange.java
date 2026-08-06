@@ -21,6 +21,9 @@ public record ItemAddedChange(
         ValueNode addedItem
 ) implements Change {
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isParentCollection() {
         return parentIsCollection;

@@ -21,6 +21,9 @@ public record ItemRemovedChange(
         ValueNode removedItem
 ) implements Change {
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isParentCollection() {
         return parentIsCollection;

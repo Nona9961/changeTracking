@@ -22,6 +22,12 @@ import java.util.*;
  */
 public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNodeSnapshot> {
 
+    /**
+     * 正在比较的节点对（用于循环引用终止）。
+     * <p>
+     * {@code diffNode} 递归进入容器（ObjectNode/CollectionNode）时登记当前节点对；
+     * 同一节点对在当前递归路径上再次出现说明存在循环引用，终止递归避免栈溢出。
+     */
     private static final class VisitingPair {
         private final ValueNode oldNode;
         private final ValueNode newNode;
@@ -31,6 +37,12 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             this.newNode = newNode;
         }
 
+        /**
+         * 按节点身份比较（两对节点引用相同视为同一对）。
+         *
+         * @param o 待比较对象。
+         * @return 身份相同返回 true。
+         */
         @Override
         public boolean equals(final Object o) {
             if (this == o) {
@@ -42,12 +54,23 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             return this.oldNode == that.oldNode && this.newNode == that.newNode;
         }
 
+        /**
+         * 与 {@link #equals(Object)} 对应：两侧节点身份哈希的组合。
+         *
+         * @return 节点身份哈希。
+         */
         @Override
         public int hashCode() {
             return 31 * System.identityHashCode(oldNode) + System.identityHashCode(newNode);
         }
     }
 
+    /**
+     * 集合项的位置标识（pos:n）。
+     * <p>
+     * 无业务标识的集合项（如 ArrayNode 元素）按位置匹配，
+     * 保证任何项都不会因缺少标识而被丢弃。
+     */
     private static final class PositionalIdentity {
         private final int position;
 
@@ -55,6 +78,12 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             this.position = position;
         }
 
+        /**
+         * 按位置值比较。
+         *
+         * @param o 待比较对象。
+         * @return 位置相同返回 true。
+         */
         @Override
         public boolean equals(final Object o) {
             if (this == o) {
@@ -66,11 +95,21 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             return this.position == that.position;
         }
 
+        /**
+         * 与 {@link #equals(Object)} 对应：位置值的哈希。
+         *
+         * @return 位置值的哈希。
+         */
         @Override
         public int hashCode() {
             return Integer.hashCode(position);
         }
 
+        /**
+         * 位置标识的字符串表示（如 {@code "pos:3"}）。
+         *
+         * @return 位置标识字符串。
+         */
         @Override
         public String toString() {
             return "pos:" + position;
@@ -263,11 +302,10 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * @param newColl 新集合节点。
      * @param path    当前集合的路径。
      * @param visiting 当前递归路径上的节点对（用于循环引用终止）。
-     * @return 所有集合项变更的列表。
-     * <p>
-     * 变更按<b>插入序</b>输出：old 集合项出现的顺序在前，new 中新增项按出现顺序追加在后
-     * （LinkedHashSet 首次插入序，确定性输出；不使用字典序排序，避免对 identity 调用
-     * {@link String#valueOf(Object)} 引入的性能与正确性风险）。
+     * @return 所有集合项变更的列表，按<b>插入序</b>输出：old 集合项出现的顺序在前，
+     *         new 中新增项按出现顺序追加在后（LinkedHashSet 首次插入序，确定性输出；
+     *         不使用字典序排序，避免对 identity 调用 {@link String#valueOf(Object)}
+     *         引入的性能与正确性风险）。
      */
     private List<ChangeNode> diffCollectionChildren(final CollectionNode oldColl, final CollectionNode newColl, final String path, final Set<VisitingPair> visiting) {
         final List<ChangeNode> changes = new ArrayList<>();
@@ -310,6 +348,15 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
         return changes;
     }
 
+    /**
+     * 计算出现序后缀值。
+     * <p>
+     * 仅当同一标识出现多次时才需要后缀；唯一项返回 null（路径不加后缀）。
+     *
+     * @param useOccurrenceSuffix 是否需要后缀。
+     * @param zeroBasedIndex      项在该标识分组内的零基索引。
+     * @return 从 1 开始的出现序；不需要后缀时返回 null。
+     */
     private Integer toOccurrence(final boolean useOccurrenceSuffix, final int zeroBasedIndex) {
         if (!useOccurrenceSuffix) {
             return null;
@@ -340,6 +387,13 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
 
     /**
      * 提取集合项的匹配标识。
+     * <p>
+     * ObjectNode → {@link ObjectNode#identifier()}；PrimitiveNode → {@link PrimitiveNode#value()}；
+     * NullNode → null；其他类型 → 位置标识（pos:n），保证不丢项。
+     *
+     * @param node     集合项节点。
+     * @param position 节点在集合中的位置（用于无业务标识的项）。
+     * @return 匹配标识。
      */
     private Object extractIdentity(final ValueNode node, final int position) {
         if (node instanceof ObjectNode objNode) {
@@ -356,6 +410,13 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
 
     /**
      * 构建集合项的路径表示（支持重复项）。
+     * <p>
+     * 重复标识项附加出现序后缀（{@code [id#1]}、{@code [id#2]}）；null 标识显示为 {@code [null]}。
+     *
+     * @param basePath   集合字段路径。
+     * @param identity   匹配标识。
+     * @param occurrence 出现序（从 1 开始），null 表示唯一项不加后缀。
+     * @return 集合项路径，如 {@code "items[42]"} / {@code "items[42#2]"}。
      */
     private String buildItemPath(final String basePath, final Object identity, final Integer occurrence) {
         final String identityText;
