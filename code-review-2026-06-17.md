@@ -32,32 +32,36 @@
 
 ## 问题总览
 
-| 编号 | 类别 | 严重度 | 标题 | 状态 |
+| 编号 | 类别 | 严重度 | 标题 | 状态（2026-08-06 更新） |
 |------|------|--------|------|------|
-| A1 | 架构 | 🔴 P0 | 类型变化场景产出语义错误的 FieldChange | 缺陷 |
-| A2 | 架构 | 🔴 P0 | 数组类型完全未处理，静默丢数据 | 功能缺失 |
-| A3 | 架构 | 🔴 P1 | TrackingConfiguration 假不可变，契约破坏 | 缺陷 |
-| A4 | 架构 | 🔴 P1 | record 可变状态泄漏（ObjectNode/CollectionNode/ChangeNode） | 缺陷 |
-| A5 | 架构 | 🟡 P2 | TrackingCapability 泛型设计削弱类型安全 | 设计讨论 |
-| A6 | 架构 | 🟡 P1 | SPI 标识符查找：接口不递归，与父类不对称 | 缺陷 |
-| A7 | 架构 | 🟢 P3 | UnitOfWork 命名与经典 UOW 语义冲突 | 设计讨论 |
-| A8 | 架构 | 🟢 P3 | UnitOfWork 缺生命周期管理方法 | 增强项 |
-| A9 | 架构 | 🟢 P3 | ChangeSet 转换逻辑高度重复 | 代码质量 |
-| P4 | 性能 | 🟡 P2 | 集合比较排序触发 toString，无业务必要 | 缺陷（小） |
-| P5 | 性能 | 🟢 P3 | diffObjectChildren 用 TreeSet 排序字段 | 缺陷（小） |
-| P6 | 性能 | 🟢 P3 | processComplexObject 的 stream + peek 副作用 | 代码质量 |
-| P7 | 性能 | 🟢 P3 | IdentityHashMap 大对象图内存压力 | 固有特性 |
-| T1 | 测试 | 🔴 P0 | 类型变化场景零覆盖（对应 A1） | 测试空白 |
-| T2 | 测试 | 🔴 P0 | 数组零覆盖（对应 A2） | 测试空白 |
-| T3 | 测试 | 🔴 P1 | 并发安全零覆盖 | 测试空白 |
-| T4 | 测试 | 🔴 P1 | 性能 / 大规模零覆盖 | 测试空白 |
-| T5 | 测试 | 🟡 P2 | transient 字段处理未验证 | 测试空白 |
-| T6 | 测试 | 🟡 P2 | 接口继承链标识符查找未覆盖（对应 A6） | 测试空白 |
-| T7 | 测试 | 🟡 P2 | calculateChanges 重复调用语义未覆盖 | 测试空白 |
-| T8 | 测试 | 🟡 P2 | Configuration 不可变性未验证（对应 A3） | 测试空白 |
-| T9 | 测试 | 🟡 P2 | record 可变性泄漏未验证（对应 A4） | 测试空白 |
-| T10 | 测试 | 🟢 P3 | 字段排序稳定性未覆盖（对应 P5） | 测试空白 |
-| T11 | 测试 | 🟢 P3 | 非集合项 identifier 冗余调用未覆盖 | 测试空白 |
+| A1 | 架构 | 🔴 P0 | 类型变化场景产出语义错误的 FieldChange | ✅ resolved（WU-A1） |
+| A2 | 架构 | 🔴 P0 | 数组类型完全未处理，静默丢数据 | ✅ resolved（WU-A2） |
+| A3 | 架构 | 🔴 P1 | TrackingConfiguration 假不可变，契约破坏 | ✅ resolved（WU-A3） |
+| A4 | 架构 | 🔴 P1 | record 可变状态泄漏（ObjectNode/CollectionNode/ChangeNode） | ✅ resolved（WU-A4） |
+| A5 | 架构 | 🟡 P2 | TrackingCapability 泛型设计削弱类型安全 | ✅ resolved（WU-A5） |
+| A6 | 架构 | 🟡 P1 | SPI 标识符查找：接口不递归，与父类不对称 | ✅ resolved（WU-A6+F2） |
+| A7 | 架构 | 🟢 P3 | UnitOfWork 命名与经典 UOW 语义冲突 | ✅ resolved（WU-A7） |
+| A8 | 架构 | 🟢 P3 | UnitOfWork 缺生命周期管理方法 | ⏸ 延后（D15） |
+| A9 | 架构 | 🟢 P3 | ChangeSet 转换逻辑高度重复 | ✅ resolved（WU-A9） |
+| P4 | 性能 | 🟡 P2 | 集合比较排序触发 toString，无业务必要 | ✅ resolved（WU-P4/P5） |
+| P5 | 性能 | 🟢 P3 | diffObjectChildren 用 TreeSet 排序字段 | ✅ resolved（WU-P4/P5） |
+| P6 | 性能 | 🟢 P3 | processComplexObject 的 stream + peek 副作用 | ⚠️ 未修复（遗留） |
+| P7 | 性能 | 🟢 P3 | IdentityHashMap 大对象图内存压力 | 📝 已文档化 |
+| T1 | 测试 | 🔴 P0 | 类型变化场景零覆盖（对应 A1） | ✅ resolved（WU-A1） |
+| T2 | 测试 | 🔴 P0 | 数组零覆盖（对应 A2） | ✅ resolved（WU-A2） |
+| T3 | 测试 | 🔴 P1 | 并发安全零覆盖 | ✅ resolved（WU-TB） |
+| T4 | 测试 | 🔴 P1 | 性能 / 大规模零覆盖 | ✅ resolved（WU-TB） |
+| T5 | 测试 | 🟡 P2 | transient 字段处理未验证 | ✅ resolved（WU-TB） |
+| T6 | 测试 | 🟡 P2 | 接口继承链标识符查找未覆盖（对应 A6） | ✅ resolved（WU-A6+F2） |
+| T7 | 测试 | 🟡 P2 | calculateChanges 重复调用语义未覆盖 | ✅ resolved（WU-TB） |
+| T8 | 测试 | 🟡 P2 | Configuration 不可变性未验证（对应 A3） | ✅ resolved（WU-A3） |
+| T9 | 测试 | 🟡 P2 | record 可变性泄漏未验证（对应 A4） | ✅ resolved（WU-A4） |
+| T10 | 测试 | 🟢 P3 | 字段排序稳定性未覆盖（对应 P5） | ✅ resolved（WU-P4/P5） |
+| T11 | 测试 | 🟢 P3 | 非集合项 identifier 冗余调用未覆盖 | ✅ resolved（WU-TB） |
+
+> **修复状态说明**：A1-A9（除 A8 延后）、P4/P5、T1-T11 已修复并通过 `mvn clean test`（core 172 + api 24 = 196 测试全绿，2026-08-06 实测）；消费方 projectScaffolding- 同步后 132 测试全绿。
+> **P6 遗留**：`processComplexObject` 仍为 stream + filter + peek + collect 临时 map + putAll 模式（WU 执行计划未覆盖该项），待后续迭代修复。
+> **T0 / T0b**：审查后新发现的测试基础设施问题（surefire 不识别 JUnit 5、Mockito 沙箱 attach 失败），见任务 verification.md，已在 WU-TB 修复（surefire 3.2.5 + junit-jupiter-engine + Byte Buddy -javaagent）。
 
 > P1 / P2 / P3（反射缓存、isValueType 缓存、增量计算）见附录「已知暂缓项」，不计入缺陷。
 
@@ -66,6 +70,8 @@
 ## 一、架构不合理
 
 ### 🔴 A1. 类型变化场景产出语义错误的 FieldChange
+
+> ✅ **resolved**（WU-A1，commit 741e21e）——按 D5-D9/D12 决策修复：`FieldChange` → `ValueChange`（仅承载基本值变更，oldValue/newValue 保证为业务值）+ 新增 `ObjectFieldChange`（对象/集合字段整体替换，携带 ValueNode oldNode/newNode）；`extractValue` 不再泄漏节点实例。消费方同步：projectScaffolding issue 009。
 
 **定位**：`ValueNodeComparisonStrategy.diffNode` + `extractValue`
 
@@ -92,6 +98,8 @@ private Object extractValue(final ValueNode node) {
 
 ### 🔴 A2. 数组类型完全未处理，静默丢数据
 
+> ✅ **resolved**（WU-A2，commit 5215dac）——按 D10/D14 决策修复：新增 `ArrayNode`（数组 = 值语义，顺序敏感，equals 内容比较 + 防御拷贝）；值类型元素数组 → ArrayNode，复杂对象元素数组 → CollectionNode 递归（复用 identifier 匹配）。消费方零影响（载荷仍为数组实例）。
+
 **定位**：`ValueNodeSnapshotStrategy.toValueRecursive` + `isValueType`
 
 **问题**：`toValueRecursive` 只分支 Collection / Map / 复杂对象；`isValueType` 不识别数组。
@@ -105,6 +113,8 @@ private Object extractValue(final ValueNode node) {
 ---
 
 ### 🔴 A3. TrackingConfiguration 假不可变，契约破坏
+
+> ✅ **resolved**（WU-A3，commit 1412229）——构造器 `Map.copyOf` / `Set.copyOf` 防御拷贝 + getter 返回不可变集合（任何 add/put 抛 UnsupportedOperationException）；T8 不可变契约测试守护。
 
 **定位**：`TrackingConfiguration`（构造函数 + `@Getter`）
 
@@ -128,6 +138,8 @@ public TrackingConfiguration(Map<...> identifierExtractors, Set<Class<?>> custom
 
 ### 🔴 A4. record 可变状态泄漏
 
+> ✅ **resolved**（WU-A4，commit f20a6eb）——按 D11 决策：`ObjectNode` / `CollectionNode` 由 record 改为 final class + 只读方法 API（`field`/`forEachField`、`size`/`item`/`forEachItem`），不暴露任何集合引用（外部写编译级不可能）；`ContainerChangeNode` / `ContainerChange` 保留 record + 构造期 `List.copyOf`；equals/hashCode/toString 内容语义 + 循环引用防栈溢出（顺带修复 record 在循环图上炸的问题）。API 变化（无调用方，非 breaking）→ projectScaffolding issue 008。
+
 **定位**：`ObjectNode` / `CollectionNode` / `ContainerChangeNode` / `ContainerChange`
 
 **问题**：
@@ -145,6 +157,8 @@ record 本应是不可变值对象，却暴露可变视图。`ValueNodeSnapshotS
 
 ### 🟡 A5. TrackingCapability 泛型设计削弱类型安全
 
+> ✅ **resolved**（WU-A5，commit 2096b8f）——`SnapshotStrategy<S extends Snapshot<?>>` 参数化，`createSnapshot` 返回 `S`；`getSnapshotStrategy()` 返回 `SnapshotStrategy<S>`（raw 消除）；ChangeTracker 用 `getSupportedSnapshotType()` checked cast 显式类型守卫，不再 `@SuppressWarnings` 强转。源码级 breaking（仅影响 SPI 实现者）→ projectScaffolding issue 010。
+
 **定位**：`TrackingCapability` 接口 + `UnitOfWork.calculateChangesWithCapture`
 
 **问题**：`getSnapshotStrategy()` 返回 raw `SnapshotStrategy`（无泛型），`getComparisonStrategy()` 返回 `ComparisonStrategy<S>`（有泛型）。根因是 `SnapshotStrategy.createSnapshot` 返回 `Snapshot<?>` 无法绑定到 `S`。
@@ -158,6 +172,8 @@ record 本应是不可变值对象，却暴露可变视图。`ValueNodeSnapshotS
 ---
 
 ### 🟡 A6. SPI 标识符查找：接口不递归，与父类不对称
+
+> ✅ **resolved**（WU-A6+F2，commit 42d3013）——按 D18 决策：类链 × 每层接口链统一递归（对 type 及每个父类：先查精确 key，再递归接口链，visited 防环）；T6 测试改写为应命中。
 
 **定位**：`ValueNodeSnapshotStrategy.findExtractor`
 
@@ -178,6 +194,8 @@ for (final Class<?> iface : type.getInterfaces()) { ... }
 
 ### 🟢 A7. UnitOfWork 命名与经典 UOW 语义冲突
 
+> ✅ **resolved**（WU-A7，commit 33f7874）——按 D16 决策彻底改名：`UnitOfWork` → `ChangeTracker`（包 `domain.model.unitofwork` → `domain.model.tracking`）、`registerClean/New/Removed` → `track`/`excludeNew`/`excludeRemoved`、`UnitOfWorkFactory` → `ChangeTrackerFactory`；消费方 `UnitOfWorkProvider` → `ChangeTrackerProvider` 等同步（projectScaffolding issue 011）。
+
 **定位**：`UnitOfWork.registerNew` / `registerRemoved`
 
 **问题**：注释明确「排除机制，不生成变更」。经典 Fowler UOW 中 new/removed 恰是生成 INSERT/DELETE 的核心。这里框架只做 UPDATE 追踪，INSERT/DELETE 交给下游。
@@ -189,6 +207,8 @@ for (final Class<?> iface : type.getInterfaces()) { ... }
 ---
 
 ### 🟢 A8. UnitOfWork 缺生命周期管理方法
+
+> ⏸ **延后**（D15，与 A8 一并记录）——`clear()`/`reset()`/`isTracking` 公开化等生命周期方法不在本任务范围：消费方实证（每次操作新建 ChangeTracker + 手动重新 `track` 重登记）已覆盖语义，新 API = 契约承诺 + 概念负担（YAGNI）。`calculateChanges()` 幂等视图语义已确认并补 T7 测试固化。
 
 **定位**：`UnitOfWork`
 
@@ -204,6 +224,8 @@ for (final Class<?> iface : type.getInterfaces()) { ... }
 
 ### 🟢 A9. ChangeSet 转换逻辑高度重复
 
+> ✅ **resolved**（WU-A9，commit ae65109）——三套转换（toChange / toChangeWithRelativePath / toChangeWithContext）合一为 `convert(node, parentPath, collectionFieldName, useRelativePath)`（-46 行）；顺手清理 F4（未消费的 parentIsCollection 参数移除）；F3（容器 children 与顶层列表重复展开）确认为 D9 双视图设计语义，Javadoc 固化。ChangeNode 中间层合并（G6）记录为后续候选，不在本任务范围（D13）。
+
 **定位**：`ChangeSet`（`toChange` / `toChangeWithRelativePath` / `toChangeWithContext`）
 
 **问题**：三个近乎相同的私有方法都做 ChangeNode→Change 转换 + 路径计算 + `collectionFieldName` 提取。`currentParentIsCollection` / `currentCollectionFieldName` 计算逻辑重复 3 次。维护时改一处漏两处的风险高。
@@ -217,6 +239,8 @@ for (final Class<?> iface : type.getInterfaces()) { ... }
 > 注：反射缓存、类型判断缓存、增量计算等见附录「已知暂缓项」，此处只列当前阶段就应处理或值得记录的性能问题。
 
 ### 🟡 P4. 集合比较排序触发 toString，无业务必要
+
+> ✅ **resolved**（WU-P4/P5，commit 03c3e71）——`allIdentities` 改用 LinkedHashSet 按插入序迭代（old 项序在前，新增项追加在后），砍掉排序与 `String.valueOf`（verification 修正：原报告「直接按插入序输出」建议不完整——原实现是 HashSet 无序，必须 LinkedHashSet 才有确定性）。路径文本中的 identity 表示（`buildItemPath`）保留，属路径构造非排序。
 
 **定位**：`ValueNodeComparisonStrategy.sortIdentities`
 
@@ -235,6 +259,8 @@ sorted.sort(Comparator.comparing((Object identity) -> identityTypeName(identity)
 
 ### 🟢 P5. diffObjectChildren 用 TreeSet 排序字段
 
+> ✅ **resolved**（WU-P4/P5，commit 03c3e71）——`allKeys` 改用 LinkedHashSet：以 old 节点字段声明序为基准，new 新增字段追加在后（非字典序）；T10 测试固化（zebra/alpha/mango 声明序）。
+
 **定位**：`ValueNodeComparisonStrategy.diffObjectChildren`
 
 **问题**：`allKeys` 用 `TreeSet` 按字典序。副作用：变更顺序变字典序而非声明序，对消费方（PoReconstructor 按字段序生成 SQL）不友好；TreeSet 构造 O(K log K)。
@@ -245,6 +271,8 @@ sorted.sort(Comparator.comparing((Object identity) -> identityTypeName(identity)
 
 ### 🟢 P6. processComplexObject 的 stream + peek 副作用
 
+> ⚠️ **未修复（遗留）**——`processComplexObject` 仍为 `stream + filter + peek(setAccessible) + collect(toMap, LinkedHashMap)` 建临时 map 再 `putAll` 模式（多一次 map 复制 + stream peek 副作用反模式）。本任务 WU 执行计划未覆盖 P6，后续迭代修复（改为 for 循环直接向 fieldsMap put）。
+
 **定位**：`ValueNodeSnapshotStrategy.processComplexObject`
 
 **问题**：为支持循环引用（先放空 node 到 visited），先建 `HashMap fieldsMap` 放进 ObjectNode，再 stream `collect(toMap, LinkedHashMap)` 建临时 map，最后 `fieldsMap.putAll`。多一次 map 复制 + stream peek 副作用（反模式，无法 parallel）。
@@ -254,6 +282,8 @@ sorted.sort(Comparator.comparing((Object identity) -> identityTypeName(identity)
 ---
 
 ### 🟢 P7. IdentityHashMap 大对象图内存压力
+
+> 📝 **已文档化**（2026-08-06）——changeTracking README「内存特性」章节：快照创建期间 visited 缓存持有对象引用、快照为脱水 ValueNode 树（不持业务对象引用）、变更集每次实时转换不缓存。固有特性定性不变，无代码改动。
 
 **定位**：`ValueNodeSnapshotStrategy.createSnapshot` / `toValueRecursive`
 
@@ -266,41 +296,76 @@ sorted.sort(Comparator.comparing((Object identity) -> identityTypeName(identity)
 ## 三、测试不全面
 
 ### 🔴 T1. 类型变化场景零覆盖（对应 A1）
+
+> ✅ **resolved**（WU-A1，commit 741e21e）——`nestedObject_becomesNull_shouldBeReported` 断言重写（原断言固化泄漏行为：oldValue 即 ObjectNode 实例）；补 ObjectNode→PrimitiveNode / CollectionNode→ObjectNode 方向 + 新类型（ValueChange/ObjectFieldChange）断言。
+
 无 ObjectNode→PrimitiveNode / CollectionNode→ObjectNode 等节点类型变化测试——正是 A1 bug 的触发场景。应先写复现测试再修。
 
 ### 🔴 T2. 数组零覆盖（对应 A2）
+
+> ✅ **resolved**（WU-A2，commit 5215dac）——`ArraySnapshotTests` 8 个：{1,2,3}→{3,2,1} 顺序敏感固化、多维 deepEquals、防御拷贝（track 后改业务数组不污染旧快照）。
+
 全测试集 grep 不到 `int[]` / `Object[]` / `byte[]`。代码也不处理，静默丢数据无测试守护。
 
 ### 🔴 T3. 并发安全零覆盖
+
+> ✅ **resolved**（WU-TB，commit 6e71be8）——`ChangeTrackerTest.ConcurrentAccessTests`（多线程并发 track/calculateChanges，特征测试）；非线程安全为现状已知特征，已文档标注。
+
 `UnitOfWork` 的三个集合都是普通 HashMap/Set，非线程安全。无并发测试。projectScaffolding 有 `RequestContextPropagatingTaskDecorator` 跨线程传播上下文的场景——若 UOW 跨线程共享会出问题。需明确「非线程安全」文档或加同步 / 并发测试。
 
 ### 🔴 T4. 性能 / 大规模零覆盖
+
+> ✅ **resolved**（WU-TB，commit 6e71be8）——`ValueNodeSnapshotStrategyPerformanceTest`（万级 items 快照耗时基准）。
+
 无性能测试、无大对象图测试、无大集合测试。反射零缓存等问题在现有小对象测试里完全暴露不出来。应加：万级 items 快照 / 比较耗时基准 + 内存占用基准。
 
 ### 🟡 T5. transient 字段处理未验证
+
+> ✅ **resolved**（WU-TB，commit 6e71be8）——`TransientFieldTests` 特征测试固化现状：仅过滤 static 不过滤 transient，transient 字段会被快照（语义留待后续明确，测试守护现状防漂移）。
+
 代码只过滤 `static` 不过滤 `transient`。无测试验证 transient 字段是否应被追踪。需明确语义（transient 通常表示不该持久化）并加测试。
 
 ### 🟡 T6. 接口继承链标识符查找未覆盖（对应 A6）
+
+> ✅ **resolved**（WU-A6+F2，commit 42d3013）——`IdentifierExtractionTests` 9 个：类链 × 每层接口链（父类实现的接口、接口继承链、类接口混合链）均命中；原 2 个 shouldMiss 特征测试改写为应命中。
+
 只测直接接口，没测 `interface A extends B` + `class C implements A` + 为 B 配提取器。
 
 ### 🟡 T7. calculateChanges 重复调用语义未覆盖
+
+> ✅ **resolved**（WU-TB，commit 6e71be8）——`calculateChanges_repeatedCalls_shouldReturnSameChangeSet`：连续两次调用返回相同变更集（幂等视图特征，D15 固化）。另：`calculateChanges_forDirtyCleanObject_shouldCallComparisonAndCreateChangeSet` 已覆盖单次语义（verification 修正：非零覆盖）。
+
 无测试验证：registerClean → calculateChanges → 再修改 → 再 calculateChanges。当前每次全量重算，引入脏标记优化后需测试守护。
 
 ### 🟡 T8. Configuration 不可变性未验证（对应 A3）
+
+> ✅ **resolved**（WU-A3，commit 1412229）——`TrackingConfigurationTest` 不可变契约：getter 集合 add/put 抛 UnsupportedOperationException + 构造防御拷贝（外部修改原集合不影响内部状态）。
+
 无测试验证 `getCustomValueTypes().add(x)` 破坏配置。
 
 ### 🟡 T9. record 可变性泄漏未验证（对应 A4）
+
+> ✅ **resolved**（WU-A4，commit f20a6eb）——`NodeImmutabilityTests` 6 个：`fields().put()` / `items().add()` 已不存在（编译级封死），改为验证只读 API 行为 + equals/hashCode 内容语义 + 循环引用不炸。
+
 无测试验证 `objectNode.fields().put()` / `collectionNode.items().add()` 破坏不变性。
 
 ### 🟢 T10. 字段排序稳定性未覆盖（对应 P5）
+
+> ✅ **resolved**（WU-P4/P5，commit 03c3e71）——多字段全部变更按声明序输出（zebra/alpha/mango 非字典序）+ 新增字段按声明序追加在后。
+
 无测试验证变更顺序是声明序还是字典序。TreeSet 问题在现有少字段测试里不可见。
 
 ### 🟢 T11. 非集合项 identifier 冗余调用未覆盖
+
+> ✅ **resolved**（WU-TB，commit 6e71be8）——非集合项 identifier 特征测试固化现状（identityHashCode 回退）；冗余调用优化（仅集合项场景提取 identifier）记录为后续候选，非本任务范围。
+
 `processComplexObject` 对所有复杂对象都调 `extractIdentifier`（含非集合项），非集合项 identifier 应为 null 但仍执行 `findExtractor` 全链遍历，浪费。无测试验证非集合项 identifier 语义。
 
 ---
 
 ## 修复优先级建议
+
+> **修复完成注记（2026-08-06）**：下方优先级清单全部处理完毕——P0 立即项（A1/A2/T1/T2）、P1 尽快项（A3/A4/A6/T3/T4）、P2 排期项（A5/P4/T5-T9）、P3 收尾项（A7/A9/P5/T10-T11）均已 resolved（见各条目标记）；A8 延后（D15）；P6 遗留未修。
 
 | 优先级 | 问题 | 理由 |
 |--------|------|------|

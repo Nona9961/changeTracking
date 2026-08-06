@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * 基于反射的快照策略实现，将对象转换为 {@link ValueNode} 树。
@@ -339,22 +338,20 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
         final ObjectNode objectNode = new ObjectNode(fieldsMap, identifier);
         visited.put(obj, objectNode);
 
-        final Map<String, ValueNode> populatedFields = ReflectionUtils.getAllFields(obj.getClass()).stream()
-                .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                .peek(field -> field.setAccessible(true))
-                .collect(Collectors.toMap(
-                        Field::getName,
-                        field -> {
-                            try {
-                                return toValueRecursive(field.get(obj), visited);
-                            } catch (IllegalAccessException e) {
-                                throw new IllegalStateException("Failed to access field: " + field.getName(), e);
-                            }
-                        },
-                        // 字段隐藏（子类同名字段覆盖父类字段）：保留更具体类型（子类）先遍历到的值。
-                        (existing, ignored) -> existing,
-                        LinkedHashMap::new
-                ));
+        final Map<String, ValueNode> populatedFields = new LinkedHashMap<>();
+        for (final Field field : ReflectionUtils.getAllFields(obj.getClass())) {
+            if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            field.setAccessible(true);
+            try {
+                final ValueNode value = toValueRecursive(field.get(obj), visited);
+                // 字段隐藏（子类同名字段覆盖父类字段）：保留更具体类型（子类）先遍历到的值。
+                populatedFields.putIfAbsent(field.getName(), value);
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException("Failed to access field: " + field.getName(), e);
+            }
+        }
 
         fieldsMap.putAll(populatedFields);
 
