@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -42,6 +43,19 @@ class ChangeTest {
             assertNull(change.collectionFieldName());
             assertFalse(change.isParentCollection());
             assertSame(children, change.children());
+        }
+
+        @Test
+        @DisplayName("ContainerChange 构造时防御拷贝子列表（外部修改不影响节点）")
+        void containerChange_shouldCopyChildrenOnConstruction() {
+            final List<Change> children = new ArrayList<>(List.of(
+                    new FieldChange("child.path", "parent.child.path", "path", null, false, "a", "b")
+            ));
+            final ContainerChange change = new ContainerChange("path", "full.path", "path", null, false, children);
+
+            children.add(new FieldChange("other.path", "parent.other.path", "other", null, false, "a", "b"));
+
+            assertEquals(1, change.children().size(), "构造后外部修改不应影响节点");
         }
 
         @Test

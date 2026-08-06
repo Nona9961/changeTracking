@@ -85,12 +85,12 @@ class ValueNodeSnapshotStrategyTest {
             final ObjectNode userNode = (ObjectNode) snapshot.getSnapshotData();
 
             // 验证顶层字段
-            assertEquals(new PrimitiveNode("Alice"), userNode.fields().get("name"));
+            assertEquals(new PrimitiveNode("Alice"), userNode.field("name"));
 
             // 验证嵌套对象
-            assertInstanceOf(ObjectNode.class, userNode.fields().get("address"));
-            final ObjectNode addressNode = (ObjectNode) userNode.fields().get("address");
-            assertEquals(new PrimitiveNode("123 Main St"), addressNode.fields().get("street"));
+            assertInstanceOf(ObjectNode.class, userNode.field("address"));
+            final ObjectNode addressNode = (ObjectNode) userNode.field("address");
+            assertEquals(new PrimitiveNode("123 Main St"), addressNode.field("street"));
         }
 
         @Test
@@ -101,11 +101,12 @@ class ValueNodeSnapshotStrategyTest {
             final ObjectNode userNode = (ObjectNode) snapshot.getSnapshotData();
 
             // 验证集合
-            assertInstanceOf(CollectionNode.class, userNode.fields().get("tags"));
-            final CollectionNode tagsNode = (CollectionNode) userNode.fields().get("tags");
-            assertEquals(2, tagsNode.items().size());
-            assertTrue(tagsNode.items().contains(new PrimitiveNode("vip")));
-            assertTrue(tagsNode.items().contains(new PrimitiveNode("local")));
+            assertInstanceOf(CollectionNode.class, userNode.field("tags"));
+            final CollectionNode tagsNode = (CollectionNode) userNode.field("tags");
+            assertEquals(2, tagsNode.size());
+            final List<ValueNode> tags = new ArrayList<>();
+            tagsNode.forEachItem(tags::add);
+            assertEquals(List.of(new PrimitiveNode("vip"), new PrimitiveNode("local")), tags);
         }
 
         @Test
@@ -116,7 +117,7 @@ class ValueNodeSnapshotStrategyTest {
             final ValueNodeSnapshot snapshot = strategy.createSnapshot(user);
             final ObjectNode userNode = (ObjectNode) snapshot.getSnapshotData();
 
-            assertEquals(new NullNode(), userNode.fields().get("name"));
+            assertEquals(new NullNode(), userNode.field("name"));
         }
 
         @Test
@@ -128,7 +129,7 @@ class ValueNodeSnapshotStrategyTest {
             assertInstanceOf(ObjectNode.class, snapshot.getSnapshotData());
 
             final ObjectNode node = (ObjectNode) snapshot.getSnapshotData();
-            assertEquals(new PrimitiveNode("child"), node.fields().get("name"));
+            assertEquals(new PrimitiveNode("child"), node.field("name"));
         }
     }
 
@@ -159,8 +160,8 @@ class ValueNodeSnapshotStrategyTest {
 
             // 验证结构
             final ObjectNode parentNode = (ObjectNode) snapshot.getSnapshotData();
-            final ObjectNode childNode = (ObjectNode) parentNode.fields().get("child");
-            final ObjectNode backRefParentNode = (ObjectNode) childNode.fields().get("parent");
+            final ObjectNode childNode = (ObjectNode) parentNode.field("child");
+            final ObjectNode backRefParentNode = (ObjectNode) childNode.field("parent");
 
             // 关键断言：对父对象的反向引用应该是同一个快照节点实例
             assertSame(parentNode, backRefParentNode, "The back-reference to parent should be the same node instance.");
@@ -176,9 +177,9 @@ class ValueNodeSnapshotStrategyTest {
 
             assertInstanceOf(CollectionNode.class, snapshot.getSnapshotData());
             final CollectionNode listNode = (CollectionNode) snapshot.getSnapshotData();
-            assertEquals(1, listNode.items().size());
+            assertEquals(1, listNode.size());
 
-            final ValueNode first = listNode.items().iterator().next();
+            final ValueNode first = listNode.item(0);
             assertSame(listNode, first, "The self-reference should point to the same CollectionNode instance.");
         }
 
@@ -192,12 +193,12 @@ class ValueNodeSnapshotStrategyTest {
 
             assertInstanceOf(CollectionNode.class, snapshot.getSnapshotData());
             final CollectionNode mapNode = (CollectionNode) snapshot.getSnapshotData();
-            assertEquals(1, mapNode.items().size());
+            assertEquals(1, mapNode.size());
 
-            final ValueNode entryNode = mapNode.items().iterator().next();
+            final ValueNode entryNode = mapNode.item(0);
             assertInstanceOf(ObjectNode.class, entryNode);
             final ObjectNode mapEntryNode = (ObjectNode) entryNode;
-            assertSame(mapNode, mapEntryNode.fields().get("value"), "The self-reference should point to the same CollectionNode instance.");
+            assertSame(mapNode, mapEntryNode.field("value"), "The self-reference should point to the same CollectionNode instance.");
         }
     }
 
@@ -242,7 +243,7 @@ class ValueNodeSnapshotStrategyTest {
 
             assertInstanceOf(CollectionNode.class, result);
             final CollectionNode collectionNode = (CollectionNode) result;
-            assertEquals(2, collectionNode.items().size());
+            assertEquals(2, collectionNode.size());
         }
 
         static class EntityWithMap {
@@ -256,9 +257,9 @@ class ValueNodeSnapshotStrategyTest {
             final ValueNodeSnapshot snapshot = strategy.createSnapshot(entity);
             final ObjectNode entityNode = (ObjectNode) snapshot.getSnapshotData();
 
-            assertInstanceOf(CollectionNode.class, entityNode.fields().get("attributes"));
-            final CollectionNode mapNode = (CollectionNode) entityNode.fields().get("attributes");
-            assertEquals(2, mapNode.items().size());
+            assertInstanceOf(CollectionNode.class, entityNode.field("attributes"));
+            final CollectionNode mapNode = (CollectionNode) entityNode.field("attributes");
+            assertEquals(2, mapNode.size());
         }
     }
 
@@ -577,7 +578,7 @@ class ValueNodeSnapshotStrategyTest {
             final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
 
             assertInstanceOf(ObjectNode.class, result);
-            assertTrue(((ObjectNode) result).fields().isEmpty(), "特征：数组内容静默丢失");
+            assertTrue(isEmptyObjectNode((ObjectNode) result), "特征：数组内容静默丢失");
         }
 
         @Test
@@ -587,7 +588,7 @@ class ValueNodeSnapshotStrategyTest {
             final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
 
             assertInstanceOf(ObjectNode.class, result);
-            assertTrue(((ObjectNode) result).fields().isEmpty(), "特征：数组内容静默丢失");
+            assertTrue(isEmptyObjectNode((ObjectNode) result), "特征：数组内容静默丢失");
         }
 
         @Test
@@ -597,7 +598,7 @@ class ValueNodeSnapshotStrategyTest {
             final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
 
             assertInstanceOf(ObjectNode.class, result);
-            assertTrue(((ObjectNode) result).fields().isEmpty(), "特征：数组内容静默丢失");
+            assertTrue(isEmptyObjectNode((ObjectNode) result), "特征：数组内容静默丢失");
         }
 
         @Test
@@ -607,7 +608,7 @@ class ValueNodeSnapshotStrategyTest {
             final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
 
             assertInstanceOf(ObjectNode.class, result);
-            assertTrue(((ObjectNode) result).fields().isEmpty(), "特征：数组内容静默丢失");
+            assertTrue(isEmptyObjectNode((ObjectNode) result), "特征：数组内容静默丢失");
         }
 
         @Test
@@ -616,8 +617,8 @@ class ValueNodeSnapshotStrategyTest {
             final EntityWithByteArray entity = new EntityWithByteArray();
             final ObjectNode node = (ObjectNode) strategy.createSnapshot(entity).getSnapshotData();
 
-            assertInstanceOf(ObjectNode.class, node.fields().get("data"));
-            assertTrue(((ObjectNode) node.fields().get("data")).fields().isEmpty(), "特征：数组内容静默丢失");
+            assertInstanceOf(ObjectNode.class, node.field("data"));
+            assertTrue(isEmptyObjectNode((ObjectNode) node.field("data")), "特征：数组内容静默丢失");
         }
     }
 
@@ -641,8 +642,8 @@ class ValueNodeSnapshotStrategyTest {
             final EntityWithTransient entity = new EntityWithTransient();
             final ObjectNode node = (ObjectNode) strategy.createSnapshot(entity).getSnapshotData();
 
-            assertEquals(new PrimitiveNode("persisted"), node.fields().get("name"));
-            assertEquals(new PrimitiveNode("transient-value"), node.fields().get("cache"), "特征：transient 字段被快照");
+            assertEquals(new PrimitiveNode("persisted"), node.field("name"));
+            assertEquals(new PrimitiveNode("transient-value"), node.field("cache"), "特征：transient 字段被快照");
         }
 
         @Test
@@ -650,36 +651,114 @@ class ValueNodeSnapshotStrategyTest {
         void staticField_shouldNotBeSnapshotted() {
             final ObjectNode node = (ObjectNode) strategy.createSnapshot(new EntityWithStaticField()).getSnapshotData();
 
-            assertFalse(node.fields().containsKey("STATIC_FIELD"), "static 字段应被过滤");
-            assertEquals(new PrimitiveNode("instance"), node.fields().get("instanceField"));
+            assertNull(node.field("STATIC_FIELD"), "static 字段应被过滤");
+            assertEquals(new PrimitiveNode("instance"), node.field("instanceField"));
         }
     }
 
     @Nested
-    @DisplayName("快照节点可变性特征测试（现状：record 暴露内部集合引用，可被外部修改）")
-    class NodeMutabilityTests {
+    @DisplayName("快照节点不可变契约测试（D11：final class + 只读 API，外部写 = 编译级不可能）")
+    class NodeImmutabilityTests {
 
         @Test
-        @DisplayName("ObjectNode.fields() 返回的 Map 现状可被外部修改")
-        void objectNode_fields_shouldBeMutableInCurrentImplementation() {
+        @DisplayName("ObjectNode 只暴露只读 API：field() 按名取值、forEachField 只读遍历、identifier()")
+        void objectNode_shouldExposeReadOnlyApi() {
             final Map<String, ValueNode> fields = new HashMap<>();
-            final ObjectNode node = new ObjectNode(fields);
+            fields.put("name", new PrimitiveNode("Alice"));
+            fields.put("age", new PrimitiveNode(30));
+            final ObjectNode node = new ObjectNode(fields, 42L);
 
-            node.fields().put("hacked", new PrimitiveNode("evil"));
+            // 按名取值
+            assertEquals(new PrimitiveNode("Alice"), node.field("name"));
+            assertEquals(new PrimitiveNode(30), node.field("age"));
+            assertNull(node.field("missing"), "缺失字段应返回 null");
 
-            assertEquals(new PrimitiveNode("evil"), node.fields().get("hacked"), "特征：fields() 可写");
+            // 只读遍历应覆盖全部字段
+            final Map<String, ValueNode> visited = new HashMap<>();
+            node.forEachField(visited::put);
+            assertEquals(fields, visited, "forEachField 应遍历全部字段");
+
+            assertEquals(42L, node.identifier());
         }
 
         @Test
-        @DisplayName("CollectionNode.items() 返回的集合现状可被外部修改")
-        void collectionNode_items_shouldBeMutableInCurrentImplementation() {
+        @DisplayName("CollectionNode 只暴露只读 API：size()、item(int)、forEachItem()")
+        void collectionNode_shouldExposeReadOnlyApi() {
             final List<ValueNode> items = new ArrayList<>();
+            items.add(new PrimitiveNode("a"));
+            items.add(new PrimitiveNode("b"));
             final CollectionNode node = new CollectionNode(items);
 
-            node.items().add(new PrimitiveNode("hacked"));
+            assertEquals(2, node.size());
+            assertEquals(new PrimitiveNode("a"), node.item(0));
+            assertEquals(new PrimitiveNode("b"), node.item(1));
+            assertThrows(IndexOutOfBoundsException.class, () -> node.item(2), "越界访问应抛异常");
 
-            assertEquals(1, node.items().size(), "特征：items() 可写");
-            assertEquals(new PrimitiveNode("hacked"), node.items().iterator().next());
+            // 只读遍历应覆盖全部项且保持顺序
+            final List<ValueNode> visited = new ArrayList<>();
+            node.forEachItem(visited::add);
+            assertEquals(items, visited, "forEachItem 应遍历全部项");
         }
+
+        @Test
+        @DisplayName("ObjectNode equals 为内容语义：不同实例、相同内容相等，hashCode 一致")
+        void objectNode_equals_shouldBeContentBased() {
+            final ObjectNode a = new ObjectNode(Map.of("name", new PrimitiveNode("Alice")), 1L);
+            final ObjectNode b = new ObjectNode(Map.of("name", new PrimitiveNode("Alice")), 1L);
+
+            assertEquals(a, b, "相同内容的不同实例应相等");
+            assertEquals(a.hashCode(), b.hashCode(), "相等对象 hashCode 必须一致");
+        }
+
+        @Test
+        @DisplayName("ObjectNode equals 应区分字段内容与标识符")
+        void objectNode_equals_shouldDistinguishFieldsAndIdentifier() {
+            final ObjectNode base = new ObjectNode(Map.of("name", new PrimitiveNode("Alice")), 1L);
+
+            assertNotEquals(base, new ObjectNode(Map.of("name", new PrimitiveNode("Bob")), 1L), "字段值不同应不相等");
+            assertNotEquals(base, new ObjectNode(Map.of("name", new PrimitiveNode("Alice")), 2L), "标识符不同应不相等");
+            assertNotEquals(base, new ObjectNode(Map.of("name", new PrimitiveNode("Alice"), "extra", new NullNode()), 1L), "字段集合不同应不相等");
+        }
+
+        @Test
+        @DisplayName("CollectionNode equals 为内容语义（含顺序）")
+        void collectionNode_equals_shouldBeContentBased() {
+            final CollectionNode a = new CollectionNode(List.of(new PrimitiveNode("a"), new PrimitiveNode("b")));
+            final CollectionNode b = new CollectionNode(List.of(new PrimitiveNode("a"), new PrimitiveNode("b")));
+
+            assertEquals(a, b, "相同内容的不同实例应相等");
+            assertEquals(a.hashCode(), b.hashCode(), "相等对象 hashCode 必须一致");
+            assertNotEquals(a, new CollectionNode(List.of(new PrimitiveNode("a"))), "项数不同应不相等");
+            assertNotEquals(a, new CollectionNode(List.of(new PrimitiveNode("b"), new PrimitiveNode("a"))), "顺序不同应不相等");
+        }
+
+        @Test
+        @DisplayName("ObjectNode 与 CollectionNode 交叉循环引用 equals/hashCode/toString 不应 StackOverflow")
+        void cyclicGraph_equalsHashCodeToString_shouldNotStackOverflow() {
+            final Map<String, ValueNode> aFields = new HashMap<>();
+            final ObjectNode a = new ObjectNode(aFields);
+            final List<ValueNode> items = new ArrayList<>();
+            final CollectionNode c = new CollectionNode(items);
+            aFields.put("collection", c);
+            items.add(a);
+
+            assertDoesNotThrow(() -> a.equals(a), "自反 equals 不应栈溢出");
+            assertDoesNotThrow(() -> a.hashCode(), "循环图 hashCode 不应栈溢出");
+            assertDoesNotThrow(() -> a.toString(), "循环图 toString 不应栈溢出");
+            assertDoesNotThrow(() -> c.hashCode(), "反向循环 hashCode 不应栈溢出");
+            assertDoesNotThrow(() -> c.toString(), "反向循环 toString 不应栈溢出");
+        }
+    }
+
+    /**
+     * 判断 ObjectNode 是否不含任何字段（只读 API 下用于替代 fields().isEmpty()）。
+     *
+     * @param node 待判断的 ObjectNode。
+     * @return 不含任何字段时返回 true。
+     */
+    private static boolean isEmptyObjectNode(final ObjectNode node) {
+        final boolean[] empty = {true};
+        node.forEachField((ignoredKey, ignoredValue) -> empty[0] = false);
+        return empty[0];
     }
 }

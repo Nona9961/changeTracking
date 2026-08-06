@@ -27,4 +27,18 @@ public record ContainerChange(
     public boolean isParentCollection() {
         return parentIsCollection;
     }
+
+    /**
+     * 紧凑构造器：防御性拷贝子变更列表，保证节点构造后不可变。
+     *
+     * @param path                相对路径。
+     * @param fullPath            完整路径。
+     * @param fieldName           纯字段名（不含索引）。
+     * @param collectionFieldName 所属集合字段名，主表字段为 null。
+     * @param parentIsCollection  父节点是否为集合。
+     * @param children            子变更列表。
+     */
+    public ContainerChange {
+        children = List.copyOf(children);
+    }
 }

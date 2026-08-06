@@ -186,12 +186,12 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
     private List<ChangeNode> diffObjectChildren(final ObjectNode oldObj, final ObjectNode newObj, final String path, final Set<VisitingPair> visiting) {
         final List<ChangeNode> changes = new ArrayList<>();
         final Set<String> allKeys = new TreeSet<>();
-        allKeys.addAll(oldObj.fields().keySet());
-        allKeys.addAll(newObj.fields().keySet());
+        oldObj.forEachField((key, ignoredValue) -> allKeys.add(key));
+        newObj.forEachField((key, ignoredValue) -> allKeys.add(key));
 
         for (final String key : allKeys) {
-            final ValueNode oldFieldNode = oldObj.fields().getOrDefault(key, new NullNode());
-            final ValueNode newFieldNode = newObj.fields().getOrDefault(key, new NullNode());
+            final ValueNode oldFieldNode = fieldOrNullNode(oldObj, key);
+            final ValueNode newFieldNode = fieldOrNullNode(newObj, key);
             final String fieldPath;
             if (path.isEmpty()) {
                 fieldPath = key;
@@ -220,8 +220,12 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     private List<ChangeNode> diffCollectionChildren(final CollectionNode oldColl, final CollectionNode newColl, final String path, final Set<VisitingPair> visiting) {
         final List<ChangeNode> changes = new ArrayList<>();
-        final Map<Object, List<ValueNode>> oldItemsById = groupByIdentity(oldColl.items());
-        final Map<Object, List<ValueNode>> newItemsById = groupByIdentity(newColl.items());
+        final List<ValueNode> collectedOldItems = new ArrayList<>(oldColl.size());
+        oldColl.forEachItem(collectedOldItems::add);
+        final List<ValueNode> collectedNewItems = new ArrayList<>(newColl.size());
+        newColl.forEachItem(collectedNewItems::add);
+        final Map<Object, List<ValueNode>> oldItemsById = groupByIdentity(collectedOldItems);
+        final Map<Object, List<ValueNode>> newItemsById = groupByIdentity(collectedNewItems);
 
         final Set<Object> allIdentities = new HashSet<>();
         allIdentities.addAll(oldItemsById.keySet());
@@ -327,6 +331,21 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             return basePath + "[" + identityText + "]";
         }
         return basePath + "[" + identityText + "#" + occurrence + "]";
+    }
+
+    /**
+     * 按字段名取值，字段缺失时返回 NullNode。
+     * <p>
+     * {@link ObjectNode#field(String)} 对缺失字段返回 null，而 diff 逻辑需要 NullNode 语义
+     * （缺失 = NullNode，与旧 keySet+getOrDefault 行为一致）。
+     *
+     * @param node 目标 ObjectNode。
+     * @param key  字段名。
+     * @return 字段的 ValueNode，字段缺失时返回 NullNode。
+     */
+    private static ValueNode fieldOrNullNode(final ObjectNode node, final String key) {
+        final ValueNode value = node.field(key);
+        return value != null ? value : new NullNode();
     }
 
     /**

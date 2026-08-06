@@ -12,4 +12,14 @@ import java.util.List;
  * @param children 子变更节点列表。
  */
 public record ContainerChangeNode(String path, List<ChangeNode> children) implements ChangeNode {
+
+    /**
+     * 紧凑构造器：防御性拷贝子变更列表，保证节点构造后不可变。
+     *
+     * @param path     容器的路径。
+     * @param children 子变更节点列表。
+     */
+    public ContainerChangeNode {
+        children = List.copyOf(children);
+    }
 }

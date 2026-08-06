@@ -4,6 +4,7 @@ import com.nona.changeTracking.domain.model.changeset.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,6 +40,17 @@ class ChangeNodeTest {
                 () -> assertEquals(path, node.path()),
                 () -> assertSame(children, node.children())
         );
+    }
+
+    @Test
+    @DisplayName("ContainerChangeNode 构造时防御拷贝子列表（外部修改不影响节点）")
+    void containerChangeNode_shouldCopyChildrenOnConstruction() {
+        final List<ChangeNode> children = new ArrayList<>(List.of(new FieldChangeNode("a", "1", "2")));
+        final ContainerChangeNode node = new ContainerChangeNode("a", children);
+
+        children.add(new FieldChangeNode("b", "1", "2"));
+
+        assertEquals(1, node.children().size(), "构造后外部修改不应影响节点");
     }
 
     @Test
