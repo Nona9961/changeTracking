@@ -10,6 +10,7 @@ import com.nona.changeTracking.domain.model.changeset.ChangeSet;
 import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
 import com.nona.changeTracking.domain.model.changeset.FieldChangeNode;
 import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
+import com.nona.changeTracking.domain.model.snapshot.Snapshot;
 import com.nona.changeTracking.domain.model.snapshot.ValueNodeSnapshot;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,11 +40,17 @@ import static org.mockito.Mockito.*;
 class UnitOfWorkTest {
 
     @Mock(lenient = true)
-    private TrackingCapability<?> capability;
+    private TrackingCapability<ValueNodeSnapshot> capability;
     @Mock(lenient = true)
-    private SnapshotStrategy snapshotStrategy;
+    private SnapshotStrategy<ValueNodeSnapshot> snapshotStrategy;
     @Mock(lenient = true)
     private ComparisonStrategy<ValueNodeSnapshot> comparisonStrategy;
+    @Mock(lenient = true)
+    private TrackingCapability<ValueNodeSnapshot> mismatchedCapability;
+    @Mock(lenient = true)
+    private SnapshotStrategy<ValueNodeSnapshot> fakeSnapshotStrategy;
+    @Mock(lenient = true)
+    private ComparisonStrategy<ValueNodeSnapshot> fakeComparisonStrategy;
 
     private UnitOfWork uow;
 
@@ -61,6 +68,7 @@ class UnitOfWorkTest {
     void setUp() {
         when(capability.getSnapshotStrategy()).thenReturn(snapshotStrategy);
         doReturn(comparisonStrategy).when(capability).getComparisonStrategy();
+        when(comparisonStrategy.getSupportedSnapshotType()).thenReturn(ValueNodeSnapshot.class);
         uow = new UnitOfWork(capability);
     }
 
@@ -130,7 +138,8 @@ class UnitOfWorkTest {
             final ChangeSet changeSet = uow.calculateChanges();
             assertTrue(changeSet.isEmpty());
             verifyNoInteractions(snapshotStrategy);
-            verifyNoInteractions(comparisonStrategy);
+            // 契约：new 对象不触发快照比较（setUp 中类型守卫 stub 不算交互）
+            verify(comparisonStrategy, never()).compare(any(), any());
         }
 
         @Test
@@ -285,6 +294,40 @@ class UnitOfWorkTest {
         @DisplayName("registerRemoved 传入 null 应抛出 NullPointerException")
         void registerRemoved_withNull_shouldThrowNPE() {
             assertThrows(NullPointerException.class, () -> uow.registerRemoved(null));
+        }
+    }
+
+    @Nested
+    @DisplayName("类型安全守卫（A5）")
+    class TypeSafetyTests {
+
+        /** 与能力单元快照类型不兼容的“外来”快照。 */
+        private record ForeignSnapshot(String data) implements Snapshot<String> {
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public String getSnapshotData() {
+                return data;
+            }
+        }
+
+        @Test
+        @DisplayName("快照类型与比较策略声明不匹配时，应在比较前被类型守卫拒绝")
+        void calculateChanges_incompatibleSnapshotType_shouldBeRejected() {
+            // 人为构造类型不匹配：快照策略返回 ForeignSnapshot，比较策略声明仅支持 ValueNodeSnapshot
+            when(mismatchedCapability.getSnapshotStrategy()).thenReturn(fakeSnapshotStrategy);
+            when(mismatchedCapability.getComparisonStrategy()).thenReturn(fakeComparisonStrategy);
+            when(fakeComparisonStrategy.getSupportedSnapshotType()).thenReturn(ValueNodeSnapshot.class);
+            doReturn(new ForeignSnapshot("foreign")).when(fakeSnapshotStrategy).createSnapshot(user1);
+
+            final UnitOfWork uow = new UnitOfWork(mismatchedCapability);
+            uow.registerClean(user1);
+
+            // 类型守卫应拒绝不兼容的旧快照，抛出清晰的 ClassCastException，而非静默传给比较策略
+            assertThrows(ClassCastException.class, uow::calculateChanges);
+            verify(fakeComparisonStrategy, never()).compare(any(), any());
         }
     }
 

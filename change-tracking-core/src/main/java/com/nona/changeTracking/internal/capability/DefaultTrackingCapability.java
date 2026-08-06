@@ -40,7 +40,7 @@ public class DefaultTrackingCapability implements TrackingCapability<ValueNodeSn
      * {@inheritDoc}
      */
     @Override
-    public SnapshotStrategy getSnapshotStrategy() {
+    public SnapshotStrategy<ValueNodeSnapshot> getSnapshotStrategy() {
         return snapshotStrategy;
     }
 

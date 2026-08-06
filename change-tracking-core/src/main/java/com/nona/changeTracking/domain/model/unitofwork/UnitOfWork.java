@@ -137,26 +137,29 @@ public final class UnitOfWork {
     /**
      * 一个私有的、泛型的辅助方法，其目的是“捕获”构造函数中传入的通配符 ? 的具体类型，
      * 从而在方法内部可以进行完全类型安全的操作。
+     * <p>
+     * 新快照由 {@link SnapshotStrategy#createSnapshot(Object)} 直接产出，编译期即为 {@code S} 类型；
+     * 旧快照取自 {@code cleanObjects}（存储为 {@code Snapshot<?>}），
+     * 通过 {@link ComparisonStrategy#getSupportedSnapshotType()} 的 checked cast 做显式类型守卫——
+     * 快照均由同一能力单元创建，正常路径必然兼容；若因误用能力单元导致不匹配，
+     * 会得到清晰的 {@link ClassCastException} 而非堆污染。
      *
      * @param specificCapability 一个具有具体泛型类型 S 的能力实例。
      * @param <S>                被捕获的、具体的 Snapshot 类型。
      * @return 计算出的变更集。
      */
-    @SuppressWarnings("unchecked")
     private <S extends Snapshot<?>> ChangeSet calculateChangesWithCapture(final TrackingCapability<S> specificCapability) {
         final List<ObjectChange> changes = new ArrayList<>();
-        final SnapshotStrategy snapshotStrategy = specificCapability.getSnapshotStrategy();
+        final SnapshotStrategy<S> snapshotStrategy = specificCapability.getSnapshotStrategy();
         final ComparisonStrategy<S> comparisonStrategy = specificCapability.getComparisonStrategy();
+        final Class<S> supportedSnapshotType = comparisonStrategy.getSupportedSnapshotType();
 
         for (final Map.Entry<Object, Snapshot<?>> entry : this.cleanObjects.entrySet()) {
             final Object entity = entry.getKey();
-            final Snapshot<?> oldSnapshot = entry.getValue();
-            final Snapshot<?> newSnapshot = snapshotStrategy.createSnapshot(entity);
+            final S oldSnapshot = supportedSnapshotType.cast(entry.getValue());
+            final S newSnapshot = snapshotStrategy.createSnapshot(entity);
 
-            // **【核心修正点】**: 移除所有运行时检查。
-            // 我们完全信任 TrackingCapability<S> 的契约，即它提供的策略和快照是类型兼容的。
-            // 这个强制转换是基于架构性信任的，因此是安全的。
-            final ChangeNode changeTree = comparisonStrategy.compare((S) oldSnapshot, (S) newSnapshot);
+            final ChangeNode changeTree = comparisonStrategy.compare(oldSnapshot, newSnapshot);
 
             if (changeTree instanceof ContainerChangeNode container && !container.children().isEmpty()) {
                 changes.add(new ObjectChange(entity, changeTree));

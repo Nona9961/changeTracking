@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
  *   <li>标识符提取器 - 用于集合项匹配的业务标识</li>
  * </ul>
  */
-public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
+public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnapshot> {
 
     /**
      * 默认的值类型包名，这些包下的类会被视为原始值。

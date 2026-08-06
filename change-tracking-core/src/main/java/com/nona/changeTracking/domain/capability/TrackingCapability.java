@@ -13,9 +13,9 @@ public interface TrackingCapability<S extends Snapshot<?>> {
     /**
      * 获取与此能力单元关联的快照创建策略。
      *
-     * @return 用于创建对象快照的 {@link SnapshotStrategy} 实例。
+     * @return 用于创建对象快照的 {@link SnapshotStrategy} 实例，其产出类型与能力单元的快照类型 {@code S} 一致。
      */
-    SnapshotStrategy getSnapshotStrategy();
+    SnapshotStrategy<S> getSnapshotStrategy();
 
     /**
      * 获取与此能力单元关联的、类型安全的快照比较策略。

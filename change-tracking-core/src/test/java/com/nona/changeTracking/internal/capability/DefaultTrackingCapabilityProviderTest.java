@@ -44,7 +44,7 @@ class DefaultTrackingCapabilityProviderTest {
         assertNotNull(capability);
 
         // 验证快照策略
-        final SnapshotStrategy snapshotStrategy = capability.getSnapshotStrategy();
+        final SnapshotStrategy<?> snapshotStrategy = capability.getSnapshotStrategy();
         assertInstanceOf(ValueNodeSnapshotStrategy.class, snapshotStrategy);
 
         // 验证比较策略
