@@ -64,7 +64,7 @@ public final class ChangeTracker {
      * @throws NullPointerException 如果 entity 为 null。
      */
     public void track(final Object entity) {
-        Objects.requireNonNull(entity, "Cannot register a null clean entity.");
+        Objects.requireNonNull(entity, "Cannot track a null entity.");
         if (isTracking(entity)) {
             return;
         }

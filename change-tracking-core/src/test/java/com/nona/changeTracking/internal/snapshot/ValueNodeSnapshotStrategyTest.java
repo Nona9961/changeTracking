@@ -134,6 +134,19 @@ class ValueNodeSnapshotStrategyTest {
             final ObjectNode node = (ObjectNode) snapshot.getSnapshotData();
             assertEquals(new PrimitiveNode("child"), node.field("name"));
         }
+
+        @Test
+        @DisplayName("真实快照路径：ObjectNode 字段迭代序 = 声明序（P5 链路，比较层输出依赖）")
+        void fieldIteration_shouldFollowDeclarationOrder() {
+            final User user = new User();
+            final ValueNodeSnapshot snapshot = strategy.createSnapshot(user);
+            final ObjectNode userNode = (ObjectNode) snapshot.getSnapshotData();
+
+            final List<String> fieldNames = new ArrayList<>();
+            userNode.forEachField((key, ignored) -> fieldNames.add(key));
+            // User 声明序：name → address → tags（字典序为 address/name/tags）
+            assertEquals(List.of("name", "address", "tags"), fieldNames);
+        }
     }
 
     @Nested

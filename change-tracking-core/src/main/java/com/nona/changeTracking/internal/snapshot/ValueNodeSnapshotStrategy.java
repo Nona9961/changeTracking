@@ -334,11 +334,15 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
     private ObjectNode processComplexObject(final Object obj, final Map<Object, ValueNode> visited) {
         final Object identifier = extractIdentifier(obj);
 
-        final Map<String, ValueNode> fieldsMap = new HashMap<>();
+        // LinkedHashMap：保字段声明序（getAllFields 为子类→父类序，putIfAbsent 保留先到者）——
+        // 比较层 diffObjectChildren 以 ObjectNode 字段迭代序为输出基准（P5），
+        // HashMap 会丢失声明序，导致输出顺序与字段声明顺序不一致。
+        final Map<String, ValueNode> fieldsMap = new LinkedHashMap<>();
         final ObjectNode objectNode = new ObjectNode(fieldsMap, identifier);
         visited.put(obj, objectNode);
 
-        final Map<String, ValueNode> populatedFields = new LinkedHashMap<>();
+        // 直接向 fieldsMap 填充（先登记后填充：空 map 已入 visited，循环引用返回本节点安全）；
+        // 无临时 map + putAll 复制（P6）。
         for (final Field field : ReflectionUtils.getAllFields(obj.getClass())) {
             if (Modifier.isStatic(field.getModifiers())) {
                 continue;
@@ -347,13 +351,11 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
             try {
                 final ValueNode value = toValueRecursive(field.get(obj), visited);
                 // 字段隐藏（子类同名字段覆盖父类字段）：保留更具体类型（子类）先遍历到的值。
-                populatedFields.putIfAbsent(field.getName(), value);
+                fieldsMap.putIfAbsent(field.getName(), value);
             } catch (IllegalAccessException e) {
                 throw new IllegalStateException("Failed to access field: " + field.getName(), e);
             }
         }
-
-        fieldsMap.putAll(populatedFields);
 
         return objectNode;
     }

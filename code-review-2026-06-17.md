@@ -45,7 +45,7 @@
 | A9 | 架构 | 🟢 P3 | ChangeSet 转换逻辑高度重复 | ✅ resolved（WU-A9） |
 | P4 | 性能 | 🟡 P2 | 集合比较排序触发 toString，无业务必要 | ✅ resolved（WU-P4/P5） |
 | P5 | 性能 | 🟢 P3 | diffObjectChildren 用 TreeSet 排序字段 | ✅ resolved（WU-P4/P5） |
-| P6 | 性能 | 🟢 P3 | processComplexObject 的 stream + peek 副作用 | ⚠️ 未修复（遗留） |
+| P6 | 性能 | 🟢 P3 | processComplexObject 的 stream + peek 副作用 | ✅ resolved（WU-A8 + 终审补完） |
 | P7 | 性能 | 🟢 P3 | IdentityHashMap 大对象图内存压力 | 📝 已文档化 |
 | T1 | 测试 | 🔴 P0 | 类型变化场景零覆盖（对应 A1） | ✅ resolved（WU-A1） |
 | T2 | 测试 | 🔴 P0 | 数组零覆盖（对应 A2） | ✅ resolved（WU-A2） |
@@ -59,8 +59,7 @@
 | T10 | 测试 | 🟢 P3 | 字段排序稳定性未覆盖（对应 P5） | ✅ resolved（WU-P4/P5） |
 | T11 | 测试 | 🟢 P3 | 非集合项 identifier 冗余调用未覆盖 | ✅ resolved（WU-TB） |
 
-> **修复状态说明**：A1-A9（除 A8 延后）、P4/P5、T1-T11 已修复并通过 `mvn clean test`（core 172 + api 24 = 196 测试全绿，2026-08-06 实测）；消费方 projectScaffolding- 同步后 132 测试全绿。
-> **P6 遗留**：`processComplexObject` 仍为 stream + filter + peek + collect 临时 map + putAll 模式（WU 执行计划未覆盖该项），待后续迭代修复。
+> **修复状态说明**：A1-A9（除 A8 延后）、P4-P7、T1-T11 已修复并通过 `mvn clean test`（core 172 + api 24 + 终审新增 1 = 197 测试全绿，2026-08-06 实测）；消费方 projectScaffolding- 同步后 132 测试全绿。
 > **T0 / T0b**：审查后新发现的测试基础设施问题（surefire 不识别 JUnit 5、Mockito 沙箱 attach 失败），见任务 verification.md，已在 WU-TB 修复（surefire 3.2.5 + junit-jupiter-engine + Byte Buddy -javaagent）。
 
 > P1 / P2 / P3（反射缓存、isValueType 缓存、增量计算）见附录「已知暂缓项」，不计入缺陷。
@@ -271,7 +270,7 @@ sorted.sort(Comparator.comparing((Object identity) -> identityTypeName(identity)
 
 ### 🟢 P6. processComplexObject 的 stream + peek 副作用
 
-> ⚠️ **未修复（遗留）**——`processComplexObject` 仍为 `stream + filter + peek(setAccessible) + collect(toMap, LinkedHashMap)` 建临时 map 再 `putAll` 模式（多一次 map 复制 + stream peek 副作用反模式）。本任务 WU 执行计划未覆盖 P6，后续迭代修复（改为 for 循环直接向 fieldsMap put）。
+> ✅ **resolved**（WU-A8 commit 9eaaeff：stream+peek 改 for 循环；终审 2026-08-06 补完：临时 map + putAll 一并去除——`fieldsMap` 改 LinkedHashMap 直接 `putIfAbsent` 填充，顺带修复 P5 声明序链路（此前 putAll 进 HashMap 丢失声明序），新增测试 `fieldIteration_shouldFollowDeclarationOrder` 固化）。
 
 **定位**：`ValueNodeSnapshotStrategy.processComplexObject`
 
@@ -365,7 +364,7 @@ sorted.sort(Comparator.comparing((Object identity) -> identityTypeName(identity)
 
 ## 修复优先级建议
 
-> **修复完成注记（2026-08-06）**：下方优先级清单全部处理完毕——P0 立即项（A1/A2/T1/T2）、P1 尽快项（A3/A4/A6/T3/T4）、P2 排期项（A5/P4/T5-T9）、P3 收尾项（A7/A9/P5/T10-T11）均已 resolved（见各条目标记）；A8 延后（D15）；P6 遗留未修。
+> **修复完成注记（2026-08-06）**：下方优先级清单全部处理完毕——P0 立即项（A1/A2/T1/T2）、P1 尽快项（A3/A4/A6/T3/T4）、P2 排期项（A5/P4/T5-T9）、P3 收尾项（A7/A9/P5/T10-T11）均已 resolved（见各条目标记）；A8 延后（D15）；P6 已修复（WU-A8 + 终审补完临时 map）。
 
 | 优先级 | 问题 | 理由 |
 |--------|------|------|
