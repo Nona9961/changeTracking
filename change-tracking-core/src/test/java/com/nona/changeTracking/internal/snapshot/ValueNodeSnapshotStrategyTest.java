@@ -655,61 +655,111 @@ class ValueNodeSnapshotStrategyTest {
     }
 
     @Nested
-    @DisplayName("数组快照特征测试（现状：数组落入 processComplexObject，内容静默丢失为空 ObjectNode）")
+    @DisplayName("数组快照处理（A2/D14：值类型数组 → ArrayNode 值语义；复杂对象数组 → CollectionNode 递归）")
     class ArraySnapshotTests {
 
         static class EntityWithByteArray {
             byte[] data = new byte[]{1, 2, 3};
         }
 
+        static class Order {
+            Long id;
+            String code;
+
+            Order(Long id, String code) {
+                this.id = id;
+                this.code = code;
+            }
+        }
+
         @Test
-        @DisplayName("byte[] 现状快照为空 ObjectNode（内容丢失）")
-        void byteArray_shouldBeSnapshottedAsEmptyObjectNode() {
+        @DisplayName("byte[] 应快照为 ArrayNode（内容保留）")
+        void byteArray_shouldBeSnapshottedAsArrayNode() {
             final byte[] data = new byte[]{1, 2, 3};
             final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
 
-            assertInstanceOf(ObjectNode.class, result);
-            assertTrue(isEmptyObjectNode((ObjectNode) result), "特征：数组内容静默丢失");
+            assertInstanceOf(ArrayNode.class, result);
+            assertArrayEquals(new byte[]{1, 2, 3}, (byte[]) ((ArrayNode) result).array(), "数组内容必须完整保留");
         }
 
         @Test
-        @DisplayName("String[] 现状快照为空 ObjectNode（内容丢失）")
-        void stringArray_shouldBeSnapshottedAsEmptyObjectNode() {
+        @DisplayName("String[] 应快照为 ArrayNode（内容保留）")
+        void stringArray_shouldBeSnapshottedAsArrayNode() {
             final String[] data = {"a", "b", "c"};
             final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
 
-            assertInstanceOf(ObjectNode.class, result);
-            assertTrue(isEmptyObjectNode((ObjectNode) result), "特征：数组内容静默丢失");
+            assertInstanceOf(ArrayNode.class, result);
+            assertArrayEquals(new String[]{"a", "b", "c"}, (String[]) ((ArrayNode) result).array());
         }
 
         @Test
-        @DisplayName("int[] 现状快照为空 ObjectNode（内容丢失）")
-        void intArray_shouldBeSnapshottedAsEmptyObjectNode() {
+        @DisplayName("int[] 应快照为 ArrayNode（内容保留）")
+        void intArray_shouldBeSnapshottedAsArrayNode() {
             final int[] data = {1, 2, 3};
             final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
 
-            assertInstanceOf(ObjectNode.class, result);
-            assertTrue(isEmptyObjectNode((ObjectNode) result), "特征：数组内容静默丢失");
+            assertInstanceOf(ArrayNode.class, result);
+            assertArrayEquals(new int[]{1, 2, 3}, (int[]) ((ArrayNode) result).array());
         }
 
         @Test
-        @DisplayName("Long[] 现状快照为空 ObjectNode（内容丢失）")
-        void longArray_shouldBeSnapshottedAsEmptyObjectNode() {
+        @DisplayName("Long[] 应快照为 ArrayNode（内容保留）")
+        void longArray_shouldBeSnapshottedAsArrayNode() {
             final Long[] data = {1L, 2L, 3L};
             final ValueNode result = strategy.createSnapshot(data).getSnapshotData();
 
-            assertInstanceOf(ObjectNode.class, result);
-            assertTrue(isEmptyObjectNode((ObjectNode) result), "特征：数组内容静默丢失");
+            assertInstanceOf(ArrayNode.class, result);
+            assertArrayEquals(new Long[]{1L, 2L, 3L}, (Long[]) ((ArrayNode) result).array());
         }
 
         @Test
-        @DisplayName("对象内数组字段现状快照为空 ObjectNode（内容丢失）")
-        void arrayField_insideObject_shouldBeSnapshottedAsEmptyObjectNode() {
+        @DisplayName("对象内数组字段应快照为 ArrayNode（内容保留）")
+        void arrayField_insideObject_shouldBeSnapshottedAsArrayNode() {
             final EntityWithByteArray entity = new EntityWithByteArray();
             final ObjectNode node = (ObjectNode) strategy.createSnapshot(entity).getSnapshotData();
 
-            assertInstanceOf(ObjectNode.class, node.field("data"));
-            assertTrue(isEmptyObjectNode((ObjectNode) node.field("data")), "特征：数组内容静默丢失");
+            assertInstanceOf(ArrayNode.class, node.field("data"));
+            assertArrayEquals(new byte[]{1, 2, 3}, (byte[]) ((ArrayNode) node.field("data")).array());
+        }
+
+        @Test
+        @DisplayName("防御拷贝：快照后修改原数组不得污染旧快照")
+        void arrayMutation_afterSnapshot_shouldNotPolluteOldSnapshot() {
+            final byte[] data = new byte[]{1, 2, 3};
+            final ArrayNode oldSnapshot = (ArrayNode) strategy.createSnapshot(data).getSnapshotData();
+
+            data[0] = 99;
+            final ArrayNode newSnapshot = (ArrayNode) strategy.createSnapshot(data).getSnapshotData();
+
+            assertArrayEquals(new byte[]{1, 2, 3}, (byte[]) oldSnapshot.array(), "旧快照必须是快照时刻的内容拷贝");
+            assertArrayEquals(new byte[]{99, 2, 3}, (byte[]) newSnapshot.array(), "新快照反映修改后的内容");
+        }
+
+        @Test
+        @DisplayName("多维数组 int[][] 应快照为 ArrayNode 且深拷贝（改内层行不污染旧快照）")
+        void multiDimArray_shouldBeSnapshottedWithDeepCopy() {
+            final int[][] data = {{1, 2}, {3, 4}};
+            final ArrayNode oldSnapshot = (ArrayNode) strategy.createSnapshot(data).getSnapshotData();
+
+            data[0][0] = 99;
+            final ArrayNode newSnapshot = (ArrayNode) strategy.createSnapshot(data).getSnapshotData();
+
+            assertArrayEquals(new int[]{1, 2}, ((int[][]) oldSnapshot.array())[0], "旧快照内层行必须独立拷贝");
+            assertArrayEquals(new int[]{99, 2}, ((int[][]) newSnapshot.array())[0]);
+        }
+
+        @Test
+        @DisplayName("复杂对象数组 Order[] 应快照为 CollectionNode（递归展开，内容保留）")
+        void objectArray_shouldBeSnapshottedAsCollectionNode() {
+            final Order[] orders = {new Order(1L, "A"), new Order(2L, "B")};
+            final ValueNode result = strategy.createSnapshot(orders).getSnapshotData();
+
+            assertInstanceOf(CollectionNode.class, result);
+            final CollectionNode coll = (CollectionNode) result;
+            assertEquals(2, coll.size());
+            assertInstanceOf(ObjectNode.class, coll.item(0));
+            assertEquals(new PrimitiveNode(1L), ((ObjectNode) coll.item(0)).field("id"));
+            assertEquals(new PrimitiveNode(2L), ((ObjectNode) coll.item(1)).field("id"));
         }
     }
 
@@ -839,17 +889,5 @@ class ValueNodeSnapshotStrategyTest {
             assertDoesNotThrow(() -> c.hashCode(), "反向循环 hashCode 不应栈溢出");
             assertDoesNotThrow(() -> c.toString(), "反向循环 toString 不应栈溢出");
         }
-    }
-
-    /**
-     * 判断 ObjectNode 是否不含任何字段（只读 API 下用于替代 fields().isEmpty()）。
-     *
-     * @param node 待判断的 ObjectNode。
-     * @return 不含任何字段时返回 true。
-     */
-    private static boolean isEmptyObjectNode(final ObjectNode node) {
-        final boolean[] empty = {true};
-        node.forEachField((ignoredKey, ignoredValue) -> empty[0] = false);
-        return empty[0];
     }
 }

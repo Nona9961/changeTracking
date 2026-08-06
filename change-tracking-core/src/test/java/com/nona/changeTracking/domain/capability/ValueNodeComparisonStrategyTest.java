@@ -579,4 +579,151 @@ class ValueNodeComparisonStrategyTest {
                     children.stream().map(ChangeNode::path).toList());
         }
     }
+
+    @Nested
+    @DisplayName("数组变更测试（D14：数组=值语义，顺序敏感）")
+    class ArrayChangeTests {
+
+        @Test
+        @DisplayName("内容相同（不同实例）应无变更")
+        void array_sameContent_shouldNotReportChange() {
+            final ArrayNode oldArr = new ArrayNode(new byte[]{1, 2, 3});
+            final ArrayNode newArr = new ArrayNode(new byte[]{1, 2, 3});
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
+            assertTrue(((ContainerChangeNode) result).children().isEmpty(), "内容相同的数组不应报告变更");
+        }
+
+        @Test
+        @DisplayName("顺序变化 {1,2,3}→{3,2,1} 应报告 FieldChangeNode（顺序敏感固化）")
+        void array_reordered_shouldReportValueChange() {
+            final ArrayNode oldArr = new ArrayNode(new int[]{1, 2, 3});
+            final ArrayNode newArr = new ArrayNode(new int[]{3, 2, 1});
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
+            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertArrayEquals(new int[]{1, 2, 3}, (int[]) change.oldValue(), "oldValue 应为旧数组实例");
+            assertArrayEquals(new int[]{3, 2, 1}, (int[]) change.newValue(), "newValue 应为新数组实例");
+        }
+
+        @Test
+        @DisplayName("byte[] 内容不同应报告 FieldChangeNode（载荷为数组实例，消费方可强转）")
+        void byteArray_differentContent_shouldReportValueChange() {
+            final ArrayNode oldArr = new ArrayNode(new byte[]{1, 2});
+            final ArrayNode newArr = new ArrayNode(new byte[]{1, 2, 3});
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
+            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertArrayEquals(new byte[]{1, 2}, (byte[]) change.oldValue());
+            assertArrayEquals(new byte[]{1, 2, 3}, (byte[]) change.newValue());
+        }
+
+        @Test
+        @DisplayName("多维数组 deepEquals：内容相同应无变更")
+        void multiDimArray_sameContent_shouldNotReportChange() {
+            final ArrayNode oldArr = new ArrayNode(new int[][]{{1, 2}, {3, 4}});
+            final ArrayNode newArr = new ArrayNode(new int[][]{{1, 2}, {3, 4}});
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
+            assertTrue(((ContainerChangeNode) result).children().isEmpty(), "多维数组内容相同不应报告变更");
+        }
+
+        @Test
+        @DisplayName("多维数组内容不同应报告 FieldChangeNode")
+        void multiDimArray_differentContent_shouldReportValueChange() {
+            final ArrayNode oldArr = new ArrayNode(new int[][]{{1, 2}, {3, 4}});
+            final ArrayNode newArr = new ArrayNode(new int[][]{{1, 2}, {5, 4}});
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
+            assertEquals(1, ((ContainerChangeNode) result).children().size());
+        }
+
+        @Test
+        @DisplayName("对象内数组字段内容变化应报告 FieldChangeNode（路径正确）")
+        void arrayField_insideObject_shouldReportValueChange() {
+            final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
+            final ObjectNode newUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 3})));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertEquals("data", change.path());
+        }
+
+        @Test
+        @DisplayName("数组↔null 应产出 ObjectFieldChangeNode（跨类型，携带 ValueNode 表示）")
+        void array_toNull_shouldProduceObjectFieldChange() {
+            final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
+            final ObjectNode newUser = new ObjectNode(Map.of("data", new NullNode()));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertEquals("data", change.path());
+            assertInstanceOf(ArrayNode.class, change.oldNode());
+            assertTrue(change.newNode() instanceof NullNode);
+        }
+
+        @Test
+        @DisplayName("null→数组 应产出 ObjectFieldChangeNode")
+        void null_toArray_shouldProduceObjectFieldChange() {
+            final ObjectNode oldUser = new ObjectNode(Map.of("data", new NullNode()));
+            final ObjectNode newUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertTrue(change.oldNode() instanceof NullNode);
+            assertInstanceOf(ArrayNode.class, change.newNode());
+        }
+
+        @Test
+        @DisplayName("数组↔Primitive 应产出 ObjectFieldChangeNode")
+        void array_toPrimitive_shouldProduceObjectFieldChange() {
+            final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
+            final ObjectNode newUser = new ObjectNode(Map.of("data", new PrimitiveNode(42)));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertInstanceOf(ArrayNode.class, change.oldNode());
+            assertInstanceOf(PrimitiveNode.class, change.newNode());
+        }
+
+        @Test
+        @DisplayName("数组↔ObjectNode 应产出 ObjectFieldChangeNode")
+        void array_toObjectNode_shouldProduceObjectFieldChange() {
+            final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
+            final ObjectNode newUser = new ObjectNode(Map.of("data", new ObjectNode(Map.of("x", new PrimitiveNode(1)))));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertInstanceOf(ArrayNode.class, change.oldNode());
+            assertInstanceOf(ObjectNode.class, change.newNode());
+        }
+
+        @Test
+        @DisplayName("数组↔CollectionNode 应产出 ObjectFieldChangeNode")
+        void array_toCollection_shouldProduceObjectFieldChange() {
+            final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
+            final ObjectNode newUser = new ObjectNode(Map.of("data", new CollectionNode(List.of(new PrimitiveNode(1)))));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertInstanceOf(ArrayNode.class, change.oldNode());
+            assertInstanceOf(CollectionNode.class, change.newNode());
+        }
+
+        @Test
+        @DisplayName("数组字段扁平视图：内容变化应产出 ValueChange（载荷为数组实例）")
+        void arrayField_flatView_shouldProduceValueChange() {
+            final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
+            final ObjectNode newUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 3})));
+            final ChangeNode tree = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ChangeSet changeSet = new ChangeSet(List.of(new ObjectChange(new Object(), tree)));
+
+            final List<Change> leaves = changeSet.getLeafChanges();
+            assertEquals(1, leaves.size());
+            final ValueChange change = (ValueChange) leaves.get(0);
+            assertEquals("data", change.path());
+            assertArrayEquals(new byte[]{1, 2}, (byte[]) change.oldValue());
+            assertArrayEquals(new byte[]{1, 3}, (byte[]) change.newValue());
+        }
+    }
 }

@@ -124,6 +124,30 @@ class EndToEndIntegrationTest {
         }
 
         @Test
+        @DisplayName("使用业务标识符后，复杂对象数组重排序不应产生虚假变更")
+        void withIdentifier_objectArrayReorder_shouldNotProduceFalseChanges() {
+            DefaultTrackingCapabilityProvider provider = new DefaultTrackingCapabilityProvider();
+            provider.withIdentifier(LineItem.class, LineItem::getId);
+
+            UnitOfWork uow = new UnitOfWork(provider.create());
+
+            LineItem item1 = new LineItem(100L, "SKU-A", "商品A", 2, new Money(new BigDecimal("100.00"), "CNY"));
+            LineItem item2 = new LineItem(200L, "SKU-B", "商品B", 1, new Money(new BigDecimal("200.00"), "CNY"));
+            LineItem[] items = {item1, item2};
+
+            uow.registerClean(items);
+
+            // 只重排数组元素（交换位置），不修改内容
+            items[0] = item2;
+            items[1] = item1;
+
+            ChangeSet changeSet = uow.calculateChanges();
+
+            // 复杂对象数组按 identifier 匹配（与 List 一致），重排不应产生变更
+            assertThat(changeSet.isEmpty()).isTrue();
+        }
+
+        @Test
         @DisplayName("使用业务标识符后，应能正确检测集合项的新增和删除")
         void withIdentifier_addAndRemoveItems_shouldDetectCorrectly() {
             DefaultTrackingCapabilityProvider provider = new DefaultTrackingCapabilityProvider();

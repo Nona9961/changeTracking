@@ -95,8 +95,29 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
     public ChangeNode compare(final ValueNodeSnapshot oldSnapshot, final ValueNodeSnapshot newSnapshot) {
         final String rootPath = "";
         final Set<VisitingPair> visiting = new HashSet<>();
-        final List<ChangeNode> children = diffChildren(oldSnapshot.getSnapshotData(), newSnapshot.getSnapshotData(), rootPath, visiting);
+        final List<ChangeNode> children = diffRoot(oldSnapshot.getSnapshotData(), newSnapshot.getSnapshotData(), rootPath, visiting);
         return new ContainerChangeNode(rootPath, children);
+    }
+
+    /**
+     * 根节点分发：容器对（O↔O / C↔C）展开子节点，其他组合走 {@link #diffNode} 叶子级 dispatch。
+     * <p>
+     * 根节点可能是任意 {@link ValueNode}（如快照根直接是数组/基本值），
+     * 与嵌套节点一样需要完整的 dispatch 表（A↔A 内容比较、跨类型 ObjectFieldChange 等）。
+     *
+     * @param oldNode 旧根节点。
+     * @param newNode 新根节点。
+     * @param path    当前节点的路径。
+     * @param visiting 当前递归路径上的节点对（用于循环引用终止）。
+     * @return 代表根节点变更的扁平列表。
+     */
+    private List<ChangeNode> diffRoot(final ValueNode oldNode, final ValueNode newNode, final String path, final Set<VisitingPair> visiting) {
+        final boolean bothObject = oldNode instanceof ObjectNode && newNode instanceof ObjectNode;
+        final boolean bothCollection = oldNode instanceof CollectionNode && newNode instanceof CollectionNode;
+        if (bothObject || bothCollection) {
+            return diffChildren(oldNode, newNode, path, visiting);
+        }
+        return diffNode(oldNode, newNode, path, visiting);
     }
 
     /**
@@ -106,8 +127,10 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * dispatch 表：
      * <ul>
      *   <li>P↔P / P↔N / N↔P（基本值之间）→ {@link FieldChangeNode}（业务值可得）</li>
+     *   <li>A↔A（数组之间）→ 内容相等=无变更（{@link ArrayNode#equals} 已是内容语义）；
+     *       不等（含顺序变）→ {@link FieldChangeNode}（载荷为数组实例，消费方可强转）</li>
      *   <li>O↔O / C↔C（容器同类型）→ 递归子节点，有变更则包裹在 {@link ContainerChangeNode} 中</li>
-     *   <li>其余组合（容器参与的跨类型变化）→ {@link ObjectFieldChangeNode}（原样携带 ValueNode）</li>
+     *   <li>其余组合（容器/数组参与的跨类型变化）→ {@link ObjectFieldChangeNode}（原样携带 ValueNode）</li>
      *   <li>N↔N / 同实例 → 无变更</li>
      * </ul>
      *
@@ -137,6 +160,14 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
         if ((oldNode instanceof PrimitiveNode || oldNode instanceof NullNode)
                 && (newNode instanceof PrimitiveNode || newNode instanceof NullNode)) {
             return List.of(new FieldChangeNode(path, extractValue(oldNode), extractValue(newNode)));
+        }
+
+        // 数组↔数组（A↔A）：内容比较（顺序敏感，ArrayNode.equals 已是内容语义）
+        if (oldNode instanceof ArrayNode oldArray && newNode instanceof ArrayNode newArray) {
+            if (oldArray.equals(newArray)) {
+                return Collections.emptyList();
+            }
+            return List.of(new FieldChangeNode(path, oldArray.array(), newArray.array()));
         }
 
         // 容器同类型（O↔O / C↔C）：递归子节点

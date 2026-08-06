@@ -6,6 +6,7 @@ import com.nona.changeTracking.internal.util.ReflectionUtils;
 import com.nona.changeTracking.spi.SnapshotStrategy;
 
 import java.io.File;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
  * <ol>
  *   <li>null → {@link NullNode}</li>
  *   <li>原始类型/包装类/String/枚举/已知值类型 → {@link PrimitiveNode}</li>
+ *   <li>数组（值类型元素 → {@link ArrayNode} 防御拷贝；复杂对象元素 → {@link CollectionNode} 递归）</li>
  *   <li>Collection/Map → {@link CollectionNode}</li>
  *   <li>其他复杂对象 → {@link ObjectNode}</li>
  * </ol>
@@ -104,6 +106,33 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
     }
 
     /**
+     * 深拷贝数组（防御拷贝，D14）。
+     * <p>
+     * 一维：按组件类型创建同类型数组并浅拷贝（元素已判定为值类型=不可变，浅拷贝安全，
+     * 且保持运行时数组类型——消费方 {@code (String[]) } 强转可用）；
+     * 多维：逐层递归深拷贝（内层行也是数组）。
+     *
+     * @param array 源数组。
+     * @return 内容相同、互不共享引用的新数组。
+     */
+    private static Object deepCopyArray(final Object array) {
+        final Class<?> componentType = array.getClass().getComponentType();
+        final int length = Array.getLength(array);
+
+        if (componentType.isArray()) {
+            final Object copy = Array.newInstance(componentType, length);
+            for (int index = 0; index < length; index++) {
+                Array.set(copy, index, deepCopyArray(Array.get(array, index)));
+            }
+            return copy;
+        }
+
+        final Object copy = Array.newInstance(componentType, length);
+        System.arraycopy(array, 0, copy, 0, length);
+        return copy;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -149,6 +178,10 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
             return new PrimitiveNode(obj);
         }
 
+        if (type.isArray()) {
+            return processArray(obj, visited);
+        }
+
         if (obj instanceof Collection<?> collection) {
             final List<ValueNode> items = new ArrayList<>(collection.size());
             final CollectionNode collectionNode = new CollectionNode(items);
@@ -174,6 +207,60 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
         }
 
         return processComplexObject(obj, visited);
+    }
+
+    /**
+     * 处理数组（A2/D10/D14）。
+     * <p>
+     * 数组按元素类型分两种语义：
+     * <ul>
+     *   <li><b>值类型元素</b>（基本类型 / String / 枚举 / 值类型包等，即元素不可变）→
+     *       {@link ArrayNode}（数组=值语义，顺序敏感），防御拷贝后传入
+     *       （一维浅拷贝、多维递归深拷贝）——数组可变，不拷贝会导致 registerClean 后
+     *       业务修改污染旧快照，变更静默丢失</li>
+     *   <li><b>复杂对象元素</b> → {@link CollectionNode} 递归展开——复用集合的
+     *       identifier 匹配逻辑（{@code extractIdentifier} 使用元素的实际类，
+     *       已注册的提取器（如 Order）自动生效，无需数组特配）；数组只是定长有序集合，
+     *       Java 数组 vs List 之分是实现细节而非语义</li>
+     * </ul>
+     *
+     * @param array   要处理的数组对象。
+     * @param visited 已访问对象的缓存，用于检测循环引用。
+     * @return 数组的 ValueNode 表示。
+     */
+    private ValueNode processArray(final Object array, final Map<Object, ValueNode> visited) {
+        if (isValueArray(array.getClass())) {
+            return new ArrayNode(deepCopyArray(array));
+        }
+
+        final int length = Array.getLength(array);
+        final List<ValueNode> items = new ArrayList<>(length);
+        final CollectionNode collectionNode = new CollectionNode(items);
+        visited.put(array, collectionNode);
+
+        for (int index = 0; index < length; index++) {
+            items.add(toValueRecursive(Array.get(array, index), visited));
+        }
+
+        return collectionNode;
+    }
+
+    /**
+     * 判断数组是否为值类型数组（递归检查组件类型链的最底层）。
+     * <p>
+     * 一维：组件类型是基本类型或值类型（如 {@code byte[]} / {@code String[]}）→ 值数组；
+     * 多维：递归到最底层组件类型（如 {@code int[][]} 的最底层是 {@code int}）→ 值数组；
+     * 复杂对象数组（如 {@code Order[]} / {@code Order[][]}）→ 非值数组（走 CollectionNode 递归）。
+     *
+     * @param type 数组类型。
+     * @return 值类型数组返回 true。
+     */
+    private boolean isValueArray(final Class<?> type) {
+        Class<?> component = type.getComponentType();
+        while (component.isArray()) {
+            component = component.getComponentType();
+        }
+        return component.isPrimitive() || isValueType(component);
     }
 
     /**
