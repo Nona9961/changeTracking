@@ -54,7 +54,7 @@ public final class TrackingConfiguration implements CreationContext {
      * 这些类型会被视为原始值，不会递归展开其字段。
      * <p>
      * <b>契约：自定义值类型必须不可变</b>——快照持有业务对象引用，
-     * 可变类型在 registerClean 后修改会污染旧快照，导致变更静默丢失。
+     * 可变类型在 track 后修改会污染旧快照，导致变更静默丢失。
      */
     private final Set<Class<?>> customValueTypes;
 

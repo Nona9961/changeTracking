@@ -5,7 +5,7 @@ import com.nona.changeTracking.domain.capability.TrackingCapability;
 import com.nona.changeTracking.domain.capability.ValueNodeComparisonStrategy;
 import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import com.nona.changeTracking.domain.model.changeset.ItemAddedChange;
-import com.nona.changeTracking.domain.model.unitofwork.UnitOfWork;
+import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
 import com.nona.changeTracking.internal.snapshot.ValueNodeSnapshotStrategy;
 import com.nona.changeTracking.spi.SnapshotStrategy;
 import com.nona.changeTracking.spi.TrackingCapabilityProvider;
@@ -107,20 +107,20 @@ class DefaultTrackingCapabilityProviderTest {
             // 配置 LineItem 的标识符提取器
             provider.withIdentifier(LineItem.class, LineItem::getId);
             final TrackingCapability<?> capability = provider.create();
-            final UnitOfWork uow = new UnitOfWork(capability);
+            final ChangeTracker changeTracker = new ChangeTracker(capability);
 
             // 创建订单并添加行项目
             final Order order = new Order(1L);
             order.addItem(new LineItem(100L, "商品A", 2));
             order.addItem(new LineItem(200L, "商品B", 1));
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             // 修改已有项目的属性
             order.getItems().get(0).setQuantity(5);
             // 添加新项目
             order.addItem(new LineItem(300L, "商品C", 3));
 
-            final var changeSet = uow.calculateChanges();
+            final var changeSet = changeTracker.calculateChanges();
 
             assertFalse(changeSet.isEmpty());
             // 应该检测到属性修改和新增项
@@ -136,15 +136,15 @@ class DefaultTrackingCapabilityProviderTest {
             // 配置 Money 为值类型
             provider.withValueType(Money.class);
             final TrackingCapability<?> capability = provider.create();
-            final UnitOfWork uow = new UnitOfWork(capability);
+            final ChangeTracker changeTracker = new ChangeTracker(capability);
 
             final Product product = new Product(1L, "测试商品", new Money(new BigDecimal("100.00"), "CNY"));
-            uow.registerClean(product);
+            changeTracker.track(product);
 
             // 修改 Money 对象（整体替换）
             product.setPrice(new Money(new BigDecimal("150.00"), "CNY"));
 
-            final var changeSet = uow.calculateChanges();
+            final var changeSet = changeTracker.calculateChanges();
 
             // Money 作为值类型，应该产生字段变更而非展开内部字段
             assertFalse(changeSet.isEmpty());

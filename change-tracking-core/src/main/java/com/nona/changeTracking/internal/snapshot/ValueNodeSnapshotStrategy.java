@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  * 遇到循环引用时返回同一 {@link ValueNode} 实例（包括 {@link ObjectNode} / {@link CollectionNode}）。
  * <p>
  * <b>值类型契约</b>：视为值类型（{@link PrimitiveNode}）的类<b>必须不可变</b>——
- * 快照持有的是业务对象引用，值类型可变会导致 registerClean 之后业务修改污染旧快照，
+ * 快照持有的是业务对象引用，值类型可变会导致 track 之后业务修改污染旧快照，
  * 变更静默丢失。可变对象一律按复杂对象脱水展开；
  * {@code AtomicBoolean/AtomicInteger/AtomicLong} 例外：其内部字段受 JDK 模块强封装
  * 无法反射脱水，快照时读取当前值做<b>拷贝</b>（{@link PrimitiveNode} 持有不可变值拷贝，
@@ -163,7 +163,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
 
         // Atomic* 例外（D17）：可变但无法反射脱水（JDK 模块强封装），
         // 快照时读取当前值做拷贝——PrimitiveNode 持有不可变值，不持有业务引用，
-        // registerClean 后修改 Atomic 值不会污染旧快照。
+        // track 后修改 Atomic 值不会污染旧快照。
         if (obj instanceof AtomicBoolean atomicBoolean) {
             return new PrimitiveNode(atomicBoolean.get());
         }
@@ -216,7 +216,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      * <ul>
      *   <li><b>值类型元素</b>（基本类型 / String / 枚举 / 值类型包等，即元素不可变）→
      *       {@link ArrayNode}（数组=值语义，顺序敏感），防御拷贝后传入
-     *       （一维浅拷贝、多维递归深拷贝）——数组可变，不拷贝会导致 registerClean 后
+     *       （一维浅拷贝、多维递归深拷贝）——数组可变，不拷贝会导致 track 后
      *       业务修改污染旧快照，变更静默丢失</li>
      *   <li><b>复杂对象元素</b> → {@link CollectionNode} 递归展开——复用集合的
      *       identifier 匹配逻辑（{@code extractIdentifier} 使用元素的实际类，

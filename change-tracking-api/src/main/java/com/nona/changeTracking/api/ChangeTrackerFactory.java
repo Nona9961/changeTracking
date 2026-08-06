@@ -1,7 +1,7 @@
 package com.nona.changeTracking.api;
 
 import com.nona.changeTracking.domain.capability.TrackingCapability;
-import com.nona.changeTracking.domain.model.unitofwork.UnitOfWork;
+import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
 import com.nona.changeTracking.spi.TrackingCapabilityProvider;
 
 import java.util.HashMap;
@@ -10,22 +10,22 @@ import java.util.Objects;
 import java.util.ServiceLoader;
 
 /**
- * 创建 {@link UnitOfWork} 实例的工厂类。
+ * 创建 {@link ChangeTracker} 实例的工厂类。
  * <p>
  * 这是框架的顶层公共 API 入口，封装了所有底层组件的创建和组装细节。
  * 它使用 Builder 模式，并能通过 {@link ServiceLoader} 自动发现和整合 SPI 实现。
  */
-public final class UnitOfWorkFactory {
+public final class ChangeTrackerFactory {
 
     /**
      * 私有构造函数，防止实例化。
      * <p>
      * 此类仅通过静态方法 {@link #builder()} 提供功能。
      */
-    private UnitOfWorkFactory() {}
+    private ChangeTrackerFactory() {}
 
     /**
-     * 创建一个新的构建器实例，用于配置和创建 {@link UnitOfWork}。
+     * 创建一个新的构建器实例，用于配置和创建 {@link ChangeTracker}。
      *
      * @return 一个新的 Builder 实例。
      */
@@ -34,9 +34,9 @@ public final class UnitOfWorkFactory {
     }
 
     /**
-     * {@link UnitOfWork} 的构建器。
+     * {@link ChangeTracker} 的构建器。
      * <p>
-     * 提供流式 API 来配置和创建 UnitOfWork 实例。
+     * 提供流式 API 来配置和创建 ChangeTracker 实例。
      * 支持通过 SPI 自动发现追踪能力，也支持手动选择特定的追踪能力。
      */
     public static final class Builder {
@@ -45,7 +45,7 @@ public final class UnitOfWorkFactory {
         private String selectedCapabilityName;
 
         /**
-         * 私有构造函数，仅通过 {@link UnitOfWorkFactory#builder()} 创建实例。
+         * 私有构造函数，仅通过 {@link ChangeTrackerFactory#builder()} 创建实例。
          */
         private Builder() {}
 
@@ -92,13 +92,13 @@ public final class UnitOfWorkFactory {
         }
 
         /**
-         * 构建一个配置好的 {@link UnitOfWork} 实例。
+         * 构建一个配置好的 {@link ChangeTracker} 实例。
          *
-         * @return 新的 UnitOfWork 实例。
+         * @return 新的 ChangeTracker 实例。
          * @throws IllegalStateException 如果没有可用的追踪能力。
          * @throws IllegalArgumentException 如果选择的追踪能力不存在。
          */
-        public UnitOfWork build() {
+        public ChangeTracker build() {
             if (this.providers.isEmpty()) {
                 throw new IllegalStateException("No TrackingCapabilityProviders found. " +
                         "Ensure at least one is available via ServiceLoader.");
@@ -115,7 +115,7 @@ public final class UnitOfWorkFactory {
             }
 
             final TrackingCapability<?> capability = selectedProvider.create();
-            return new UnitOfWork(capability);
+            return new ChangeTracker(capability);
         }
     }
 }

@@ -1,4 +1,4 @@
-package com.nona.changeTracking.domain.model.unitofwork;
+package com.nona.changeTracking.domain.model.tracking;
 
 import com.nona.changeTracking.domain.capability.ComparisonStrategy;
 import com.nona.changeTracking.domain.capability.TrackingCapability;
@@ -35,9 +35,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-@DisplayName("UnitOfWork 聚合测试")
+@DisplayName("ChangeTracker 聚合测试")
 @ExtendWith(MockitoExtension.class)
-class UnitOfWorkTest {
+class ChangeTrackerTest {
 
     @Mock(lenient = true)
     private TrackingCapability<ValueNodeSnapshot> capability;
@@ -52,7 +52,7 @@ class UnitOfWorkTest {
     @Mock(lenient = true)
     private ComparisonStrategy<ValueNodeSnapshot> fakeComparisonStrategy;
 
-    private UnitOfWork uow;
+    private ChangeTracker changeTracker;
 
     // --- Test Data ---
     static class User { String name; }
@@ -69,7 +69,7 @@ class UnitOfWorkTest {
         when(capability.getSnapshotStrategy()).thenReturn(snapshotStrategy);
         doReturn(comparisonStrategy).when(capability).getComparisonStrategy();
         when(comparisonStrategy.getSupportedSnapshotType()).thenReturn(ValueNodeSnapshot.class);
-        uow = new UnitOfWork(capability);
+        changeTracker = new ChangeTracker(capability);
     }
 
     @Nested
@@ -81,12 +81,12 @@ class UnitOfWorkTest {
         void calculateChanges_forDirtyCleanObject_shouldCallComparisonAndCreateChangeSet() {
             // --- Arrange ---
             doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
-            uow.registerClean(user1);
+            changeTracker.track(user1);
 
             when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeTree);
 
             // --- Act ---
-            final ChangeSet changeSet = uow.calculateChanges();
+            final ChangeSet changeSet = changeTracker.calculateChanges();
 
             // --- Assert ---
             assertFalse(changeSet.isEmpty());
@@ -102,11 +102,11 @@ class UnitOfWorkTest {
         @DisplayName("连续两次 calculateChanges 应返回相同的变更集（幂等视图特征：不更新基线）")
         void calculateChanges_repeatedCalls_shouldReturnSameChangeSet() {
             doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
-            uow.registerClean(user1);
+            changeTracker.track(user1);
             when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeTree);
 
-            final ChangeSet firstCall = uow.calculateChanges();
-            final ChangeSet secondCall = uow.calculateChanges();
+            final ChangeSet firstCall = changeTracker.calculateChanges();
+            final ChangeSet secondCall = changeTracker.calculateChanges();
 
             // 特征：calculateChanges 是幂等视图，不更新基线，重复调用产出相同变更集
             assertEquals(firstCall, secondCall);
@@ -119,12 +119,12 @@ class UnitOfWorkTest {
         void calculateChanges_forUnchangedCleanObject_shouldNotCreateChange() {
             // --- Arrange ---
             doReturn(oldSnapshot, oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
-            uow.registerClean(user1);
+            changeTracker.track(user1);
 
             when(comparisonStrategy.compare(oldSnapshot, oldSnapshot)).thenReturn(noChangeTree);
 
             // --- Act ---
-            final ChangeSet changeSet = uow.calculateChanges();
+            final ChangeSet changeSet = changeTracker.calculateChanges();
 
             // --- Assert ---
             assertTrue(changeSet.isEmpty());
@@ -134,8 +134,8 @@ class UnitOfWorkTest {
         @Test
         @DisplayName("对于 new 对象，不应调用比较策略，且不生成变更")
         void calculateChanges_forNewObject_shouldNotCallComparisonAndNotCreateChange() {
-            uow.registerNew(user1);
-            final ChangeSet changeSet = uow.calculateChanges();
+            changeTracker.excludeNew(user1);
+            final ChangeSet changeSet = changeTracker.calculateChanges();
             assertTrue(changeSet.isEmpty());
             verifyNoInteractions(snapshotStrategy);
             // 契约：new 对象不触发快照比较（setUp 中类型守卫 stub 不算交互）
@@ -146,9 +146,9 @@ class UnitOfWorkTest {
         @DisplayName("对于 removed 对象，不应调用比较策略，且不生成变更")
         void calculateChanges_forRemovedObject_shouldNotCallComparisonAndNotCreateChange() {
             doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
-            uow.registerClean(user1);
-            uow.registerRemoved(user1);
-            final ChangeSet changeSet = uow.calculateChanges();
+            changeTracker.track(user1);
+            changeTracker.excludeRemoved(user1);
+            final ChangeSet changeSet = changeTracker.calculateChanges();
             assertTrue(changeSet.isEmpty());
             verify(comparisonStrategy, never()).compare(any(), any());
         }
@@ -160,11 +160,11 @@ class UnitOfWorkTest {
 
         @Test
         @DisplayName("重复注册 clean 对象应被忽略")
-        void registerClean_duplicate_shouldBeIgnored() {
+        void track_duplicate_shouldBeIgnored() {
             doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
 
-            uow.registerClean(user1);
-            uow.registerClean(user1); // 重复注册
+            changeTracker.track(user1);
+            changeTracker.track(user1); // 重复注册
 
             // 只应调用一次快照创建
             verify(snapshotStrategy, times(1)).createSnapshot(user1);
@@ -172,44 +172,44 @@ class UnitOfWorkTest {
 
         @Test
         @DisplayName("已注册为 clean 的对象再注册为 new 应被忽略")
-        void registerNew_afterClean_shouldBeIgnored() {
+        void excludeNew_afterClean_shouldBeIgnored() {
             doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
 
-            uow.registerClean(user1);
-            uow.registerNew(user1); // 尝试再注册为 new
+            changeTracker.track(user1);
+            changeTracker.excludeNew(user1); // 尝试再注册为 new
 
             when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeTree);
 
             // 仍然应该追踪变更
-            final ChangeSet changeSet = uow.calculateChanges();
+            final ChangeSet changeSet = changeTracker.calculateChanges();
             assertFalse(changeSet.isEmpty());
         }
 
         @Test
         @DisplayName("已注册为 new 的对象再注册为 clean 应被忽略")
-        void registerClean_afterNew_shouldBeIgnored() {
-            uow.registerNew(user1);
-            uow.registerClean(user1); // 尝试再注册为 clean
+        void track_afterNew_shouldBeIgnored() {
+            changeTracker.excludeNew(user1);
+            changeTracker.track(user1); // 尝试再注册为 clean
 
             // 不应调用快照策略
             verifyNoInteractions(snapshotStrategy);
 
             // 仍然应该不产生变更
-            final ChangeSet changeSet = uow.calculateChanges();
+            final ChangeSet changeSet = changeTracker.calculateChanges();
             assertTrue(changeSet.isEmpty());
         }
 
         @Test
         @DisplayName("重复注册 removed 对象应被忽略")
-        void registerRemoved_duplicate_shouldBeIgnored() {
+        void excludeRemoved_duplicate_shouldBeIgnored() {
             doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
 
-            uow.registerClean(user1);
-            uow.registerRemoved(user1);
-            uow.registerRemoved(user1); // 重复移除
+            changeTracker.track(user1);
+            changeTracker.excludeRemoved(user1);
+            changeTracker.excludeRemoved(user1); // 重复移除
 
             // 不应抛出异常，变更集应为空
-            final ChangeSet changeSet = uow.calculateChanges();
+            final ChangeSet changeSet = changeTracker.calculateChanges();
             assertTrue(changeSet.isEmpty());
         }
     }
@@ -230,8 +230,8 @@ class UnitOfWorkTest {
             doReturn(oldSnapshot1, newSnapshot1).when(snapshotStrategy).createSnapshot(user1);
             doReturn(oldSnapshot2, newSnapshot2).when(snapshotStrategy).createSnapshot(user2);
 
-            uow.registerClean(user1);
-            uow.registerClean(user2);
+            changeTracker.track(user1);
+            changeTracker.track(user2);
 
             final ChangeNode changeTree1 = new ContainerChangeNode("user1", List.of(new FieldChangeNode("name", "a", "b")));
             final ChangeNode changeTree2 = new ContainerChangeNode("user2", List.of(new FieldChangeNode("name", "c", "d")));
@@ -239,7 +239,7 @@ class UnitOfWorkTest {
             when(comparisonStrategy.compare(oldSnapshot1, newSnapshot1)).thenReturn(changeTree1);
             when(comparisonStrategy.compare(oldSnapshot2, newSnapshot2)).thenReturn(changeTree2);
 
-            final ChangeSet changeSet = uow.calculateChanges();
+            final ChangeSet changeSet = changeTracker.calculateChanges();
 
             assertEquals(2, changeSet.changes().size());
         }
@@ -255,13 +255,13 @@ class UnitOfWorkTest {
             doReturn(snapshot1, newSnapshot1).when(snapshotStrategy).createSnapshot(user1);
             doReturn(snapshot2, snapshot2).when(snapshotStrategy).createSnapshot(user2);
 
-            uow.registerClean(user1);
-            uow.registerClean(user2);
+            changeTracker.track(user1);
+            changeTracker.track(user2);
 
             when(comparisonStrategy.compare(snapshot1, newSnapshot1)).thenReturn(changeTree);
             when(comparisonStrategy.compare(snapshot2, snapshot2)).thenReturn(noChangeTree);
 
-            final ChangeSet changeSet = uow.calculateChanges();
+            final ChangeSet changeSet = changeTracker.calculateChanges();
 
             assertEquals(1, changeSet.changes().size());
             assertEquals(user1, changeSet.changes().get(0).target());
@@ -275,25 +275,25 @@ class UnitOfWorkTest {
         @Test
         @DisplayName("构造函数传入 null 应抛出 NullPointerException")
         void constructor_withNull_shouldThrowNPE() {
-            assertThrows(NullPointerException.class, () -> new UnitOfWork(null));
+            assertThrows(NullPointerException.class, () -> new ChangeTracker(null));
         }
 
         @Test
-        @DisplayName("registerClean 传入 null 应抛出 NullPointerException")
-        void registerClean_withNull_shouldThrowNPE() {
-            assertThrows(NullPointerException.class, () -> uow.registerClean(null));
+        @DisplayName("track 传入 null 应抛出 NullPointerException")
+        void track_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> changeTracker.track(null));
         }
 
         @Test
-        @DisplayName("registerNew 传入 null 应抛出 NullPointerException")
-        void registerNew_withNull_shouldThrowNPE() {
-            assertThrows(NullPointerException.class, () -> uow.registerNew(null));
+        @DisplayName("excludeNew 传入 null 应抛出 NullPointerException")
+        void excludeNew_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> changeTracker.excludeNew(null));
         }
 
         @Test
-        @DisplayName("registerRemoved 传入 null 应抛出 NullPointerException")
-        void registerRemoved_withNull_shouldThrowNPE() {
-            assertThrows(NullPointerException.class, () -> uow.registerRemoved(null));
+        @DisplayName("excludeRemoved 传入 null 应抛出 NullPointerException")
+        void excludeRemoved_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> changeTracker.excludeRemoved(null));
         }
     }
 
@@ -322,11 +322,11 @@ class UnitOfWorkTest {
             when(fakeComparisonStrategy.getSupportedSnapshotType()).thenReturn(ValueNodeSnapshot.class);
             doReturn(new ForeignSnapshot("foreign")).when(fakeSnapshotStrategy).createSnapshot(user1);
 
-            final UnitOfWork uow = new UnitOfWork(mismatchedCapability);
-            uow.registerClean(user1);
+            final ChangeTracker changeTracker = new ChangeTracker(mismatchedCapability);
+            changeTracker.track(user1);
 
             // 类型守卫应拒绝不兼容的旧快照，抛出清晰的 ClassCastException，而非静默传给比较策略
-            assertThrows(ClassCastException.class, uow::calculateChanges);
+            assertThrows(ClassCastException.class, changeTracker::calculateChanges);
             verify(fakeComparisonStrategy, never()).compare(any(), any());
         }
     }
@@ -340,17 +340,17 @@ class UnitOfWorkTest {
         }
 
         @Test
-        @DisplayName("多线程并发 registerClean 与 calculateChanges 不应导致 JVM 崩溃或死锁")
+        @DisplayName("多线程并发 track 与 calculateChanges 不应导致 JVM 崩溃或死锁")
         void concurrentAccess_shouldNotCrashOrDeadlock() throws Exception {
             final DefaultTrackingCapability realCapability = new DefaultTrackingCapability(TrackingConfiguration.empty());
-            final UnitOfWork uow = new UnitOfWork(realCapability);
+            final ChangeTracker changeTracker = new ChangeTracker(realCapability);
 
             // 预注册一批对象，产生 calculateChanges 的比较负载
             final List<TrackedEntity> preRegistered = new ArrayList<>();
             for (int i = 0; i < 100; i++) {
                 final TrackedEntity entity = new TrackedEntity();
                 preRegistered.add(entity);
-                uow.registerClean(entity);
+                changeTracker.track(entity);
             }
 
             final int threadCount = 8;
@@ -367,8 +367,8 @@ class UnitOfWorkTest {
                         ready.countDown();
                         start.await();
                         for (int i = 0; i < iterationsPerThread; i++) {
-                            uow.registerClean(new TrackedEntity());
-                            uow.calculateChanges();
+                            changeTracker.track(new TrackedEntity());
+                            changeTracker.calculateChanges();
                         }
                         return null;
                     }));

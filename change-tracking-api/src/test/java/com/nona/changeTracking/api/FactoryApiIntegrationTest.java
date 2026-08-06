@@ -1,7 +1,7 @@
 package com.nona.changeTracking.api;
 
 import com.nona.changeTracking.domain.model.changeset.*;
-import com.nona.changeTracking.domain.model.unitofwork.UnitOfWork;
+import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 使用公开 API 的端到端测试。
  * <p>
- * 测试通过 {@link UnitOfWorkFactory} 创建的 UnitOfWork 的基本功能。
+ * 测试通过 {@link ChangeTrackerFactory} 创建的 ChangeTracker 的基本功能。
  * <p>
  * 注意：需要配置业务标识符或自定义值类型的端到端测试位于 core 模块，
  * 因为这些配置需要直接访问 Provider 实现类。
@@ -70,18 +70,18 @@ class FactoryApiIntegrationTest {
     class BasicChangeDetection {
 
         @Test
-        @DisplayName("通过 UnitOfWorkFactory 创建的 UnitOfWork 应能正常工作")
+        @DisplayName("通过 ChangeTrackerFactory 创建的 ChangeTracker 应能正常工作")
         void factoryCreatedUow_shouldWorkCorrectly() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             Order order = new Order(1L, "ORD-001");
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             order.setStatus("SHIPPED");
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             assertThat(changeSet.isEmpty()).isFalse();
             assertThat(changeSet.getLeafChanges().stream()
@@ -96,16 +96,16 @@ class FactoryApiIntegrationTest {
         @Test
         @DisplayName("未修改对象不应产生变更")
         void unmodifiedObject_shouldNotProduceChanges() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             Order order = new Order(1L, "ORD-001");
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             // 不做任何修改
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             assertThat(changeSet.isEmpty()).isTrue();
         }
@@ -118,16 +118,16 @@ class FactoryApiIntegrationTest {
         @Test
         @DisplayName("应能检测集合项新增")
         void shouldDetectItemAdded() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             Order order = new Order(1L, "ORD-001");
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             order.addItem(new LineItem(1L, "商品A", 2));
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             assertThat(changeSet.isEmpty()).isFalse();
             assertThat(changeSet.getLeafChanges().stream()
@@ -138,18 +138,18 @@ class FactoryApiIntegrationTest {
         @Test
         @DisplayName("应能检测集合项属性修改")
         void shouldDetectItemModified() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             LineItem item = new LineItem(1L, "商品A", 2);
             Order order = new Order(1L, "ORD-001");
             order.addItem(item);
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             item.setQuantity(5);
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             assertThat(changeSet.isEmpty()).isFalse();
             assertThat(changeSet.getLeafChanges().stream()
@@ -167,19 +167,19 @@ class FactoryApiIntegrationTest {
         @Test
         @DisplayName("应能同时追踪多个对象")
         void shouldTrackMultipleObjects() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             Order order1 = new Order(1L, "ORD-001");
             Order order2 = new Order(2L, "ORD-002");
-            uow.registerClean(order1);
-            uow.registerClean(order2);
+            changeTracker.track(order1);
+            changeTracker.track(order2);
 
             order1.setStatus("CONFIRMED");
             order2.setStatus("SHIPPED");
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             assertThat(changeSet.changes()).hasSize(2);
         }

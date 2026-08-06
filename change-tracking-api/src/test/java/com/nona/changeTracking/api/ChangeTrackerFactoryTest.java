@@ -3,7 +3,7 @@ package com.nona.changeTracking.api;
 import com.nona.changeTracking.domain.capability.TrackingCapability;
 import com.nona.changeTracking.domain.model.changeset.ChangeSet;
 import com.nona.changeTracking.domain.model.changeset.ValueChange;
-import com.nona.changeTracking.domain.model.unitofwork.UnitOfWork;
+import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
 import com.nona.changeTracking.spi.TrackingCapabilityProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,8 +15,8 @@ import java.util.ServiceLoader;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@DisplayName("UnitOfWorkFactory (API) 测试")
-class UnitOfWorkFactoryTest {
+@DisplayName("ChangeTrackerFactory (API) 测试")
+class ChangeTrackerFactoryTest {
 
     // --- Test Data ---
     static class User {
@@ -39,17 +39,17 @@ class UnitOfWorkFactoryTest {
     }
 
     @Test
-    @DisplayName("默认构建器应能创建一个使用默认能力的 UnitOfWork (端到端)")
-    void defaultBuilder_shouldCreateFunctionalUnitOfWork() {
+    @DisplayName("默认构建器应能创建一个使用默认能力的 ChangeTracker (端到端)")
+    void defaultBuilder_shouldCreateFunctionalChangeTracker() {
         // 这个测试保持不变，它验证的是 ServiceLoader 能否加载 core 模块自己 provide 的服务
-        final UnitOfWork uow = UnitOfWorkFactory.builder().withDefaults().build();
-        assertNotNull(uow);
+        final ChangeTracker changeTracker = ChangeTrackerFactory.builder().withDefaults().build();
+        assertNotNull(changeTracker);
 
         final User user = new User("Alice");
-        uow.registerClean(user);
+        changeTracker.track(user);
         user.name = "Alicia";
 
-        final ChangeSet changeSet = uow.calculateChanges();
+        final ChangeSet changeSet = changeTracker.calculateChanges();
 
         assertFalse(changeSet.isEmpty());
         assertEquals(1, changeSet.getLeafChanges().size());
@@ -74,14 +74,14 @@ class UnitOfWorkFactoryTest {
         when(mockedLoader.iterator()).thenReturn(List.of(defaultProvider, customProvider).iterator());
         try (MockedStatic<ServiceLoader> mockedServiceLoader = mockStatic(ServiceLoader.class)) {
             mockedServiceLoader.when(() -> ServiceLoader.load(TrackingCapabilityProvider.class)).thenReturn(mockedLoader);
-            final UnitOfWorkFactory.Builder builder = UnitOfWorkFactory.builder().withDefaults();
+            final ChangeTrackerFactory.Builder builder = ChangeTrackerFactory.builder().withDefaults();
             // --- Act ---
             builder.capability(CustomTestCapabilityProvider.NAME);
-            final UnitOfWork uow = builder.build();
+            final ChangeTracker changeTracker = builder.build();
             // --- Assert ---
             verify(customProvider, times(1)).create();
             verify(defaultProvider, never()).create();
-            assertNotNull(uow); // 确保 uow 被成功创建
+            assertNotNull(changeTracker); // 确保 changeTracker 被成功创建
         }
     }
 
@@ -95,7 +95,7 @@ class UnitOfWorkFactoryTest {
         when(mockedLoader.iterator()).thenReturn(List.of(defaultProvider).iterator());
         try (MockedStatic<ServiceLoader> mockedServiceLoader = mockStatic(ServiceLoader.class)) {
             mockedServiceLoader.when(() -> ServiceLoader.load(TrackingCapabilityProvider.class)).thenReturn(mockedLoader);
-            final UnitOfWorkFactory.Builder builder = UnitOfWorkFactory.builder().withDefaults();
+            final ChangeTrackerFactory.Builder builder = ChangeTrackerFactory.builder().withDefaults();
             // --- Act & Assert ---
             final var exception = assertThrows(IllegalArgumentException.class, () -> builder.capability("non-existent-capability").build());
             assertTrue(exception.getMessage().contains("non-existent-capability"));
@@ -122,11 +122,11 @@ class UnitOfWorkFactoryTest {
         try (MockedStatic<ServiceLoader> mockedServiceLoader = mockStatic(ServiceLoader.class)) {
             mockedServiceLoader.when(() -> ServiceLoader.load(TrackingCapabilityProvider.class)).thenReturn(mockedLoader);
 
-            final UnitOfWork uow = UnitOfWorkFactory.builder().withDefaults().build();
+            final ChangeTracker changeTracker = ChangeTrackerFactory.builder().withDefaults().build();
 
             verify(defaultProvider, times(1)).create();
             verify(otherProvider, never()).create();
-            assertNotNull(uow);
+            assertNotNull(changeTracker);
         }
     }
 }

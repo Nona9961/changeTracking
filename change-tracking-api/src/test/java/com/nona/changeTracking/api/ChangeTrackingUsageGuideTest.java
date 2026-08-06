@@ -1,7 +1,7 @@
 package com.nona.changeTracking.api;
 
 import com.nona.changeTracking.domain.model.changeset.*;
-import com.nona.changeTracking.domain.model.unitofwork.UnitOfWork;
+import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -118,21 +118,21 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("1.1 追踪简单字段变更")
         void trackSimpleValueChange() {
-            // 1. 创建 UnitOfWork 实例
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            // 1. 创建 ChangeTracker 实例
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             // 2. 创建实体并注册为 "clean"（需要追踪变更的对象）
             User user = new User(1L, "张三", "zhangsan@example.com");
-            uow.registerClean(user);
+            changeTracker.track(user);
 
             // 3. 修改实体属性
             user.setName("李四");
             user.setEmail("lisi@example.com");
 
             // 4. 计算变更
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 5. 验证变更结果
             assertThat(changeSet.isEmpty()).isFalse();
@@ -151,16 +151,16 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("1.2 未修改对象不产生变更")
         void noChangeForUnmodifiedObject() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             User user = new User(1L, "张三", "zhangsan@example.com");
-            uow.registerClean(user);
+            changeTracker.track(user);
 
             // 不修改任何属性
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 没有变更
             assertThat(changeSet.isEmpty()).isTrue();
@@ -177,19 +177,19 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("2.1 追踪嵌套对象的属性变更")
         void trackNestedObjectFieldChange() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             User user = new User(1L, "张三", "zhangsan@example.com");
             user.setAddress(new Address("北京", "朝阳区"));
-            uow.registerClean(user);
+            changeTracker.track(user);
 
             // 修改嵌套对象的属性
             user.getAddress().setCity("上海");
             user.getAddress().setStreet("浦东新区");
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 验证嵌套对象的变更
             List<Change> leafChanges = changeSet.getLeafChanges();
@@ -203,18 +203,18 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("2.2 将嵌套对象设置为 null")
         void setNestedObjectToNull() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             User user = new User(1L, "张三", "zhangsan@example.com");
             user.setAddress(new Address("北京", "朝阳区"));
-            uow.registerClean(user);
+            changeTracker.track(user);
 
             // 将嵌套对象设置为 null
             user.setAddress(null);
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 验证 address 字段变更为 null
             assertThat(changeSet.isEmpty()).isFalse();
@@ -230,18 +230,18 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("3.1 追踪集合项新增")
         void trackCollectionItemAdded() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             Order order = new Order(1L, "ORD-001");
             order.addItem(new LineItem(1L, "商品A", 2, 100.0));
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             // 新增集合项
             order.addItem(new LineItem(2L, "商品B", 1, 200.0));
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 验证集合项新增
             assertThat(changeSet.isEmpty()).isFalse();
@@ -254,7 +254,7 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("3.2 追踪集合项删除")
         void trackCollectionItemRemoved() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
@@ -263,12 +263,12 @@ class ChangeTrackingUsageGuideTest {
             Order order = new Order(1L, "ORD-001");
             order.addItem(item1);
             order.addItem(item2);
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             // 删除集合项
             order.removeItem(item2);
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 验证集合项删除
             assertThat(changeSet.isEmpty()).isFalse();
@@ -281,20 +281,20 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("3.3 追踪集合项属性修改")
         void trackCollectionItemModified() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             LineItem item = new LineItem(1L, "商品A", 2, 100.0);
             Order order = new Order(1L, "ORD-001");
             order.addItem(item);
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             // 修改集合项的属性
             item.setQuantity(5);
             item.setPrice(150.0);
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 验证集合项属性变更
             assertThat(changeSet.isEmpty()).isFalse();
@@ -312,61 +312,61 @@ class ChangeTrackingUsageGuideTest {
     class RegistrationSemantics {
 
         @Test
-        @DisplayName("4.1 registerClean - 追踪属性变更")
-        void registerClean_tracksPropertyChanges() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+        @DisplayName("4.1 track - 追踪属性变更")
+        void track_tracksPropertyChanges() {
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             User user = new User(1L, "张三", "zhangsan@example.com");
 
-            // registerClean: 注册需要追踪属性变更的对象
-            uow.registerClean(user);
+            // track: 注册需要追踪属性变更的对象
+            changeTracker.track(user);
 
             user.setName("李四");
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // clean 对象的变更会被追踪
             assertThat(changeSet.isEmpty()).isFalse();
         }
 
         @Test
-        @DisplayName("4.2 registerNew - 不追踪新对象")
-        void registerNew_doesNotTrackNewObjects() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+        @DisplayName("4.2 excludeNew - 不追踪新对象")
+        void excludeNew_doesNotTrackNewObjects() {
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             User user = new User(1L, "张三", "zhangsan@example.com");
 
-            // registerNew: 标记为新对象，不追踪变更
-            uow.registerNew(user);
+            // excludeNew: 标记为新对象，不追踪变更
+            changeTracker.excludeNew(user);
 
             user.setName("李四");
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // new 对象不产生变更（这是排除机制）
             assertThat(changeSet.isEmpty()).isTrue();
         }
 
         @Test
-        @DisplayName("4.3 registerRemoved - 停止追踪已删除对象")
-        void registerRemoved_stopsTrackingRemovedObjects() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+        @DisplayName("4.3 excludeRemoved - 停止追踪已删除对象")
+        void excludeRemoved_stopsTrackingRemovedObjects() {
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             User user = new User(1L, "张三", "zhangsan@example.com");
-            uow.registerClean(user);
+            changeTracker.track(user);
 
             user.setName("李四");
 
-            // registerRemoved: 标记为已删除，停止追踪
-            uow.registerRemoved(user);
+            // excludeRemoved: 标记为已删除，停止追踪
+            changeTracker.excludeRemoved(user);
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // removed 对象不产生变更（这是排除机制）
             assertThat(changeSet.isEmpty()).isTrue();
@@ -382,17 +382,17 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("5.1 getAllChanges - 完整树形视图")
         void getAllChanges_returnsCompleteTreeView() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             User user = new User(1L, "张三", "zhangsan@example.com");
             user.setAddress(new Address("北京", "朝阳区"));
-            uow.registerClean(user);
+            changeTracker.track(user);
 
             user.getAddress().setCity("上海");
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // getAllChanges() 返回完整树形结构，包含 ContainerChange
             List<Change> allChanges = changeSet.getAllChanges();
@@ -406,17 +406,17 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("5.2 getLeafChanges - 仅叶子节点视图")
         void getLeafChanges_returnsOnlyLeafNodes() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             User user = new User(1L, "张三", "zhangsan@example.com");
             user.setAddress(new Address("北京", "朝阳区"));
-            uow.registerClean(user);
+            changeTracker.track(user);
 
             user.getAddress().setCity("上海");
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // getLeafChanges() 只返回叶子节点，不包含 ContainerChange
             List<Change> leafChanges = changeSet.getLeafChanges();
@@ -441,16 +441,16 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("6.1 提取字段变更的详细信息")
         void extractValueChangeDetails() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             User user = new User(1L, "张三", "zhangsan@example.com");
-            uow.registerClean(user);
+            changeTracker.track(user);
 
             user.setName("李四");
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 遍历变更，提取详细信息
             for (Change change : changeSet.getLeafChanges()) {
@@ -469,19 +469,19 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("6.2 遍历 ObjectChange 获取被追踪对象")
         void iterateObjectChanges() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
             User user1 = new User(1L, "张三", "zhangsan@example.com");
             User user2 = new User(2L, "王五", "wangwu@example.com");
-            uow.registerClean(user1);
-            uow.registerClean(user2);
+            changeTracker.track(user1);
+            changeTracker.track(user2);
 
             user1.setName("李四");
             user2.setEmail("wangwu_new@example.com");
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 遍历每个对象的变更
             for (ObjectChange objectChange : changeSet.changes()) {
@@ -505,7 +505,7 @@ class ChangeTrackingUsageGuideTest {
         @Test
         @DisplayName("7.1 同时追踪多个对象")
         void trackMultipleObjects() {
-            UnitOfWork uow = UnitOfWorkFactory.builder()
+            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
 
@@ -513,14 +513,14 @@ class ChangeTrackingUsageGuideTest {
             Order order = new Order(1L, "ORD-001");
 
             // 注册多个对象
-            uow.registerClean(user);
-            uow.registerClean(order);
+            changeTracker.track(user);
+            changeTracker.track(order);
 
             // 修改多个对象
             user.setName("李四");
             order.addItem(new LineItem(1L, "商品A", 1, 100.0));
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 两个对象都有变更
             assertThat(changeSet.changes()).hasSize(2);

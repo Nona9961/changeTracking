@@ -1,4 +1,4 @@
-package com.nona.changeTracking.domain.model.unitofwork;
+package com.nona.changeTracking.domain.model.tracking;
 
 import com.nona.changeTracking.domain.capability.ComparisonStrategy;
 import com.nona.changeTracking.domain.capability.TrackingCapability;
@@ -12,24 +12,29 @@ import com.nona.changeTracking.spi.SnapshotStrategy;
 import java.util.*;
 
 /**
- * 工作单元模式的实现，用于追踪领域对象的属性级变更。
+ * 变更检测器：追踪领域对象的属性级变更。
  * <p>
- * 核心职责是追踪 "clean" 对象的属性变更，而非对象的生命周期。
+ * 本类本质是<b>变更检测器</b>，而非经典工作单元（Unit of Work）——它不管理
+ * INSERT/UPDATE/DELETE 全生命周期，只负责检测已追踪对象的属性变更（UPDATE）。
  * <p>
- * <b>三种注册方法的语义：</b>
+ * <b>三种方法的语义：</b>
  * <ul>
- *   <li>{@link #registerClean(Object)} - 注册需要追踪属性变更的对象，会创建初始快照</li>
- *   <li>{@link #registerNew(Object)} - 排除机制：标记为新对象，不创建快照，不生成变更</li>
- *   <li>{@link #registerRemoved(Object)} - 排除机制：标记为已删除，不再比较，不生成变更</li>
+ *   <li>{@link #track(Object)} - 纳入追踪：为对象建立初始快照基线</li>
+ *   <li>{@link #excludeNew(Object)} - 排除机制：标记为新对象，不创建快照，不生成变更</li>
+ *   <li>{@link #excludeRemoved(Object)} - 排除机制：标记为已删除，不再比较，不生成变更</li>
  * </ul>
  * <p>
- * 调用 {@link #calculateChanges()} 时，只会比较 cleanObjects 中的对象，
- * newObjects 和 removedObjects 中的对象会被忽略。
+ * 调用 {@link #calculateChanges()} 时，只会比较已追踪对象的当前状态与初始快照，
+ * 被排除的对象会被忽略。
+ * <p>
+ * <b>幂等视图</b>：{@link #calculateChanges()} 是无副作用的幂等视图——重复调用
+ * 返回相同变更集；基线仅在 {@link #track(Object)} 时建立，如需推进基线，
+ * 由调用方重新 {@link #track(Object)} 登记。
  *
  * @see TrackingCapability 追踪能力接口
  * @see ChangeSet 变更集输出
  */
-public final class UnitOfWork {
+public final class ChangeTracker {
 
     private final Map<Object, Snapshot<?>> cleanObjects = new IdentityHashMap<>();
     private final Set<Object> newObjects = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -43,7 +48,7 @@ public final class UnitOfWork {
      * @param capability 用于创建快照和比较变更的追踪能力，不能为 null。
      * @throws NullPointerException 如果 capability 为 null。
      */
-    public UnitOfWork(final TrackingCapability<?> capability) {
+    public ChangeTracker(final TrackingCapability<?> capability) {
         this.capability = Objects.requireNonNull(capability, "TrackingCapability cannot be null.");
     }
 
@@ -58,7 +63,7 @@ public final class UnitOfWork {
      * @param entity 要追踪的对象，不能为 null。
      * @throws NullPointerException 如果 entity 为 null。
      */
-    public void registerClean(final Object entity) {
+    public void track(final Object entity) {
         Objects.requireNonNull(entity, "Cannot register a null clean entity.");
         if (isTracking(entity)) {
             return;
@@ -78,7 +83,7 @@ public final class UnitOfWork {
      * @param entity 要标记为新建的对象，不能为 null。
      * @throws NullPointerException 如果 entity 为 null。
      */
-    public void registerNew(final Object entity) {
+    public void excludeNew(final Object entity) {
         Objects.requireNonNull(entity, "Cannot register a null new entity.");
         if (isTracking(entity)) {
             return;
@@ -98,7 +103,7 @@ public final class UnitOfWork {
      * @param entity 要标记为已删除的对象，不能为 null。
      * @throws NullPointerException 如果 entity 为 null。
      */
-    public void registerRemoved(final Object entity) {
+    public void excludeRemoved(final Object entity) {
         Objects.requireNonNull(entity, "Cannot register a null removed entity.");
         if (this.removedObjects.contains(entity)) {
             return;

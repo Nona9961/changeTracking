@@ -1,7 +1,7 @@
 package com.nona.changeTracking.internal.capability;
 
 import com.nona.changeTracking.domain.model.changeset.*;
-import com.nona.changeTracking.domain.model.unitofwork.UnitOfWork;
+import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -101,7 +101,7 @@ class EndToEndIntegrationTest {
             DefaultTrackingCapabilityProvider provider = new DefaultTrackingCapabilityProvider();
             provider.withIdentifier(LineItem.class, LineItem::getId);
 
-            UnitOfWork uow = new UnitOfWork(provider.create());
+            ChangeTracker changeTracker = new ChangeTracker(provider.create());
 
             // 创建订单
             Order order = new Order(1L, "ORD-001");
@@ -110,14 +110,14 @@ class EndToEndIntegrationTest {
             order.addItem(item1);
             order.addItem(item2);
 
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             // 只重排序（交换位置），不修改内容
             order.getItems().clear();
             order.addItem(item2);
             order.addItem(item1);
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 使用业务标识符匹配，重排序不应产生变更
             assertThat(changeSet.isEmpty()).isTrue();
@@ -129,19 +129,19 @@ class EndToEndIntegrationTest {
             DefaultTrackingCapabilityProvider provider = new DefaultTrackingCapabilityProvider();
             provider.withIdentifier(LineItem.class, LineItem::getId);
 
-            UnitOfWork uow = new UnitOfWork(provider.create());
+            ChangeTracker changeTracker = new ChangeTracker(provider.create());
 
             LineItem item1 = new LineItem(100L, "SKU-A", "商品A", 2, new Money(new BigDecimal("100.00"), "CNY"));
             LineItem item2 = new LineItem(200L, "SKU-B", "商品B", 1, new Money(new BigDecimal("200.00"), "CNY"));
             LineItem[] items = {item1, item2};
 
-            uow.registerClean(items);
+            changeTracker.track(items);
 
             // 只重排数组元素（交换位置），不修改内容
             items[0] = item2;
             items[1] = item1;
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             // 复杂对象数组按 identifier 匹配（与 List 一致），重排不应产生变更
             assertThat(changeSet.isEmpty()).isTrue();
@@ -153,7 +153,7 @@ class EndToEndIntegrationTest {
             DefaultTrackingCapabilityProvider provider = new DefaultTrackingCapabilityProvider();
             provider.withIdentifier(LineItem.class, LineItem::getId);
 
-            UnitOfWork uow = new UnitOfWork(provider.create());
+            ChangeTracker changeTracker = new ChangeTracker(provider.create());
 
             Order order = new Order(1L, "ORD-001");
             LineItem item1 = new LineItem(100L, "SKU-A", "商品A", 2, new Money(new BigDecimal("100.00"), "CNY"));
@@ -161,14 +161,14 @@ class EndToEndIntegrationTest {
             order.addItem(item1);
             order.addItem(item2);
 
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             // 删除 item1，新增 item3
             order.removeItem(item1);
             LineItem item3 = new LineItem(300L, "SKU-C", "商品C", 3, new Money(new BigDecimal("300.00"), "CNY"));
             order.addItem(item3);
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             List<Change> leafChanges = changeSet.getLeafChanges();
 
@@ -183,18 +183,18 @@ class EndToEndIntegrationTest {
             DefaultTrackingCapabilityProvider provider = new DefaultTrackingCapabilityProvider();
             provider.withIdentifier(LineItem.class, LineItem::getId);
 
-            UnitOfWork uow = new UnitOfWork(provider.create());
+            ChangeTracker changeTracker = new ChangeTracker(provider.create());
 
             Order order = new Order(1L, "ORD-001");
             LineItem item = new LineItem(100L, "SKU-A", "商品A", 2, new Money(new BigDecimal("100.00"), "CNY"));
             order.addItem(item);
 
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             // 修改行项目的数量
             item.setQuantity(5);
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             List<Change> leafChanges = changeSet.getLeafChanges();
 
@@ -221,20 +221,20 @@ class EndToEndIntegrationTest {
             DefaultTrackingCapabilityProvider provider = new DefaultTrackingCapabilityProvider();
             provider.withValueType(Money.class);
 
-            UnitOfWork uow = new UnitOfWork(provider.create());
+            ChangeTracker changeTracker = new ChangeTracker(provider.create());
 
             Order order = new Order(1L, "ORD-001");
             Money originalPrice = new Money(new BigDecimal("100.00"), "CNY");
             LineItem item = new LineItem(100L, "SKU-A", "商品A", 2, originalPrice);
             order.addItem(item);
 
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             // 替换整个 Money 对象
             Money newPrice = new Money(new BigDecimal("150.00"), "CNY");
             item.setPrice(newPrice);
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             List<Change> leafChanges = changeSet.getLeafChanges();
 
@@ -260,7 +260,7 @@ class EndToEndIntegrationTest {
             provider.withIdentifier(LineItem.class, LineItem::getId)
                     .withValueType(Money.class);
 
-            UnitOfWork uow = new UnitOfWork(provider.create());
+            ChangeTracker changeTracker = new ChangeTracker(provider.create());
 
             // 创建初始订单
             Order order = new Order(1L, "ORD-001");
@@ -269,7 +269,7 @@ class EndToEndIntegrationTest {
             order.addItem(item1);
             order.addItem(item2);
 
-            uow.registerClean(order);
+            changeTracker.track(order);
 
             // 执行多种变更：
             // 1. 修改订单状态
@@ -282,7 +282,7 @@ class EndToEndIntegrationTest {
             LineItem item3 = new LineItem(300L, "SKU-C", "商品C", 3, new Money(new BigDecimal("300.00"), "CNY"));
             order.addItem(item3);
 
-            ChangeSet changeSet = uow.calculateChanges();
+            ChangeSet changeSet = changeTracker.calculateChanges();
 
             List<Change> leafChanges = changeSet.getLeafChanges();
 
