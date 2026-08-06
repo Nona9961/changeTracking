@@ -138,7 +138,10 @@ public record ChangeSet(List<ObjectChange> changes) {
         final String fieldName = extractFieldName(path);
 
         if (node instanceof FieldChangeNode fcn) {
-            return new FieldChange(path, path, fieldName, null, false, fcn.oldValue(), fcn.newValue());
+            return new ValueChange(path, path, fieldName, null, false, fcn.oldValue(), fcn.newValue());
+        }
+        if (node instanceof ObjectFieldChangeNode ofcn) {
+            return new ObjectFieldChange(path, path, fieldName, null, false, ofcn.oldNode(), ofcn.newNode());
         }
         if (node instanceof ItemAddedNode ian) {
             return new ItemAddedChange(path, path, fieldName, null, false, ian.addedItem());
@@ -188,7 +191,10 @@ public record ChangeSet(List<ObjectChange> changes) {
         }
 
         if (node instanceof FieldChangeNode fcn) {
-            return new FieldChange(relativePath, fullPath, fieldName, currentCollectionFieldName, currentParentIsCollection, fcn.oldValue(), fcn.newValue());
+            return new ValueChange(relativePath, fullPath, fieldName, currentCollectionFieldName, currentParentIsCollection, fcn.oldValue(), fcn.newValue());
+        }
+        if (node instanceof ObjectFieldChangeNode ofcn) {
+            return new ObjectFieldChange(relativePath, fullPath, fieldName, currentCollectionFieldName, currentParentIsCollection, ofcn.oldNode(), ofcn.newNode());
         }
         if (node instanceof ItemAddedNode ian) {
             return new ItemAddedChange(relativePath, fullPath, fieldName, currentCollectionFieldName, currentParentIsCollection, ian.addedItem());
@@ -233,7 +239,10 @@ public record ChangeSet(List<ObjectChange> changes) {
         }
 
         if (node instanceof FieldChangeNode fcn) {
-            return new FieldChange(fullPath, fullPath, fieldName, currentCollectionFieldName, currentParentIsCollection, fcn.oldValue(), fcn.newValue());
+            return new ValueChange(fullPath, fullPath, fieldName, currentCollectionFieldName, currentParentIsCollection, fcn.oldValue(), fcn.newValue());
+        }
+        if (node instanceof ObjectFieldChangeNode ofcn) {
+            return new ObjectFieldChange(fullPath, fullPath, fieldName, currentCollectionFieldName, currentParentIsCollection, ofcn.oldNode(), ofcn.newNode());
         }
         if (node instanceof ItemAddedNode ian) {
             return new ItemAddedChange(fullPath, fullPath, fieldName, currentCollectionFieldName, currentParentIsCollection, ian.addedItem());

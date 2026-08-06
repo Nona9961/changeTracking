@@ -3,7 +3,7 @@ package com.nona.changeTracking.internal.capability;
 import com.nona.changeTracking.domain.capability.ComparisonStrategy;
 import com.nona.changeTracking.domain.capability.TrackingCapability;
 import com.nona.changeTracking.domain.capability.ValueNodeComparisonStrategy;
-import com.nona.changeTracking.domain.model.changeset.FieldChange;
+import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import com.nona.changeTracking.domain.model.changeset.ItemAddedChange;
 import com.nona.changeTracking.domain.model.unitofwork.UnitOfWork;
 import com.nona.changeTracking.internal.snapshot.ValueNodeSnapshotStrategy;
@@ -125,7 +125,7 @@ class DefaultTrackingCapabilityProviderTest {
             assertFalse(changeSet.isEmpty());
             // 应该检测到属性修改和新增项
             assertTrue(changeSet.getLeafChanges().stream()
-                    .anyMatch(c -> c instanceof FieldChange));
+                    .anyMatch(c -> c instanceof ValueChange));
             assertTrue(changeSet.getLeafChanges().stream()
                     .anyMatch(c -> c instanceof ItemAddedChange));
         }
@@ -150,7 +150,7 @@ class DefaultTrackingCapabilityProviderTest {
             assertFalse(changeSet.isEmpty());
             final var leafChanges = changeSet.getLeafChanges();
             assertTrue(leafChanges.stream()
-                    .anyMatch(c -> c instanceof FieldChange && c.path().equals("price")));
+                    .anyMatch(c -> c instanceof ValueChange && c.path().equals("price")));
         }
     }
 

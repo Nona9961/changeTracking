@@ -85,8 +85,8 @@ class FactoryApiIntegrationTest {
 
             assertThat(changeSet.isEmpty()).isFalse();
             assertThat(changeSet.getLeafChanges().stream()
-                    .filter(c -> c instanceof FieldChange)
-                    .map(c -> (FieldChange) c)
+                    .filter(c -> c instanceof ValueChange)
+                    .map(c -> (ValueChange) c)
                     .anyMatch(fc -> fc.path().equals("status") &&
                             fc.oldValue().equals("PENDING") &&
                             fc.newValue().equals("SHIPPED")))
@@ -153,8 +153,8 @@ class FactoryApiIntegrationTest {
 
             assertThat(changeSet.isEmpty()).isFalse();
             assertThat(changeSet.getLeafChanges().stream()
-                    .filter(c -> c instanceof FieldChange)
-                    .map(c -> (FieldChange) c)
+                    .filter(c -> c instanceof ValueChange)
+                    .map(c -> (ValueChange) c)
                     .anyMatch(fc -> fc.path().contains("quantity")))
                     .isTrue();
         }

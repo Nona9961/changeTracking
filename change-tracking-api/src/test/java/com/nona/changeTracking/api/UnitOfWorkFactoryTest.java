@@ -2,7 +2,7 @@ package com.nona.changeTracking.api;
 
 import com.nona.changeTracking.domain.capability.TrackingCapability;
 import com.nona.changeTracking.domain.model.changeset.ChangeSet;
-import com.nona.changeTracking.domain.model.changeset.FieldChange;
+import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import com.nona.changeTracking.domain.model.unitofwork.UnitOfWork;
 import com.nona.changeTracking.spi.TrackingCapabilityProvider;
 import org.junit.jupiter.api.DisplayName;
@@ -53,7 +53,7 @@ class UnitOfWorkFactoryTest {
 
         assertFalse(changeSet.isEmpty());
         assertEquals(1, changeSet.getLeafChanges().size());
-        final FieldChange change = (FieldChange) changeSet.getLeafChanges().get(0);
+        final ValueChange change = (ValueChange) changeSet.getLeafChanges().get(0);
         assertEquals("name", change.path());
         assertEquals("Alice", change.oldValue());
         assertEquals("Alicia", change.newValue());

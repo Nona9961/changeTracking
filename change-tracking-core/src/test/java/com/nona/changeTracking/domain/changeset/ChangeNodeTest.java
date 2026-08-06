@@ -1,6 +1,8 @@
 package com.nona.changeTracking.domain.changeset;
 
 import com.nona.changeTracking.domain.model.changeset.*;
+import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
+import com.nona.changeTracking.domain.model.snapshot.ValueNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +16,7 @@ class ChangeNodeTest {
 
     @Test
     @DisplayName("FieldChangeNode 应能正确存储字段变更信息")
-    void fieldChangeNode_shouldHoldFieldChangeData() {
+    void fieldChangeNode_shouldHoldValueChangeData() {
         final String path = "shippingAddress.street";
         final String oldValue = "123 Main St";
         final String newValue = "456 Market St";
@@ -57,7 +59,7 @@ class ChangeNodeTest {
     @DisplayName("ItemAddedNode 应能正确存储新增的列表项")
     void itemAddedNode_shouldHoldAddedItem() {
         final String path = "items";
-        final Object newItem = new Object();
+        final ValueNode newItem = new PrimitiveNode("added");
 
         final ItemAddedNode node = new ItemAddedNode(path, newItem);
 
@@ -71,7 +73,7 @@ class ChangeNodeTest {
     @DisplayName("ItemRemovedNode 应能正确存储移除的列表项")
     void itemRemovedNode_shouldHoldRemovedItem() {
         final String path = "items";
-        final Object removedItem = new Object();
+        final ValueNode removedItem = new PrimitiveNode("removed");
 
         final ItemRemovedNode node = new ItemRemovedNode(path, removedItem);
 

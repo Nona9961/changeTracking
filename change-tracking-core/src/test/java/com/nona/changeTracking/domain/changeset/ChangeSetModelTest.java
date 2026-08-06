@@ -1,6 +1,7 @@
 package com.nona.changeTracking.domain.changeset;
 
 import com.nona.changeTracking.domain.model.changeset.*;
+import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -17,7 +18,7 @@ class ChangeSetModelTest {
     // --- Test Data ---
     private final FieldChangeNode fieldChangeNode = new FieldChangeNode("path.name", "old", "new");
     private final ContainerChangeNode containerNode = new ContainerChangeNode("path", List.of(fieldChangeNode));
-    private final ItemAddedNode itemAddedNode = new ItemAddedNode("path.items", "newItem");
+    private final ItemAddedNode itemAddedNode = new ItemAddedNode("path.items", new PrimitiveNode("newItem"));
     private final ContainerChangeNode rootNode = new ContainerChangeNode("", List.of(containerNode, itemAddedNode));
     private final Object sampleTarget = new Object();
     private final ObjectChange objectChange = new ObjectChange(sampleTarget, rootNode);
@@ -50,7 +51,7 @@ class ChangeSetModelTest {
             // 注意：根节点 "" 我们通常不关心，所以实现时可以跳过
             assertEquals(3, allChanges.size());
             assertTrue(allChanges.stream().anyMatch(c -> c.path().equals("path") && c instanceof ContainerChange));
-            assertTrue(allChanges.stream().anyMatch(c -> c.path().equals("path.name") && c instanceof FieldChange));
+            assertTrue(allChanges.stream().anyMatch(c -> c.path().equals("path.name") && c instanceof ValueChange));
             assertTrue(allChanges.stream().anyMatch(c -> c.path().equals("path.items") && c instanceof ItemAddedChange));
         }
 
@@ -61,7 +62,7 @@ class ChangeSetModelTest {
 
             // 预期结果: 字段变更(Field), 新增项(ItemAdded)
             assertEquals(2, leafChanges.size());
-            assertTrue(leafChanges.stream().anyMatch(c -> c.path().equals("path.name") && c instanceof FieldChange));
+            assertTrue(leafChanges.stream().anyMatch(c -> c.path().equals("path.name") && c instanceof ValueChange));
             assertTrue(leafChanges.stream().anyMatch(c -> c.path().equals("path.items") && c instanceof ItemAddedChange));
             // 确保没有任何容器节点
             assertFalse(leafChanges.stream().anyMatch(c -> c instanceof ContainerChange));

@@ -176,8 +176,8 @@ class EndToEndIntegrationTest {
 
             // 应检测到字段变更
             assertThat(leafChanges.stream()
-                    .filter(c -> c instanceof FieldChange)
-                    .map(c -> (FieldChange) c)
+                    .filter(c -> c instanceof ValueChange)
+                    .map(c -> (ValueChange) c)
                     .anyMatch(fc -> fc.path().contains("quantity") &&
                             fc.oldValue().equals(2) &&
                             fc.newValue().equals(5)))
@@ -193,7 +193,7 @@ class EndToEndIntegrationTest {
 
         @Test
         @DisplayName("配置 Money 为值类型后，整体替换应产生单个字段变更")
-        void withValueType_replaceValue_shouldProduceSingleFieldChange() {
+        void withValueType_replaceValue_shouldProduceSingleValueChange() {
             DefaultTrackingCapabilityProvider provider = new DefaultTrackingCapabilityProvider();
             provider.withValueType(Money.class);
 
@@ -216,8 +216,8 @@ class EndToEndIntegrationTest {
 
             // Money 作为值类型，应该产生 price 字段的变更，而非 amount/currency 的变更
             assertThat(leafChanges.stream()
-                    .filter(c -> c instanceof FieldChange)
-                    .map(c -> (FieldChange) c)
+                    .filter(c -> c instanceof ValueChange)
+                    .map(c -> (ValueChange) c)
                     .anyMatch(fc -> fc.path().contains("price")))
                     .isTrue();
         }
@@ -264,15 +264,15 @@ class EndToEndIntegrationTest {
 
             // 验证订单状态变更
             assertThat(leafChanges.stream()
-                    .filter(c -> c instanceof FieldChange)
-                    .map(c -> (FieldChange) c)
+                    .filter(c -> c instanceof ValueChange)
+                    .map(c -> (ValueChange) c)
                     .anyMatch(fc -> fc.path().equals("status")))
                     .isTrue();
 
             // 验证 item1 数量变更
             assertThat(leafChanges.stream()
-                    .filter(c -> c instanceof FieldChange)
-                    .map(c -> (FieldChange) c)
+                    .filter(c -> c instanceof ValueChange)
+                    .map(c -> (ValueChange) c)
                     .anyMatch(fc -> fc.path().contains("quantity")))
                     .isTrue();
 

@@ -33,7 +33,7 @@ class ValueNodeComparisonStrategyTest {
     class PrimitiveAndNullTests {
         @Test
         @DisplayName("比较两个不同的 PrimitiveNode 树应返回 FieldChangeNode")
-        void compare_differentPrimitiveTrees_shouldReturnFieldChange() {
+        void compare_differentPrimitiveTrees_shouldReturnValueChange() {
             final ObjectNode oldTree = new ObjectNode(Map.of("name", new PrimitiveNode("Alice")));
             final ObjectNode newTree = new ObjectNode(Map.of("name", new PrimitiveNode("Bob")));
             final ChangeNode result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
@@ -75,7 +75,7 @@ class ValueNodeComparisonStrategyTest {
     class NestedObjectTests {
         @Test
         @DisplayName("比较深层嵌套字段的变更应返回正确的层级结构")
-        void compare_deeplyNestedFieldChange_shouldReturnCorrectHierarchy() {
+        void compare_deeplyNestedValueChange_shouldReturnCorrectHierarchy() {
             final ObjectNode oldAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
             final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
             final ObjectNode newAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Market St")));
@@ -115,16 +115,16 @@ class ValueNodeComparisonStrategyTest {
         }
 
         @Test
-        @DisplayName("嵌套对象变为 null")
+        @DisplayName("嵌套对象变为 null 应产出 ObjectFieldChangeNode（oldNode=原 ObjectNode、newNode=NullNode）")
         void nestedObject_becomesNull_shouldBeReported() {
             final ObjectNode oldAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
             final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
             final ObjectNode newUser = new ObjectNode(Map.of("address", new NullNode()));
             final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
             assertEquals("address", change.path());
-            assertEquals(oldAddress, change.oldValue());
-            assertNull(change.newValue());
+            assertSame(oldAddress, change.oldNode(), "oldNode 应为原始 ObjectNode 实例（快照表示）");
+            assertTrue(change.newNode() instanceof NullNode, "newNode 应为 NullNode");
         }
     }
 
@@ -338,68 +338,195 @@ class ValueNodeComparisonStrategyTest {
     }
 
     @Nested
-    @DisplayName("类型变化场景测试（特征测试：现状泄漏 ValueNode 实例为业务值）")
+    @DisplayName("类型变化场景测试（跨类型 → ObjectFieldChangeNode）")
     class TypeChangeTests {
 
         @Test
-        @DisplayName("ObjectNode 变为 PrimitiveNode 时现状产出 FieldChangeNode 且 oldValue 泄漏 ObjectNode 实例")
-        void objectNode_toPrimitiveNode_shouldLeakObjectNodeAsOldValue() {
+        @DisplayName("ObjectNode 变为 PrimitiveNode 应产出 ObjectFieldChangeNode（两侧为 ValueNode 实例）")
+        void objectNode_toPrimitiveNode_shouldProduceObjectFieldChange() {
             final ObjectNode oldAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
+            final PrimitiveNode newAddress = new PrimitiveNode("42");
             final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
-            final ObjectNode newUser = new ObjectNode(Map.of("address", new PrimitiveNode("42")));
+            final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
 
             final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
 
             assertEquals("address", change.path());
-            assertSame(oldAddress, change.oldValue(), "特征：ObjectNode 实例泄漏为 oldValue");
-            assertEquals("42", change.newValue());
+            assertSame(oldAddress, change.oldNode(), "oldNode 应为原始 ObjectNode 实例（快照表示）");
+            assertSame(newAddress, change.newNode(), "newNode 应为原始 PrimitiveNode 实例（快照表示）");
         }
 
         @Test
-        @DisplayName("CollectionNode 变为 ObjectNode 时现状产出 FieldChangeNode 且两侧泄漏 ValueNode 实例")
-        void collectionNode_toObjectNode_shouldLeakValueNodes() {
+        @DisplayName("CollectionNode 变为 ObjectNode 应产出 ObjectFieldChangeNode（两侧为 ValueNode 实例）")
+        void collectionNode_toObjectNode_shouldProduceObjectFieldChange() {
             final CollectionNode oldItems = new CollectionNode(List.of(new PrimitiveNode("A")));
             final ObjectNode newItems = new ObjectNode(Map.of("id", new PrimitiveNode("1")));
             final ObjectNode oldUser = new ObjectNode(Map.of("items", oldItems));
             final ObjectNode newUser = new ObjectNode(Map.of("items", newItems));
 
             final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
 
             assertEquals("items", change.path());
-            assertSame(oldItems, change.oldValue(), "特征：CollectionNode 实例泄漏为 oldValue");
-            assertSame(newItems, change.newValue(), "特征：ObjectNode 实例泄漏为 newValue");
+            assertSame(oldItems, change.oldNode(), "oldNode 应为原始 CollectionNode 实例（快照表示）");
+            assertSame(newItems, change.newNode(), "newNode 应为原始 ObjectNode 实例（快照表示）");
         }
 
         @Test
-        @DisplayName("PrimitiveNode 变为 ObjectNode 时现状产出 FieldChangeNode 且 newValue 泄漏 ObjectNode 实例")
-        void primitiveNode_toObjectNode_shouldLeakObjectNodeAsNewValue() {
-            final ObjectNode oldUser = new ObjectNode(Map.of("address", new PrimitiveNode("42")));
+        @DisplayName("PrimitiveNode 变为 ObjectNode 应产出 ObjectFieldChangeNode（两侧为 ValueNode 实例）")
+        void primitiveNode_toObjectNode_shouldProduceObjectFieldChange() {
+            final PrimitiveNode oldAddress = new PrimitiveNode("42");
             final ObjectNode newAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
+            final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
             final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
 
             final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
 
             assertEquals("address", change.path());
-            assertEquals("42", change.oldValue());
-            assertSame(newAddress, change.newValue(), "特征：ObjectNode 实例泄漏为 newValue");
+            assertSame(oldAddress, change.oldNode(), "oldNode 应为原始 PrimitiveNode 实例（快照表示）");
+            assertSame(newAddress, change.newNode(), "newNode 应为原始 ObjectNode 实例（快照表示）");
         }
 
         @Test
-        @DisplayName("NullNode 变为 ObjectNode 时现状产出 FieldChangeNode 且 newValue 泄漏 ObjectNode 实例")
-        void nullNode_toObjectNode_shouldLeakObjectNodeAsNewValue() {
+        @DisplayName("NullNode 变为 ObjectNode 应产出 ObjectFieldChangeNode（两侧为 ValueNode 实例）")
+        void nullNode_toObjectNode_shouldProduceObjectFieldChange() {
+            final ObjectNode newAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
             final ObjectNode oldUser = new ObjectNode(Map.of("address", new NullNode()));
-            final ObjectNode newAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
             final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
 
             final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
 
             assertEquals("address", change.path());
-            assertNull(change.oldValue());
-            assertSame(newAddress, change.newValue(), "特征：ObjectNode 实例泄漏为 newValue");
+            assertTrue(change.oldNode() instanceof NullNode, "oldNode 应为 NullNode");
+            assertSame(newAddress, change.newNode(), "newNode 应为原始 ObjectNode 实例（快照表示）");
+        }
+
+        @Test
+        @DisplayName("CollectionNode 变为 NullNode 应产出 ObjectFieldChangeNode")
+        void collectionNode_toNullNode_shouldProduceObjectFieldChange() {
+            final CollectionNode oldItems = new CollectionNode(List.of(new PrimitiveNode("A")));
+            final ObjectNode oldUser = new ObjectNode(Map.of("items", oldItems));
+            final ObjectNode newUser = new ObjectNode(Map.of("items", new NullNode()));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+
+            assertEquals("items", change.path());
+            assertSame(oldItems, change.oldNode(), "oldNode 应为原始 CollectionNode 实例（快照表示）");
+            assertTrue(change.newNode() instanceof NullNode, "newNode 应为 NullNode");
+        }
+
+        @Test
+        @DisplayName("NullNode 变为 CollectionNode 应产出 ObjectFieldChangeNode")
+        void nullNode_toCollectionNode_shouldProduceObjectFieldChange() {
+            final CollectionNode newItems = new CollectionNode(List.of(new PrimitiveNode("A")));
+            final ObjectNode oldUser = new ObjectNode(Map.of("items", new NullNode()));
+            final ObjectNode newUser = new ObjectNode(Map.of("items", newItems));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+
+            assertEquals("items", change.path());
+            assertTrue(change.oldNode() instanceof NullNode, "oldNode 应为 NullNode");
+            assertSame(newItems, change.newNode(), "newNode 应为原始 CollectionNode 实例（快照表示）");
+        }
+
+        @Test
+        @DisplayName("ObjectNode 变为 CollectionNode 应产出 ObjectFieldChangeNode")
+        void objectNode_toCollectionNode_shouldProduceObjectFieldChange() {
+            final ObjectNode oldAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
+            final CollectionNode newAddress = new CollectionNode(List.of(new PrimitiveNode("A")));
+            final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
+            final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+
+            assertEquals("address", change.path());
+            assertSame(oldAddress, change.oldNode(), "oldNode 应为原始 ObjectNode 实例（快照表示）");
+            assertSame(newAddress, change.newNode(), "newNode 应为原始 CollectionNode 实例（快照表示）");
+        }
+
+        @Test
+        @DisplayName("CollectionNode 变为 PrimitiveNode 应产出 ObjectFieldChangeNode")
+        void collectionNode_toPrimitiveNode_shouldProduceObjectFieldChange() {
+            final CollectionNode oldItems = new CollectionNode(List.of(new PrimitiveNode("A")));
+            final PrimitiveNode newItems = new PrimitiveNode("x");
+            final ObjectNode oldUser = new ObjectNode(Map.of("items", oldItems));
+            final ObjectNode newUser = new ObjectNode(Map.of("items", newItems));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+
+            assertEquals("items", change.path());
+            assertSame(oldItems, change.oldNode(), "oldNode 应为原始 CollectionNode 实例（快照表示）");
+            assertSame(newItems, change.newNode(), "newNode 应为原始 PrimitiveNode 实例（快照表示）");
+        }
+    }
+
+    @Nested
+    @DisplayName("扁平视图转换测试（ObjectFieldChange 双视图叶子）")
+    class FlatViewTests {
+
+        private ChangeSet changeSetOf(ValueNode oldTree, ValueNode newTree) {
+            final ChangeNode tree = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
+            return new ChangeSet(List.of(new ObjectChange(new Object(), tree)));
+        }
+
+        @Test
+        @DisplayName("对象字段变为 null：getAllChanges 与 getLeafChanges 均含 ObjectFieldChange（叶子）")
+        void objectFieldChange_shouldAppearAsLeafInBothViews() {
+            final ObjectNode oldAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
+            final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
+            final ObjectNode newUser = new ObjectNode(Map.of("address", new NullNode()));
+            final ChangeSet changeSet = changeSetOf(oldUser, newUser);
+
+            final List<Change> allChanges = changeSet.getAllChanges();
+            assertEquals(1, allChanges.size(), "getAllChanges 应只含 ObjectFieldChange 叶子（根容器不计数）");
+            final ObjectFieldChange all = (ObjectFieldChange) allChanges.get(0);
+            assertEquals("address", all.path());
+            assertEquals("address", all.fullPath());
+            assertEquals("address", all.fieldName());
+            assertNull(all.collectionFieldName());
+            assertFalse(all.isParentCollection());
+            assertSame(oldAddress, all.oldNode(), "oldNode 应为原始 ObjectNode 实例（快照表示）");
+            assertTrue(all.newNode() instanceof NullNode, "newNode 应为 NullNode");
+
+            final List<Change> leafChanges = changeSet.getLeafChanges();
+            assertEquals(1, leafChanges.size(), "getLeafChanges 应只含 ObjectFieldChange 叶子");
+            final ObjectFieldChange leaf = (ObjectFieldChange) leafChanges.get(0);
+            assertEquals("address", leaf.path());
+            assertEquals("address", leaf.fullPath());
+            assertEquals("address", leaf.fieldName());
+            assertNull(leaf.collectionFieldName());
+            assertFalse(leaf.isParentCollection());
+            assertSame(oldAddress, leaf.oldNode());
+            assertTrue(leaf.newNode() instanceof NullNode);
+        }
+
+        @Test
+        @DisplayName("集合元素内字段跨类型：转换后 ObjectFieldChange 元数据正确（集合上下文）")
+        void objectFieldChange_insideCollectionContext_shouldCarryMetadata() {
+            final ObjectNode oldDetail = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
+            final ObjectNode oldItem = new ObjectNode(Map.of("id", new PrimitiveNode("A"), "detail", oldDetail), "A");
+            final ObjectNode newItem = new ObjectNode(Map.of("id", new PrimitiveNode("A"), "detail", new NullNode()), "A");
+            final ObjectNode oldRoot = new ObjectNode(Map.of("items", new CollectionNode(List.of(oldItem))));
+            final ObjectNode newRoot = new ObjectNode(Map.of("items", new CollectionNode(List.of(newItem))));
+            final ChangeSet changeSet = changeSetOf(oldRoot, newRoot);
+
+            final List<Change> leafChanges = changeSet.getLeafChanges();
+            assertEquals(1, leafChanges.size());
+            final ObjectFieldChange leaf = (ObjectFieldChange) leafChanges.get(0);
+            assertEquals("items[A].detail", leaf.path());
+            assertEquals("items[A].detail", leaf.fullPath());
+            assertEquals("detail", leaf.fieldName());
+            assertEquals("items", leaf.collectionFieldName());
+            assertFalse(leaf.isParentCollection(), "父节点是集合项对象 items[A]（非集合本身）");
+            assertSame(oldDetail, leaf.oldNode());
+            assertTrue(leaf.newNode() instanceof NullNode);
         }
     }
 

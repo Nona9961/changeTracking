@@ -8,7 +8,8 @@ package com.nona.changeTracking.domain.model.changeset;
  * <p>
  * 允许的实现类型：
  * <ul>
- *   <li>{@link FieldChangeNode} - 字段值变更</li>
+ *   <li>{@link FieldChangeNode} - 基本值字段变更（oldValue/newValue 为业务值）</li>
+ *   <li>{@link ObjectFieldChangeNode} - 对象/集合字段整体替换（oldNode/newNode 为 ValueNode）</li>
  *   <li>{@link ContainerChangeNode} - 容器节点（包含子变更）</li>
  *   <li>{@link ItemAddedNode} - 集合项新增</li>
  *   <li>{@link ItemRemovedNode} - 集合项删除</li>
@@ -16,7 +17,7 @@ package com.nona.changeTracking.domain.model.changeset;
  *
  * @see Change 扁平视图的变更表示
  */
-public sealed interface ChangeNode permits FieldChangeNode, ContainerChangeNode, ItemAddedNode, ItemRemovedNode {
+public sealed interface ChangeNode permits FieldChangeNode, ObjectFieldChangeNode, ContainerChangeNode, ItemAddedNode, ItemRemovedNode {
 
     /**
      * 获取此变更节点的路径。

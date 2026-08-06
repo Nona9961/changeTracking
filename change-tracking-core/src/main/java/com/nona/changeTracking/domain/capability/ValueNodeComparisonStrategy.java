@@ -103,7 +103,13 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * 高层方法：负责分发和包裹。
      * <p>
      * 比较两个节点，如果有差异则返回包含变更的列表。
-     * 对于容器节点，会递归比较子节点并将结果包裹在 ContainerChangeNode 中。
+     * dispatch 表：
+     * <ul>
+     *   <li>P↔P / P↔N / N↔P（基本值之间）→ {@link FieldChangeNode}（业务值可得）</li>
+     *   <li>O↔O / C↔C（容器同类型）→ 递归子节点，有变更则包裹在 {@link ContainerChangeNode} 中</li>
+     *   <li>其余组合（容器参与的跨类型变化）→ {@link ObjectFieldChangeNode}（原样携带 ValueNode）</li>
+     *   <li>N↔N / 同实例 → 无变更</li>
+     * </ul>
      *
      * @param oldNode 旧节点。
      * @param newNode 新节点。
@@ -127,30 +133,35 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             return List.of(new FieldChangeNode(path, oldPrim.value(), newPrim.value()));
         }
 
-        final VisitingPair pair = new VisitingPair(oldNode, newNode);
-        if (!visiting.add(pair)) {
-            // 循环引用：同一对节点在当前递归路径上再次出现，终止递归以避免 StackOverflow。
-            return Collections.emptyList();
+        // 基本值↔基本值（P↔N / N↔P）：快照中业务值可得，仍走 FieldChangeNode
+        if ((oldNode instanceof PrimitiveNode || oldNode instanceof NullNode)
+                && (newNode instanceof PrimitiveNode || newNode instanceof NullNode)) {
+            return List.of(new FieldChangeNode(path, extractValue(oldNode), extractValue(newNode)));
         }
 
-        try {
-            final List<ChangeNode> childrenChanges = diffChildren(oldNode, newNode, path, visiting);
-
-            if (!childrenChanges.isEmpty()) {
-                return List.of(new ContainerChangeNode(path, childrenChanges));
+        // 容器同类型（O↔O / C↔C）：递归子节点
+        final boolean bothObject = oldNode instanceof ObjectNode && newNode instanceof ObjectNode;
+        final boolean bothCollection = oldNode instanceof CollectionNode && newNode instanceof CollectionNode;
+        if (bothObject || bothCollection) {
+            final VisitingPair pair = new VisitingPair(oldNode, newNode);
+            if (!visiting.add(pair)) {
+                // 循环引用：同一对节点在当前递归路径上再次出现，终止递归以避免 StackOverflow。
+                return Collections.emptyList();
             }
 
-            // 节点类型不同或为基本类型时，视为字段变更
-            final boolean isTypeChanged = !oldNode.getClass().equals(newNode.getClass());
-            final boolean isPrimitive = oldNode instanceof PrimitiveNode || oldNode instanceof NullNode;
-            if (isTypeChanged || isPrimitive) {
-                return List.of(new FieldChangeNode(path, extractValue(oldNode), extractValue(newNode)));
+            try {
+                final List<ChangeNode> childrenChanges = diffChildren(oldNode, newNode, path, visiting);
+                if (!childrenChanges.isEmpty()) {
+                    return List.of(new ContainerChangeNode(path, childrenChanges));
+                }
+                return Collections.emptyList();
+            } finally {
+                visiting.remove(pair);
             }
-
-            return Collections.emptyList();
-        } finally {
-            visiting.remove(pair);
         }
+
+        // 容器参与的跨类型变化：快照中无业务对象可提取，原样携带 ValueNode 表示
+        return List.of(new ObjectFieldChangeNode(path, oldNode, newNode));
     }
 
     /**
@@ -344,18 +355,19 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
     }
 
     /**
-     * 从 ValueNode 中提取原始值。
+     * 从基本值节点（PrimitiveNode/NullNode）中提取业务值。
+     * <p>
+     * 仅用于 {@link #diffNode} 的基本值路径（P↔P / P↔N / N↔P）——业务值可得。
+     * 容器节点参与的跨类型变化没有业务值可提取，由 {@link ObjectFieldChangeNode}
+     * 原样携带 ValueNode 节点承载，不经过本方法。
      *
-     * @param node 要提取值的节点。
-     * @return 节点的原始值，对于 NullNode 返回 null，对于非基本类型返回节点本身。
+     * @param node 基本值节点（PrimitiveNode 或 NullNode）。
+     * @return 业务值：PrimitiveNode 返回其 value，NullNode 返回 null。
      */
     private Object extractValue(final ValueNode node) {
         if (node instanceof PrimitiveNode pn) {
             return pn.value();
         }
-        if (node instanceof NullNode) {
-            return null;
-        }
-        return node;
+        return null;
     }
 }

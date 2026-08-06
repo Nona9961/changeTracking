@@ -117,7 +117,7 @@ class ChangeTrackingUsageGuideTest {
 
         @Test
         @DisplayName("1.1 追踪简单字段变更")
-        void trackSimpleFieldChange() {
+        void trackSimpleValueChange() {
             // 1. 创建 UnitOfWork 实例
             UnitOfWork uow = UnitOfWorkFactory.builder()
                     .withDefaults()
@@ -143,8 +143,8 @@ class ChangeTrackingUsageGuideTest {
 
             // 验证具体的变更内容
             assertThat(leafChanges)
-                    .filteredOn(c -> c instanceof FieldChange)
-                    .extracting(c -> ((FieldChange) c).path())
+                    .filteredOn(c -> c instanceof ValueChange)
+                    .extracting(c -> ((ValueChange) c).path())
                     .containsExactlyInAnyOrder("name", "email");
         }
 
@@ -195,8 +195,8 @@ class ChangeTrackingUsageGuideTest {
             List<Change> leafChanges = changeSet.getLeafChanges();
             assertThat(leafChanges).hasSize(2);
             assertThat(leafChanges)
-                    .filteredOn(c -> c instanceof FieldChange)
-                    .extracting(c -> ((FieldChange) c).path())
+                    .filteredOn(c -> c instanceof ValueChange)
+                    .extracting(c -> ((ValueChange) c).path())
                     .containsExactlyInAnyOrder("address.city", "address.street");
         }
 
@@ -300,7 +300,7 @@ class ChangeTrackingUsageGuideTest {
             assertThat(changeSet.isEmpty()).isFalse();
             List<Change> leafChanges = changeSet.getLeafChanges();
             assertThat(leafChanges)
-                    .filteredOn(c -> c instanceof FieldChange)
+                    .filteredOn(c -> c instanceof ValueChange)
                     .hasSizeGreaterThanOrEqualTo(2);
         }
     }
@@ -421,13 +421,13 @@ class ChangeTrackingUsageGuideTest {
             // getLeafChanges() 只返回叶子节点，不包含 ContainerChange
             List<Change> leafChanges = changeSet.getLeafChanges();
 
-            // 不包含容器节点，仅包含 FieldChange、ItemAddedChange、ItemRemovedChange
+            // 不包含容器节点，仅包含 ValueChange、ItemAddedChange、ItemRemovedChange
             assertThat(leafChanges)
                     .filteredOn(c -> c instanceof ContainerChange)
                     .isEmpty();
 
             assertThat(leafChanges)
-                    .filteredOn(c -> c instanceof FieldChange)
+                    .filteredOn(c -> c instanceof ValueChange)
                     .isNotEmpty();
         }
     }
@@ -440,7 +440,7 @@ class ChangeTrackingUsageGuideTest {
 
         @Test
         @DisplayName("6.1 提取字段变更的详细信息")
-        void extractFieldChangeDetails() {
+        void extractValueChangeDetails() {
             UnitOfWork uow = UnitOfWorkFactory.builder()
                     .withDefaults()
                     .build();
@@ -454,7 +454,7 @@ class ChangeTrackingUsageGuideTest {
 
             // 遍历变更，提取详细信息
             for (Change change : changeSet.getLeafChanges()) {
-                if (change instanceof FieldChange fieldChange) {
+                if (change instanceof ValueChange fieldChange) {
                     String path = fieldChange.path();       // 字段路径: "name"
                     Object oldValue = fieldChange.oldValue(); // 旧值: "张三"
                     Object newValue = fieldChange.newValue(); // 新值: "李四"
