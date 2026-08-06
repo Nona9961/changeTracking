@@ -176,6 +176,11 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
 
     /**
      * 比较两个 ObjectNode 的所有字段。
+     * <p>
+     * 字段变更按<b>声明序</b>输出：以 old 节点的字段声明序为基准，
+     * new 节点新增的字段追加在后（LinkedHashSet 首次插入序）。
+     * 不使用 TreeSet 字典序，保证输出顺序与对象字段声明顺序一致，
+     * 便于消费方按字段序生成 SQL。
      *
      * @param oldObj 旧对象节点。
      * @param newObj 新对象节点。
@@ -185,7 +190,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     private List<ChangeNode> diffObjectChildren(final ObjectNode oldObj, final ObjectNode newObj, final String path, final Set<VisitingPair> visiting) {
         final List<ChangeNode> changes = new ArrayList<>();
-        final Set<String> allKeys = new TreeSet<>();
+        final Set<String> allKeys = new LinkedHashSet<>();
         oldObj.forEachField((key, ignoredValue) -> allKeys.add(key));
         newObj.forEachField((key, ignoredValue) -> allKeys.add(key));
 
@@ -217,6 +222,10 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * @param path    当前集合的路径。
      * @param visiting 当前递归路径上的节点对（用于循环引用终止）。
      * @return 所有集合项变更的列表。
+     * <p>
+     * 变更按<b>插入序</b>输出：old 集合项出现的顺序在前，new 中新增项按出现顺序追加在后
+     * （LinkedHashSet 首次插入序，确定性输出；不使用字典序排序，避免对 identity 调用
+     * {@link String#valueOf(Object)} 引入的性能与正确性风险）。
      */
     private List<ChangeNode> diffCollectionChildren(final CollectionNode oldColl, final CollectionNode newColl, final String path, final Set<VisitingPair> visiting) {
         final List<ChangeNode> changes = new ArrayList<>();
@@ -227,11 +236,11 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
         final Map<Object, List<ValueNode>> oldItemsById = groupByIdentity(collectedOldItems);
         final Map<Object, List<ValueNode>> newItemsById = groupByIdentity(collectedNewItems);
 
-        final Set<Object> allIdentities = new HashSet<>();
+        final Set<Object> allIdentities = new LinkedHashSet<>();
         allIdentities.addAll(oldItemsById.keySet());
         allIdentities.addAll(newItemsById.keySet());
 
-        for (final Object identity : sortIdentities(allIdentities)) {
+        for (final Object identity : allIdentities) {
             final List<ValueNode> oldItems = oldItemsById.getOrDefault(identity, List.of());
             final List<ValueNode> newItems = newItemsById.getOrDefault(identity, List.of());
             final boolean useOccurrenceSuffix = oldItems.size() > 1 || newItems.size() > 1;
@@ -264,20 +273,6 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             return null;
         }
         return zeroBasedIndex + 1;
-    }
-
-    private List<Object> sortIdentities(final Set<Object> identities) {
-        final List<Object> sorted = new ArrayList<>(identities);
-        sorted.sort(Comparator.comparing((Object identity) -> identityTypeName(identity))
-                .thenComparing(identity -> String.valueOf(identity)));
-        return sorted;
-    }
-
-    private String identityTypeName(final Object identity) {
-        if (identity == null) {
-            return "";
-        }
-        return identity.getClass().getName();
     }
 
     /**

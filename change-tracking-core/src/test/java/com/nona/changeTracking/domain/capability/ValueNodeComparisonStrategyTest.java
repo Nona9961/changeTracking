@@ -186,6 +186,23 @@ class ValueNodeComparisonStrategyTest {
         }
 
         @Test
+        @DisplayName("集合增删改混合时变更输出顺序 = 插入序（old 项顺序，新增项追加在后）")
+        void collectionChanges_shouldFollowInsertionOrder() {
+            final CollectionNode oldList = new CollectionNode(List.of(createItemNode("B", "v2"), createItemNode("A", "v1")));
+            final CollectionNode newList = new CollectionNode(List.of(createItemNode("A", "v1-updated"), createItemNode("C", "v3")));
+            final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
+            final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
+
+            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            assertEquals("items", itemsChange.path());
+
+            // 插入序：old 集合项 B、A 在前，新增项 C 追加在后（非字典序 A、B、C）
+            assertEquals(List.of("items[B]", "items[A]", "items[C]"),
+                    itemsChange.children().stream().map(ChangeNode::path).toList());
+        }
+
+        @Test
         @DisplayName("集合同时发生增删改")
         void collection_withAddRemoveUpdate_shouldReportAllChanges() {
             final CollectionNode oldList = new CollectionNode(List.of(createItemNode("A", "v1"), createItemNode("B", "v2")));
@@ -387,12 +404,12 @@ class ValueNodeComparisonStrategyTest {
     }
 
     @Nested
-    @DisplayName("字段排序稳定性测试（特征测试：现状 TreeSet 字典序输出）")
+    @DisplayName("字段排序稳定性测试（P5：声明序输出）")
     class FieldOrderTests {
 
         @Test
-        @DisplayName("多字段全部变更时现状按字典序输出而非声明序")
-        void fieldChanges_shouldBeSortedLexicographically() {
+        @DisplayName("多字段全部变更时按声明序输出（非字典序）")
+        void fieldChanges_shouldFollowDeclarationOrder() {
             final Map<String, ValueNode> oldFields = new LinkedHashMap<>();
             oldFields.put("zebra", new PrimitiveNode("z1"));
             oldFields.put("alpha", new PrimitiveNode("a1"));
@@ -408,9 +425,31 @@ class ValueNodeComparisonStrategyTest {
 
             final List<ChangeNode> children = ((ContainerChangeNode) result).children();
             assertEquals(3, children.size());
-            assertEquals(List.of("alpha", "mango", "zebra"),
-                    children.stream().map(ChangeNode::path).toList(),
-                    "特征：字段变更按字典序（TreeSet）而非声明序输出");
+            // 声明序 zebra/alpha/mango，字典序为 alpha/mango/zebra
+            assertEquals(List.of("zebra", "alpha", "mango"),
+                    children.stream().map(ChangeNode::path).toList());
+        }
+
+        @Test
+        @DisplayName("新增字段按声明序追加在后（old 字段声明序为基准）")
+        void newField_shouldBeAppendedAfterOldDeclarationOrder() {
+            final Map<String, ValueNode> oldFields = new LinkedHashMap<>();
+            oldFields.put("alpha", new PrimitiveNode("a1"));
+            oldFields.put("zebra", new PrimitiveNode("z1"));
+            final Map<String, ValueNode> newFields = new LinkedHashMap<>();
+            newFields.put("alpha", new PrimitiveNode("a2"));
+            newFields.put("zebra", new PrimitiveNode("z2"));
+            newFields.put("mango", new PrimitiveNode("m1"));
+
+            final ChangeNode result = strategy.compare(
+                    snapshotOf(new ObjectNode(oldFields)),
+                    snapshotOf(new ObjectNode(newFields)));
+
+            final List<ChangeNode> children = ((ContainerChangeNode) result).children();
+            assertEquals(3, children.size());
+            // old 声明序 alpha/zebra 为基准，新增 mango 追加在后（非字典序 alpha/mango/zebra）
+            assertEquals(List.of("alpha", "zebra", "mango"),
+                    children.stream().map(ChangeNode::path).toList());
         }
     }
 }
