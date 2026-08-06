@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -327,6 +330,49 @@ class ValueNodeSnapshotStrategyTest {
     }
 
     @Nested
+    @DisplayName("Atomic 值类型处理（D17：可变对象不得持引用，快照取值拷贝）")
+    class AtomicValueTypeRemovalTests {
+
+        @Test
+        @DisplayName("AtomicInteger 快照为值拷贝 PrimitiveNode（不持业务引用）")
+        void atomicInteger_shouldBeSnapshottedAsCopiedValue() {
+            final ValueNode result = strategy.createSnapshot(new AtomicInteger(42)).getSnapshotData();
+
+            assertEquals(new PrimitiveNode(42), result, "AtomicInteger 应快照为读取瞬间的值拷贝");
+        }
+
+        @Test
+        @DisplayName("AtomicBoolean 快照为值拷贝 PrimitiveNode（不持业务引用）")
+        void atomicBoolean_shouldBeSnapshottedAsCopiedValue() {
+            final ValueNode result = strategy.createSnapshot(new AtomicBoolean(true)).getSnapshotData();
+
+            assertEquals(new PrimitiveNode(true), result, "AtomicBoolean 应快照为读取瞬间的值拷贝");
+        }
+
+        @Test
+        @DisplayName("AtomicLong 快照为值拷贝 PrimitiveNode（不持业务引用）")
+        void atomicLong_shouldBeSnapshottedAsCopiedValue() {
+            final ValueNode result = strategy.createSnapshot(new AtomicLong(7L)).getSnapshotData();
+
+            assertEquals(new PrimitiveNode(7L), result, "AtomicLong 应快照为读取瞬间的值拷贝");
+        }
+
+        @Test
+        @DisplayName("快照后修改 Atomic 值不得污染旧快照（变更可被检测，不静默丢失）")
+        void atomicValue_changeAfterSnapshot_shouldNotPolluteOldSnapshot() {
+            final AtomicInteger atomic = new AtomicInteger(1);
+            final ValueNode oldSnapshot = strategy.createSnapshot(atomic).getSnapshotData();
+
+            atomic.set(2);
+            final ValueNode newSnapshot = strategy.createSnapshot(atomic).getSnapshotData();
+
+            assertEquals(new PrimitiveNode(1), oldSnapshot, "旧快照必须是登记时的值拷贝");
+            assertEquals(new PrimitiveNode(2), newSnapshot, "新快照是修改后的值拷贝");
+            assertNotEquals(oldSnapshot, newSnapshot, "值变化必须可检测（持引用时会被静默吞掉）");
+        }
+    }
+
+    @Nested
     @DisplayName("业务标识符提取")
     class IdentifierExtractionTests {
 
@@ -464,10 +510,10 @@ class ValueNodeSnapshotStrategyTest {
         }
 
         @Test
-        @DisplayName("接口继承链：为父接口配置提取器，实现类现状漏检（特征：不递归父接口）")
-        void interfaceInheritanceChain_shouldMissExtractorInCurrentImplementation() {
+        @DisplayName("接口继承链：为父接口配置提取器，实现类应命中（新契约：接口递归）")
+        void interfaceInheritanceChain_shouldFindExtractorFromParentInterface() {
             // interface ExtendedIdentifiable extends BaseIdentifiable；class ExtendedProduct implements ExtendedIdentifiable。
-            // 现状 findExtractor 只查直接接口（不递归父接口）→ 漏检 → identityHashCode 回退
+            // 新契约：findExtractor 递归接口链（接口 + 父接口）→ 命中 BaseIdentifiable 的提取器
             final Map<Class<?>, Function<Object, Object>> extractors = new HashMap<>();
             extractors.put(BaseIdentifiable.class, obj -> ((BaseIdentifiable) obj).getId());
 
@@ -481,15 +527,14 @@ class ValueNodeSnapshotStrategyTest {
             final ExtendedProduct product = new ExtendedProduct(123L, "测试商品");
             final ObjectNode result = (ObjectNode) customStrategy.createSnapshot(product).getSnapshotData();
 
-            assertInstanceOf(Integer.class, result.identifier(), "特征：接口继承链漏检回退 identityHashCode");
-            assertNotEquals(123L, result.identifier(), "特征：业务 ID 未被提取");
+            assertEquals(123L, result.identifier(), "接口继承链应递归命中父接口的提取器");
         }
 
         @Test
-        @DisplayName("父类实现接口链：为接口配置提取器，子类现状漏检（特征：父类链不检查其实现的接口）")
-        void interfaceOnSuperclass_shouldMissExtractorInCurrentImplementation() {
+        @DisplayName("父类实现接口链：为接口配置提取器，子类应命中（新契约：父类链每层查接口）")
+        void interfaceOnSuperclass_shouldFindExtractorFromInterfaceOnSuperclass() {
             // class BaseSoftDeletableEntity implements Deletable；class SoftDeletableEntity extends BaseSoftDeletableEntity。
-            // 现状父类链不检查父类实现的接口 → 漏检 → identityHashCode 回退
+            // 新契约：父类链每层都检查该层实现的接口链 → 命中 Deletable 的提取器
             final Map<Class<?>, Function<Object, Object>> extractors = new HashMap<>();
             extractors.put(Deletable.class, obj -> ((Deletable) obj).getDeleteKey());
 
@@ -503,8 +548,28 @@ class ValueNodeSnapshotStrategyTest {
             final SoftDeletableEntity entity = new SoftDeletableEntity("DEL-1");
             final ObjectNode result = (ObjectNode) customStrategy.createSnapshot(entity).getSnapshotData();
 
-            assertInstanceOf(Integer.class, result.identifier(), "特征：父类实现接口漏检回退 identityHashCode");
-            assertNotEquals("DEL-1", result.identifier(), "特征：业务标识未被提取");
+            assertEquals("DEL-1", result.identifier(), "父类实现的接口应被递归命中");
+        }
+
+        @Test
+        @DisplayName("混合链：父类实现的接口 + 接口父接口两层递归，配置祖父接口提取器应命中")
+        void mixedChain_shouldFindExtractorFromGrandInterfaceOnSuperclass() {
+            // class MixedSub extends MixedBase（MixedBase implements MidIdentifiable，MidIdentifiable extends GrandIdentifiable）。
+            // 覆盖「父类接口链 × 接口父接口」两层递归（类继承 + 接口继承混合）
+            final Map<Class<?>, Function<Object, Object>> extractors = new HashMap<>();
+            extractors.put(GrandIdentifiable.class, obj -> ((GrandIdentifiable) obj).getGrandId());
+
+            final TrackingConfiguration config = new TrackingConfiguration(
+                    extractors,
+                    Collections.emptySet(),
+                    Collections.emptySet()
+            );
+            final ValueNodeSnapshotStrategy customStrategy = new ValueNodeSnapshotStrategy(config);
+
+            final MixedSub sub = new MixedSub(777L);
+            final ObjectNode result = (ObjectNode) customStrategy.createSnapshot(sub).getSnapshotData();
+
+            assertEquals(777L, result.identifier(), "混合链应递归命中祖父接口的提取器");
         }
 
         @Test
@@ -537,6 +602,32 @@ class ValueNodeSnapshotStrategyTest {
         @Override
         public Long getId() {
             return id;
+        }
+    }
+
+    interface GrandIdentifiable {
+        Long getGrandId();
+    }
+
+    interface MidIdentifiable extends GrandIdentifiable {
+    }
+
+    static class MixedBase implements MidIdentifiable {
+        Long id;
+
+        MixedBase(Long id) {
+            this.id = id;
+        }
+
+        @Override
+        public Long getGrandId() {
+            return id;
+        }
+    }
+
+    static class MixedSub extends MixedBase {
+        MixedSub(Long id) {
+            super(id);
         }
     }
 

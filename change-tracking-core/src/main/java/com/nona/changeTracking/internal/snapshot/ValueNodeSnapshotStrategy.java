@@ -31,9 +31,16 @@ import java.util.stream.Collectors;
  * 支持循环引用检测：使用 {@link IdentityHashMap} 缓存已访问对象，
  * 遇到循环引用时返回同一 {@link ValueNode} 实例（包括 {@link ObjectNode} / {@link CollectionNode}）。
  * <p>
+ * <b>值类型契约</b>：视为值类型（{@link PrimitiveNode}）的类<b>必须不可变</b>——
+ * 快照持有的是业务对象引用，值类型可变会导致 registerClean 之后业务修改污染旧快照，
+ * 变更静默丢失。可变对象一律按复杂对象脱水展开；
+ * {@code AtomicBoolean/AtomicInteger/AtomicLong} 例外：其内部字段受 JDK 模块强封装
+ * 无法反射脱水，快照时读取当前值做<b>拷贝</b>（{@link PrimitiveNode} 持有不可变值拷贝，
+ * 不持有业务引用），同样满足不可变契约。
+ * <p>
  * 支持通过 {@link TrackingConfiguration} 配置：
  * <ul>
- *   <li>自定义值类型 - 被视为原始值的额外类型</li>
+ *   <li>自定义值类型 - 被视为原始值的额外类型（<b>必须不可变</b>）</li>
  *   <li>自定义值类型包 - 被视为原始值的额外包名</li>
  *   <li>标识符提取器 - 用于集合项匹配的业务标识</li>
  * </ul>
@@ -65,15 +72,11 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
             Pattern.class,
             // java.io / java.nio
             File.class,
-            Path.class,
-            // java.util.concurrent.atomic
-            AtomicBoolean.class,
-            AtomicInteger.class,
-            AtomicLong.class
+            Path.class
     );
 
     /**
-     * 用户配置的自定义值类型。
+     * 用户配置的自定义值类型（<b>必须不可变</b>，违反者将污染旧快照导致变更静默丢失）。
      */
     private final Set<Class<?>> customValueTypes;
 
@@ -128,6 +131,19 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
         }
 
         final Class<?> type = obj.getClass();
+
+        // Atomic* 例外（D17）：可变但无法反射脱水（JDK 模块强封装），
+        // 快照时读取当前值做拷贝——PrimitiveNode 持有不可变值，不持有业务引用，
+        // registerClean 后修改 Atomic 值不会污染旧快照。
+        if (obj instanceof AtomicBoolean atomicBoolean) {
+            return new PrimitiveNode(atomicBoolean.get());
+        }
+        if (obj instanceof AtomicInteger atomicInteger) {
+            return new PrimitiveNode(atomicInteger.get());
+        }
+        if (obj instanceof AtomicLong atomicLong) {
+            return new PrimitiveNode(atomicLong.get());
+        }
 
         if (isValueType(type)) {
             return new PrimitiveNode(obj);
@@ -264,7 +280,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
      * 查找顺序：
      * <ol>
      *   <li>精确匹配：查找对象类型的标识提取器</li>
-     *   <li>继承链匹配：遍历父类和接口查找提取器</li>
+     *   <li>继承链匹配：类链 × 每层接口链统一递归查找提取器</li>
      *   <li>默认值：使用 {@link System#identityHashCode(Object)} 包装为 {@link Integer}</li>
      * </ol>
      * <p>
@@ -288,35 +304,54 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy {
     }
 
     /**
-     * 在继承链中查找标识提取器。
+     * 在继承链中查找标识提取器（类链 × 每层接口链统一递归）。
      * <p>
-     * 查找顺序：当前类 → 父类链 → 接口（广度优先）
+     * 对 {@code type} 及每个父类（到 Object 为止）：先查该类精确 key，
+     * 再递归该类的接口链（接口 + 父接口）查 key。
+     * 与父类链对称——父类实现的接口、接口的父接口都能命中，
+     * 避免漏检导致回退 identityHashCode（跨会话标识不稳定）。
      *
      * @param type 要查找的类型。
      * @return 找到的提取器，如果没有则返回 null。
      */
     private Function<Object, Object> findExtractor(final Class<?> type) {
-        // 1. 精确匹配
-        if (this.identifierExtractors.containsKey(type)) {
-            return this.identifierExtractors.get(type);
-        }
-
-        // 2. 遍历父类链
-        Class<?> superClass = type.getSuperclass();
-        while (superClass != null && superClass != Object.class) {
-            if (this.identifierExtractors.containsKey(superClass)) {
-                return this.identifierExtractors.get(superClass);
+        Class<?> current = type;
+        while (current != null && current != Object.class) {
+            if (this.identifierExtractors.containsKey(current)) {
+                return this.identifierExtractors.get(current);
             }
-            superClass = superClass.getSuperclass();
+            final Function<Object, Object> interfaceExtractor = findInterfaceExtractor(current, new HashSet<>());
+            if (interfaceExtractor != null) {
+                return interfaceExtractor;
+            }
+            current = current.getSuperclass();
         }
+        return null;
+    }
 
-        // 3. 遍历接口（仅直接接口，不递归）
+    /**
+     * 递归查找接口链（接口 + 父接口）中的提取器。
+     * <p>
+     * {@link Class#getInterfaces()} 只返回直接接口，父接口需递归展开；
+     * Java 接口支持多继承（菱形），用 visited 集合防环防重复。
+     *
+     * @param type    当前要展开接口链的类型。
+     * @param visited 已访问接口集合（防环）。
+     * @return 找到的提取器，如果没有则返回 null。
+     */
+    private Function<Object, Object> findInterfaceExtractor(final Class<?> type, final Set<Class<?>> visited) {
         for (final Class<?> iface : type.getInterfaces()) {
+            if (!visited.add(iface)) {
+                continue;
+            }
             if (this.identifierExtractors.containsKey(iface)) {
                 return this.identifierExtractors.get(iface);
             }
+            final Function<Object, Object> parentExtractor = findInterfaceExtractor(iface, visited);
+            if (parentExtractor != null) {
+                return parentExtractor;
+            }
         }
-
         return null;
     }
 }
