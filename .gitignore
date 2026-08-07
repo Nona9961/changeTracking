@@ -5,3 +5,7 @@ target/
 
 # 环境特定：代理 settings 引用（本机 /opt/code/.m2/settings.xml）
 .mvn/maven.config
+
+# 内部文档（不公开）：供本地开发者与 AI 使用
+domain.md
+structure.md

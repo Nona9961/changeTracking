@@ -84,16 +84,6 @@ provider.withIdentifier(Order.class, Order::getId)
         .withValuePackage("com.example.vo");  // 整个包的值类型
 ```
 
-## 文档导航
-
-| 文档 | 内容 |
-|------|------|
-| [领域文档](domain.md) | 领域概念、建模决策与边界（为什么这样建模） |
-| [结构文档](structure.md) | 模块划分与分层结构（代码地图） |
-| [规范与决策](../.trellis/spec/changeTracking/backend/index.md) | 机制细节、契约与决策记录（变更模型、快照模型、SPI 扩展） |
-| [扩展开发](../.trellis/spec/changeTracking/backend/extension-points.md) | SPI 扩展点：自定义快照策略 / 比较策略 / 标识符提取器 |
-| [历史审查报告](../.trellis/archive/code-review-2026-06-17.md) | 2026-06-17 全量代码审查记录（所列问题均已解决，留档备查） |
-
 ## 系统要求
 
 - Java 25
