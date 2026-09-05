@@ -6,3 +6,6 @@ target/
 # 环境特定：代理 settings 引用（本机 /opt/code/.m2/settings.xml）
 .mvn/maven.config
 
+
+# Issues (local dev records, not tracked)
+/issues/

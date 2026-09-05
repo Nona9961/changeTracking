@@ -7,6 +7,9 @@ import com.nona.changeTracking.domain.model.changeset.ChangeSet;
 import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
 import com.nona.changeTracking.domain.model.changeset.ObjectChange;
 import com.nona.changeTracking.domain.model.snapshot.Snapshot;
+import com.nona.changeTracking.domain.model.snapshot.ValueNode;
+import com.nona.changeTracking.domain.model.snapshot.ValueNodeSnapshot;
+import com.nona.changeTracking.internal.snapshot.ValueNodeDeepCopier;
 import com.nona.changeTracking.spi.SnapshotStrategy;
 
 import java.util.*;
@@ -125,6 +128,67 @@ public final class ChangeTracker {
      */
     public ChangeSet calculateChanges() {
         return calculateChangesWithCapture(this.capability);
+    }
+
+    /**
+     * 导出当前追踪基线：实体 → 深拷贝快照树根节点 的不可变映射。
+     * <p>
+     * 对 {@link #track(Object)} 登记时刻的每个干净对象，取其快照的快照树根节点
+     * （当前快照类型为 {@link ValueNodeSnapshot}），经
+     * {@code ValueNodeDeepCopier}（internal 深拷贝器）深拷贝后按实体键收集——
+     * 输出与源树<b>结构独立</b>（结构性节点全部重建为全新实例，叶子不可变值按引用
+     * 共享，循环/共享结构保持），跨线程隔离不依赖“构建后不再修改”的不可变心智契约。
+     * <p>
+     * <b>幂等</b>：本方法只读 {@code cleanObjects}，不修改 tracker 内部状态——
+     * 重复调用返回内容等价、结构独立的副本；导出后源 tracker 的后续追踪不影响已导出基线。
+     * <p>
+     * <b>空基线合法</b>：无追踪对象时返回空映射（实体数 = 0），不抛异常。
+     * <p>
+     * 导出的基线可直接作为 {@link #fromBaseline(TrackingCapability, BaselineSnapshot)}
+     * 的输入（往返可逆），用于跨线程/跨作用域的基线恢复。
+     *
+     * @return 实体 → 深拷贝快照树根节点 的不可变映射（identity 键语义，与
+     *         {@code cleanObjects} 一致）；空映射表示无追踪对象。
+     */
+    public BaselineSnapshot captureBaseline() {
+        final Map<Object, ValueNode> entities = new IdentityHashMap<>();
+        for (final Map.Entry<Object, Snapshot<?>> entry : this.cleanObjects.entrySet()) {
+            // 类型守卫：与 calculateChangesWithCapture 的 checked cast 风格一致——
+            // 快照均由同一能力单元创建，正常路径必然为 ValueNodeSnapshot；
+            // 若因误用能力单元导致不匹配，得到清晰的 ClassCastException 而非静默错误。
+            final ValueNodeSnapshot snapshot = (ValueNodeSnapshot) entry.getValue();
+            entities.put(entry.getKey(), ValueNodeDeepCopier.deepCopy(snapshot.getSnapshotData()));
+        }
+        return new BaselineSnapshot(entities);
+    }
+
+    /**
+     * 从导出的基线重建新的变更追踪器（静态工厂，与 {@link #captureBaseline()} 对称）。
+     * <p>
+     * 将 {@link BaselineSnapshot} 的全部条目<b>直接登记为基线</b>——快照包回
+     * {@link ValueNodeSnapshot} 以满足比较层的类型守卫（checked cast），<b>不重新脱水</b>。
+     * 与 {@link #track(Object)} 的语义对比：对<b>已修改</b>实体调用 {@code track(entity)}
+     * 会以修改后状态重新脱水重建基线，与当前状态 diff 为空——变更静默丢失；
+     * 跨线程/跨作用域恢复基线必须使用本工厂（异步提交侧的实体已发生业务修改）。
+     * <p>
+     * <b>空基线合法</b>：空 {@link BaselineSnapshot} 产出无基线的新 tracker，不抛异常。
+     * <p>
+     * <b>只读</b>：本工厂不修改传入的 {@link BaselineSnapshot}，同一基线可多次复用重建；
+     * 重建后调用 {@link #calculateChanges()} 即得基于导入快照的完整变更集。
+     *
+     * @param capability 用于创建新 tracker 的追踪能力，不能为 null。
+     * @param baseline   待登记的追踪基线（{@link #captureBaseline()} 的产出），不能为 null。
+     * @return 已登记给定基线全部条目的新 ChangeTracker 实例。
+     * @throws NullPointerException 如果 capability 或 baseline 为 null。
+     */
+    public static ChangeTracker fromBaseline(final TrackingCapability<?> capability, final BaselineSnapshot baseline) {
+        Objects.requireNonNull(capability, "TrackingCapability cannot be null.");
+        Objects.requireNonNull(baseline, "BaselineSnapshot cannot be null.");
+        final ChangeTracker tracker = new ChangeTracker(capability);
+        for (final Map.Entry<Object, ValueNode> entry : baseline.entities().entrySet()) {
+            tracker.cleanObjects.put(entry.getKey(), new ValueNodeSnapshot(entry.getValue()));
+        }
+        return tracker;
     }
 
     /**
