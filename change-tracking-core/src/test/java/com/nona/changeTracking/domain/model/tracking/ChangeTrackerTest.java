@@ -60,6 +60,7 @@ class ChangeTrackerTest {
     private final User user2 = new User();
     private final ValueNodeSnapshot oldSnapshot = new ValueNodeSnapshot(null);
     private final ValueNodeSnapshot newSnapshot = new ValueNodeSnapshot(null);
+    private final ValueNodeSnapshot newerSnapshot = new ValueNodeSnapshot(null);
     private final ChangeNode changeTree = new ContainerChangeNode("user", List.of(new FieldChangeNode("user.name", "a", "b")));
     private final ChangeNode noChangeTree = new ContainerChangeNode("", Collections.emptyList());
 
@@ -132,22 +133,21 @@ class ChangeTrackerTest {
         }
 
         @Test
-        @DisplayName("对于 new 对象，不应调用比较策略，且不生成变更")
-        void calculateChanges_forNewObject_shouldNotCallComparisonAndNotCreateChange() {
-            changeTracker.excludeNew(user1);
+        @DisplayName("对于从未 track 的对象，不应调用比较策略，且不生成变更")
+        void calculateChanges_forNeverTrackedObject_shouldNotCallComparisonAndNotCreateChange() {
             final ChangeSet changeSet = changeTracker.calculateChanges();
             assertTrue(changeSet.isEmpty());
             verifyNoInteractions(snapshotStrategy);
-            // 契约：new 对象不触发快照比较（setUp 中类型守卫 stub 不算交互）
+            // 契约：未追踪对象不触发快照比较（setUp 中类型守卫 stub 不算交互）
             verify(comparisonStrategy, never()).compare(any(), any());
         }
 
         @Test
-        @DisplayName("对于 removed 对象，不应调用比较策略，且不生成变更")
-        void calculateChanges_forRemovedObject_shouldNotCallComparisonAndNotCreateChange() {
+        @DisplayName("对于 stopTracking 的对象，不应调用比较策略，且不生成变更")
+        void calculateChanges_forStoppedObject_shouldNotCallComparisonAndNotCreateChange() {
             doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
             changeTracker.track(user1);
-            changeTracker.excludeRemoved(user1);
+            changeTracker.stopTracking(user1);
             final ChangeSet changeSet = changeTracker.calculateChanges();
             assertTrue(changeSet.isEmpty());
             verify(comparisonStrategy, never()).compare(any(), any());
@@ -155,7 +155,7 @@ class ChangeTrackerTest {
     }
 
     @Nested
-    @DisplayName("重复注册行为")
+    @DisplayName("注册与停止语义")
     class DuplicateRegistration {
 
         @Test
@@ -171,42 +171,38 @@ class ChangeTrackerTest {
         }
 
         @Test
-        @DisplayName("已注册为 clean 的对象再注册为 new 应被忽略")
-        void excludeNew_afterClean_shouldBeIgnored() {
-            doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
+        @DisplayName("stopTracking 后重新 track 应恢复追踪（可恢复性）")
+        void stopTracking_thenTrack_shouldResumeTracking() {
+            // 三快照：首次 track 建立基线(oldSnapshot)；停止后重新 track 以调用时刻状态重建基线(newSnapshot)；
+            // calculateChanges 时对恢复后的实体做第三次快照(newerSnapshot)
+            doReturn(oldSnapshot, newSnapshot, newerSnapshot).when(snapshotStrategy).createSnapshot(user1);
 
             changeTracker.track(user1);
-            changeTracker.excludeNew(user1); // 尝试再注册为 new
+            changeTracker.stopTracking(user1);
+            changeTracker.track(user1); // 重新登记：以当前状态建立新基线
 
-            when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeTree);
+            // 恢复后的比较基于新基线：newSnapshot（重新 track 时刻状态） vs newerSnapshot（当前状态）
+            when(comparisonStrategy.compare(newSnapshot, newerSnapshot)).thenReturn(changeTree);
 
-            // 仍然应该追踪变更
+            // 恢复追踪后修改应产生变更
             final ChangeSet changeSet = changeTracker.calculateChanges();
             assertFalse(changeSet.isEmpty());
+            assertEquals(1, changeSet.changes().size());
+            assertEquals(user1, changeSet.changes().get(0).target());
+            assertEquals(changeTree, changeSet.changes().get(0).changeTree());
+
+            verify(snapshotStrategy, times(3)).createSnapshot(user1);
+            verify(comparisonStrategy, times(1)).compare(newSnapshot, newerSnapshot);
         }
 
         @Test
-        @DisplayName("已注册为 new 的对象再注册为 clean 应被忽略")
-        void track_afterNew_shouldBeIgnored() {
-            changeTracker.excludeNew(user1);
-            changeTracker.track(user1); // 尝试再注册为 clean
-
-            // 不应调用快照策略
-            verifyNoInteractions(snapshotStrategy);
-
-            // 仍然应该不产生变更
-            final ChangeSet changeSet = changeTracker.calculateChanges();
-            assertTrue(changeSet.isEmpty());
-        }
-
-        @Test
-        @DisplayName("重复注册 removed 对象应被忽略")
-        void excludeRemoved_duplicate_shouldBeIgnored() {
+        @DisplayName("重复 stopTracking 应被忽略（幂等，无异常）")
+        void stopTracking_duplicate_shouldBeIgnored() {
             doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
 
             changeTracker.track(user1);
-            changeTracker.excludeRemoved(user1);
-            changeTracker.excludeRemoved(user1); // 重复移除
+            changeTracker.stopTracking(user1);
+            changeTracker.stopTracking(user1); // 重复停止
 
             // 不应抛出异常，变更集应为空
             final ChangeSet changeSet = changeTracker.calculateChanges();
@@ -285,20 +281,14 @@ class ChangeTrackerTest {
         }
 
         @Test
-        @DisplayName("excludeNew 传入 null 应抛出 NullPointerException")
-        void excludeNew_withNull_shouldThrowNPE() {
-            assertThrows(NullPointerException.class, () -> changeTracker.excludeNew(null));
-        }
-
-        @Test
-        @DisplayName("excludeRemoved 传入 null 应抛出 NullPointerException")
-        void excludeRemoved_withNull_shouldThrowNPE() {
-            assertThrows(NullPointerException.class, () -> changeTracker.excludeRemoved(null));
+        @DisplayName("stopTracking 传入 null 应抛出 NullPointerException")
+        void stopTracking_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> changeTracker.stopTracking(null));
         }
     }
 
     @Nested
-    @DisplayName("类型安全守卫（A5）")
+    @DisplayName("类型安全守卫")
     class TypeSafetyTests {
 
         /** 与能力单元快照类型不兼容的“外来”快照。 */

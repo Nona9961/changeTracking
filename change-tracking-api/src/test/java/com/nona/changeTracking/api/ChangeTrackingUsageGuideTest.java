@@ -332,28 +332,8 @@ class ChangeTrackingUsageGuideTest {
         }
 
         @Test
-        @DisplayName("4.2 excludeNew - 不追踪新对象")
-        void excludeNew_doesNotTrackNewObjects() {
-            ChangeTracker changeTracker = ChangeTrackerFactory.builder()
-                    .withDefaults()
-                    .build();
-
-            User user = new User(1L, "张三", "zhangsan@example.com");
-
-            // excludeNew: 标记为新对象，不追踪变更
-            changeTracker.excludeNew(user);
-
-            user.setName("李四");
-
-            ChangeSet changeSet = changeTracker.calculateChanges();
-
-            // new 对象不产生变更（这是排除机制）
-            assertThat(changeSet.isEmpty()).isTrue();
-        }
-
-        @Test
-        @DisplayName("4.3 excludeRemoved - 停止追踪已删除对象")
-        void excludeRemoved_stopsTrackingRemovedObjects() {
+        @DisplayName("4.2 stopTracking - 停止追踪后不产生变更")
+        void stopTracking_stopsTracking() {
             ChangeTracker changeTracker = ChangeTrackerFactory.builder()
                     .withDefaults()
                     .build();
@@ -363,12 +343,12 @@ class ChangeTrackingUsageGuideTest {
 
             user.setName("李四");
 
-            // excludeRemoved: 标记为已删除，停止追踪
-            changeTracker.excludeRemoved(user);
+            // stopTracking: 停止追踪，该对象不再参与变更计算
+            changeTracker.stopTracking(user);
 
             ChangeSet changeSet = changeTracker.calculateChanges();
 
-            // removed 对象不产生变更（这是排除机制）
+            // 停止追踪的对象不产生变更（停止即移出追踪集合）
             assertThat(changeSet.isEmpty()).isTrue();
         }
     }

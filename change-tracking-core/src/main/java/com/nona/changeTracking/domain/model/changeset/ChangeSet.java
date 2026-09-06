@@ -7,7 +7,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 代表一个工作单元内所有变更的集合。
+ * 代表一次变更检测计算产出的全部对象变更集合（检测器输出）。
  * <p>
  * 这是框架最终输出的顶层值对象。它提供了获取不同粒度变更视图的方法：
  * <ul>
