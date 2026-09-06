@@ -148,6 +148,31 @@ public final class ChangeTracker {
     }
 
     /**
+     * 只针对指定实体计算变更（按根取变更）。
+     * <p>
+     * 与 {@link #calculateChanges()} 共享同一比较链路与产出过滤条件——本方法只对指定实体做
+     * 基线比较，结果与全局计算按 {@code ObjectChange.target}（identity）过滤<b>等价</b>；
+     * <b>不</b>为其他已追踪对象执行快照脱水与比较。
+     * <p>
+     * <b>空集语义</b>：未追踪实体（含已 {@link #stopTracking(Object)} 的）与已追踪但无变更
+     * 的实体均返回空 {@link ChangeSet}（不抛异常）。
+     * <p>
+     * <b>幂等视图</b>：与 {@link #calculateChanges()} 一致——无副作用、不更新基线，
+     * 重复调用返回相同变更集。
+     *
+     * @param entity 要计算变更的实体，不能为 null。
+     * @return 该实体的单元素 ChangeSet（含完整 changeTree）；无变更/未追踪时为空 ChangeSet。
+     * @throws NullPointerException 如果 entity 为 null。
+     */
+    public ChangeSet calculateChangesFor(final Object entity) {
+        Objects.requireNonNull(entity, "Cannot calculate changes for a null entity.");
+        if (!this.cleanObjects.containsKey(entity)) {
+            return new ChangeSet(List.of());
+        }
+        return calculateChangeForWithCapture(entity, this.capability);
+    }
+
+    /**
      * 导出当前追踪基线：实体 → 深拷贝快照树根节点 的不可变映射。
      * <p>
      * 对 {@link #track(Object)} 登记时刻的每个干净对象，取其快照的快照树根节点
@@ -195,21 +220,22 @@ public final class ChangeTracker {
      */
     private <S extends Snapshot<?>> ChangeSet calculateChangesWithCapture(final TrackingCapability<S> specificCapability) {
         final List<ObjectChange> changes = new ArrayList<>();
+        for (final Object entity : this.cleanObjects.keySet()) {
+            changes.addAll(calculateChangeForWithCapture(entity, specificCapability).changes());
+        }
+        return new ChangeSet(changes);
+    }
+
+    private <S extends Snapshot<?>> ChangeSet calculateChangeForWithCapture(final Object entity, final TrackingCapability<S> specificCapability) {
         final SnapshotStrategy<S> snapshotStrategy = specificCapability.getSnapshotStrategy();
         final ComparisonStrategy<S> comparisonStrategy = specificCapability.getComparisonStrategy();
         final Class<S> supportedSnapshotType = comparisonStrategy.getSupportedSnapshotType();
-
-        for (final Map.Entry<Object, Snapshot<?>> entry : this.cleanObjects.entrySet()) {
-            final Object entity = entry.getKey();
-            final S oldSnapshot = supportedSnapshotType.cast(entry.getValue());
-            final S newSnapshot = snapshotStrategy.createSnapshot(entity);
-
-            final ChangeNode changeTree = comparisonStrategy.compare(oldSnapshot, newSnapshot);
-
-            if (changeTree instanceof ContainerChangeNode container && !container.children().isEmpty()) {
-                changes.add(new ObjectChange(entity, changeTree));
-            }
+        final S oldSnapshot = supportedSnapshotType.cast(this.cleanObjects.get(entity));
+        final S newSnapshot = snapshotStrategy.createSnapshot(entity);
+        final ChangeNode changeTree = comparisonStrategy.compare(oldSnapshot, newSnapshot);
+        if (changeTree instanceof ContainerChangeNode container && !container.children().isEmpty()) {
+            return new ChangeSet(List.of(new ObjectChange(entity, changeTree)));
         }
-        return new ChangeSet(changes);
+        return new ChangeSet(List.of());
     }
 }
