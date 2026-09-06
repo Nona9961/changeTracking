@@ -45,7 +45,7 @@ class TrackingCapabilityTest {
     }
 
     @Nested
-    @DisplayName("泛型类型安全契约（A5）")
+    @DisplayName("泛型类型安全契约")
     class GenericTypeSafetyTests {
 
         @Test

@@ -668,7 +668,7 @@ class ValueNodeSnapshotStrategyTest {
     }
 
     @Nested
-    @DisplayName("数组快照处理（A2/D14：值类型数组 → ArrayNode 值语义；复杂对象数组 → CollectionNode 递归）")
+    @DisplayName("数组快照处理（D14：值类型数组 → ArrayNode 值语义；复杂对象数组 → CollectionNode 递归）")
     class ArraySnapshotTests {
 
         static class EntityWithByteArray {

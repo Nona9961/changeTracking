@@ -20,15 +20,15 @@ import java.util.*;
  * 本类本质是<b>变更检测器</b>，而非经典工作单元（Unit of Work）——它不管理
  * INSERT/UPDATE/DELETE 全生命周期，只负责检测已追踪对象的属性变更（UPDATE）。
  * <p>
- * <b>三种方法的语义：</b>
+ * <b>两种方法的语义：</b>
  * <ul>
  *   <li>{@link #track(Object)} - 纳入追踪：为对象建立初始快照基线</li>
- *   <li>{@link #excludeNew(Object)} - 排除机制：标记为新对象，不创建快照，不生成变更</li>
- *   <li>{@link #excludeRemoved(Object)} - 排除机制：标记为已删除，不再比较，不生成变更</li>
+ *   <li>{@link #stopTracking(Object)} - 停止追踪：将对象移出追踪集合，不再参与变更计算
+ *       （幂等；停止后可重新 {@link #track(Object)} 恢复）</li>
  * </ul>
  * <p>
- * 调用 {@link #calculateChanges()} 时，只会比较已追踪对象的当前状态与初始快照，
- * 被排除的对象会被忽略。
+ * 调用 {@link #calculateChanges()} 时，只会比较已追踪对象的当前状态与初始快照；
+ * 停止追踪或从未追踪的对象不参与比较、不产生变更。
  * <p>
  * <b>幂等视图</b>：{@link #calculateChanges()} 是无副作用的幂等视图——重复调用
  * 返回相同变更集；基线仅在 {@link #track(Object)} 时建立，如需推进基线，
@@ -40,13 +40,11 @@ import java.util.*;
 public final class ChangeTracker {
 
     private final Map<Object, Snapshot<?>> cleanObjects = new IdentityHashMap<>();
-    private final Set<Object> newObjects = Collections.newSetFromMap(new IdentityHashMap<>());
-    private final Set<Object> removedObjects = Collections.newSetFromMap(new IdentityHashMap<>());
 
     private final TrackingCapability<?> capability;
 
     /**
-     * 创建一个新的工作单元实例。
+     * 创建一个新的变更检测器实例。
      *
      * @param capability 用于创建快照和比较变更的追踪能力，不能为 null。
      * @throws NullPointerException 如果 capability 为 null。
@@ -56,19 +54,48 @@ public final class ChangeTracker {
     }
 
     /**
+     * 从导出的基线重建新的变更追踪器（静态工厂，与 {@link #captureBaseline()} 对称）。
+     * <p>
+     * 将 {@link BaselineSnapshot} 的全部条目<b>直接登记为基线</b>——快照包回
+     * {@link ValueNodeSnapshot} 以满足比较层的类型守卫（checked cast），<b>不重新脱水</b>。
+     * 与 {@link #track(Object)} 的语义对比：对<b>已修改</b>实体调用 {@code track(entity)}
+     * 会以修改后状态重新脱水重建基线，与当前状态 diff 为空——变更静默丢失；
+     * 跨线程/跨作用域恢复基线必须使用本工厂（异步提交侧的实体已发生业务修改）。
+     * <p>
+     * <b>空基线合法</b>：空 {@link BaselineSnapshot} 产出无基线的新 tracker，不抛异常。
+     * <p>
+     * <b>只读</b>：本工厂不修改传入的 {@link BaselineSnapshot}，同一基线可多次复用重建；
+     * 重建后调用 {@link #calculateChanges()} 即得基于导入快照的完整变更集。
+     *
+     * @param capability 用于创建新 tracker 的追踪能力，不能为 null。
+     * @param baseline   待登记的追踪基线（{@link #captureBaseline()} 的产出），不能为 null。
+     * @return 已登记给定基线全部条目的新 ChangeTracker 实例。
+     * @throws NullPointerException 如果 capability 或 baseline 为 null。
+     */
+    public static ChangeTracker fromBaseline(final TrackingCapability<?> capability, final BaselineSnapshot baseline) {
+        Objects.requireNonNull(capability, "TrackingCapability cannot be null.");
+        Objects.requireNonNull(baseline, "BaselineSnapshot cannot be null.");
+        final ChangeTracker tracker = new ChangeTracker(capability);
+        for (final Map.Entry<Object, ValueNode> entry : baseline.entities().entrySet()) {
+            tracker.cleanObjects.put(entry.getKey(), new ValueNodeSnapshot(entry.getValue()));
+        }
+        return tracker;
+    }
+
+    /**
      * 注册一个需要追踪属性变更的对象。
      * <p>
      * 会立即创建对象的初始快照，后续调用 {@link #calculateChanges()} 时
      * 会将当前状态与初始快照进行比较，生成变更记录。
      * <p>
-     * 如果对象已被追踪（在任何集合中），则此调用无效。
+     * 如果对象已被追踪，则此调用无效（幂等）。
      *
      * @param entity 要追踪的对象，不能为 null。
      * @throws NullPointerException 如果 entity 为 null。
      */
     public void track(final Object entity) {
         Objects.requireNonNull(entity, "Cannot track a null entity.");
-        if (isTracking(entity)) {
+        if (this.cleanObjects.containsKey(entity)) {
             return;
         }
         final Snapshot<?> initialSnapshot = this.capability.getSnapshotStrategy().createSnapshot(entity);
@@ -76,44 +103,34 @@ public final class ChangeTracker {
     }
 
     /**
-     * 将对象标记为新建（排除机制）。
+     * 停止追踪指定对象：将其从追踪集合中移除，此后不再参与任何变更计算。
      * <p>
-     * 新建对象不会创建快照，也不会在 {@link #calculateChanges()} 中生成任何变更。
-     * 这是一种排除机制，用于标记不需要追踪变更的新对象。
+     * <b>契约（三件套）：</b>
+     * <ul>
+     *   <li><b>幂等</b>：对未追踪对象调用无副作用（不抛异常、不改变任何状态）；
+     *       对已停止对象重复调用同样无效果——停止语义以“目标状态达成”（该对象不参与
+     *       比较）定义，非“执行一次删除”，重复调用安全。</li>
+     *   <li><b>可恢复</b>：停止后允许再次 {@link #track(Object)}——以调用时刻的当前
+     *       状态重新建立基线并恢复追踪（与 track 对从未追踪对象的首次登记语义一致）；
+     *       停止到重新 track 之间发生的修改，因重新登记以当前状态为基线而不产生变更
+     *       （与 track 对已修改实体的既有语义一致）。</li>
+     *   <li><b>null 处理</b>：entity 为 null 时抛出 {@link NullPointerException}
+     *       （与 {@link #track(Object)} 同约定）。</li>
+     * </ul>
      * <p>
-     * 如果对象已被追踪（在任何集合中），则此调用无效。
+     * <b>停止时点语义</b>：调用即生效——即使停止前对象已发生修改（尚未计算变更），
+     * 停止后 {@link #calculateChanges()} 也不会再为该对象产生任何 {@code ObjectChange}；
+     * 等价于该对象从未被追踪。停止不影响其他已追踪对象。
+     * <p>
+     * 与导出基线的关系：停止后 {@link #captureBaseline()} 不再包含该实体
+     * （基线视图只反映当前追踪集合）。
      *
-     * @param entity 要标记为新建的对象，不能为 null。
+     * @param entity 要停止追踪的对象，不能为 null。
      * @throws NullPointerException 如果 entity 为 null。
      */
-    public void excludeNew(final Object entity) {
-        Objects.requireNonNull(entity, "Cannot register a null new entity.");
-        if (isTracking(entity)) {
-            return;
-        }
-        this.newObjects.add(entity);
-    }
-
-    /**
-     * 将对象标记为已删除（排除机制）。
-     * <p>
-     * 已删除对象会从 cleanObjects 和 newObjects 中移除，
-     * 不会在 {@link #calculateChanges()} 中生成任何变更。
-     * 这是一种排除机制，用于停止追踪已删除的对象。
-     * <p>
-     * 如果对象已在 removedObjects 中，则此调用无效。
-     *
-     * @param entity 要标记为已删除的对象，不能为 null。
-     * @throws NullPointerException 如果 entity 为 null。
-     */
-    public void excludeRemoved(final Object entity) {
-        Objects.requireNonNull(entity, "Cannot register a null removed entity.");
-        if (this.removedObjects.contains(entity)) {
-            return;
-        }
+    public void stopTracking(final Object entity) {
+        Objects.requireNonNull(entity, "Cannot stop tracking a null entity.");
         this.cleanObjects.remove(entity);
-        this.newObjects.remove(entity);
-        this.removedObjects.add(entity);
     }
 
     /**
@@ -122,7 +139,7 @@ public final class ChangeTracker {
      * 遍历 cleanObjects 中的所有对象，将当前状态与初始快照进行比较，
      * 生成包含所有变更的 {@link ChangeSet}。
      * <p>
-     * newObjects 和 removedObjects 中的对象会被忽略，不生成任何变更。
+     * 未追踪（停止追踪或从未追踪）的对象不在 cleanObjects 中，不参与比较、不生成任何变更。
      *
      * @return 包含所有检测到变更的 ChangeSet。
      */
@@ -160,47 +177,6 @@ public final class ChangeTracker {
             entities.put(entry.getKey(), ValueNodeDeepCopier.deepCopy(snapshot.getSnapshotData()));
         }
         return new BaselineSnapshot(entities);
-    }
-
-    /**
-     * 从导出的基线重建新的变更追踪器（静态工厂，与 {@link #captureBaseline()} 对称）。
-     * <p>
-     * 将 {@link BaselineSnapshot} 的全部条目<b>直接登记为基线</b>——快照包回
-     * {@link ValueNodeSnapshot} 以满足比较层的类型守卫（checked cast），<b>不重新脱水</b>。
-     * 与 {@link #track(Object)} 的语义对比：对<b>已修改</b>实体调用 {@code track(entity)}
-     * 会以修改后状态重新脱水重建基线，与当前状态 diff 为空——变更静默丢失；
-     * 跨线程/跨作用域恢复基线必须使用本工厂（异步提交侧的实体已发生业务修改）。
-     * <p>
-     * <b>空基线合法</b>：空 {@link BaselineSnapshot} 产出无基线的新 tracker，不抛异常。
-     * <p>
-     * <b>只读</b>：本工厂不修改传入的 {@link BaselineSnapshot}，同一基线可多次复用重建；
-     * 重建后调用 {@link #calculateChanges()} 即得基于导入快照的完整变更集。
-     *
-     * @param capability 用于创建新 tracker 的追踪能力，不能为 null。
-     * @param baseline   待登记的追踪基线（{@link #captureBaseline()} 的产出），不能为 null。
-     * @return 已登记给定基线全部条目的新 ChangeTracker 实例。
-     * @throws NullPointerException 如果 capability 或 baseline 为 null。
-     */
-    public static ChangeTracker fromBaseline(final TrackingCapability<?> capability, final BaselineSnapshot baseline) {
-        Objects.requireNonNull(capability, "TrackingCapability cannot be null.");
-        Objects.requireNonNull(baseline, "BaselineSnapshot cannot be null.");
-        final ChangeTracker tracker = new ChangeTracker(capability);
-        for (final Map.Entry<Object, ValueNode> entry : baseline.entities().entrySet()) {
-            tracker.cleanObjects.put(entry.getKey(), new ValueNodeSnapshot(entry.getValue()));
-        }
-        return tracker;
-    }
-
-    /**
-     * 检查对象是否已被追踪。
-     *
-     * @param entity 要检查的对象。
-     * @return 如果对象在任何追踪集合中，返回 true。
-     */
-    private boolean isTracking(final Object entity) {
-        return this.cleanObjects.containsKey(entity)
-                || this.newObjects.contains(entity)
-                || this.removedObjects.contains(entity);
     }
 
     /**
