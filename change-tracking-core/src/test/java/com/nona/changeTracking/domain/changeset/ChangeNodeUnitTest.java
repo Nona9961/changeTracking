@@ -12,7 +12,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("ChangeNode 模型结构测试")
-class ChangeNodeTest {
+class ChangeNodeUnitTest {
 
     @Test
     @DisplayName("FieldChangeNode 应能正确存储字段变更信息")

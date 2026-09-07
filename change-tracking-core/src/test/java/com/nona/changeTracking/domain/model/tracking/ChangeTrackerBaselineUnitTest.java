@@ -49,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 端到端用例：直接锁定库公共门面行为（导出深拷贝、重建不重新脱水、往返可逆）。
  */
 @DisplayName("ChangeTracker 基线导出与重建测试")
-class ChangeTrackerBaselineTest {
+class ChangeTrackerBaselineUnitTest {
 
     // ==================== 测试领域模型 ====================
 

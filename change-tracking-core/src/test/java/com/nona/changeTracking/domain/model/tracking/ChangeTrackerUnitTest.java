@@ -37,7 +37,7 @@ import static org.mockito.Mockito.*;
 
 @DisplayName("ChangeTracker 聚合测试")
 @ExtendWith(MockitoExtension.class)
-class ChangeTrackerTest {
+class ChangeTrackerUnitTest {
 
     @Mock(lenient = true)
     private TrackingCapability<ValueNodeSnapshot> capability;

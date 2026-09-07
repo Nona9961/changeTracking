@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * </ul>
  */
 @DisplayName("ChangeTracker 单实体变更计算测试")
-class ChangeTrackerCalculateChangesForTest {
+class ChangeTrackerCalculateChangesForUnitTest {
 
     // ==================== 测试领域模型 ====================
 

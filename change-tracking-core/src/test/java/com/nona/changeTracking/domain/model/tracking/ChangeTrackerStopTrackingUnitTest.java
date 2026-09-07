@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * </ul>
  */
 @DisplayName("ChangeTracker 停止追踪测试")
-class ChangeTrackerStopTrackingTest {
+class ChangeTrackerStopTrackingUnitTest {
 
     // ==================== 测试领域模型 ====================
 

@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @DisplayName("ChangeTrackerFactory (API) 测试")
-class ChangeTrackerFactoryTest {
+class ChangeTrackerFactoryUnitTest {
 
     // --- Test Data ---
     static class User {
