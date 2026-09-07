@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 每个测试用例都是一个独立的使用场景示例。
  */
 @DisplayName("Change Tracking 使用指南")
-class ChangeTrackingUsageGuideTest {
+class ChangeTrackingUsageGuideUnitTest {
 
     // ==================== 测试领域模型 ====================
 

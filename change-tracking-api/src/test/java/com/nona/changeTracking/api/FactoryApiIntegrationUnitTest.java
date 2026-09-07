@@ -19,10 +19,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 注意：需要配置业务标识符或自定义值类型的端到端测试位于 core 模块，
  * 因为这些配置需要直接访问 Provider 实现类。
  *
- * @see com.nona.changeTracking.internal.capability.EndToEndIntegrationTest
+ * @see com.nona.changeTracking.internal.capability.EndToEndIntegrationUnitTest
  */
 @DisplayName("Factory API 端到端测试")
-class FactoryApiIntegrationTest {
+class FactoryApiIntegrationUnitTest {
 
     // ==================== 测试领域模型 ====================
 

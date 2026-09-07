@@ -15,7 +15,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("ValueNodeComparisonStrategy 单元测试 (全覆盖)")
-class ValueNodeComparisonStrategyTest {
+class ValueNodeComparisonStrategyUnitTest {
 
     private ValueNodeComparisonStrategy strategy;
 

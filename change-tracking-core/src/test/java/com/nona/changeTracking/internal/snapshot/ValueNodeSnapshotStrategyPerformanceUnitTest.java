@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTimeout;
  * 现状无缓存（反射零缓存），此测试为后续优化（P1/P2/P3 已延后）提供性能基准守护。
  */
 @DisplayName("ValueNodeSnapshotStrategy 大规模快照与比较性能特征测试")
-class ValueNodeSnapshotStrategyPerformanceTest {
+class ValueNodeSnapshotStrategyPerformanceUnitTest {
 
     static class OrderItem {
         Long id;

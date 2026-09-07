@@ -18,7 +18,7 @@ import java.util.function.Function;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("ValueNodeSnapshotStrategy 单元测试")
-class ValueNodeSnapshotStrategyTest {
+class ValueNodeSnapshotStrategyUnitTest {
 
     private ValueNodeSnapshotStrategy strategy;
 

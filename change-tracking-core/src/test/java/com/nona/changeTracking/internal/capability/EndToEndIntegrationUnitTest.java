@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@link DefaultTrackingCapabilityProvider} 类。
  */
 @DisplayName("端到端集成测试")
-class EndToEndIntegrationTest {
+class EndToEndIntegrationUnitTest {
 
     // ==================== 测试领域模型 ====================
 

@@ -13,7 +13,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("Change (扁平化视图) 模型结构测试")
-class ChangeTest {
+class ChangeUnitTest {
 
     @Nested
     @DisplayName("基本结构测试")

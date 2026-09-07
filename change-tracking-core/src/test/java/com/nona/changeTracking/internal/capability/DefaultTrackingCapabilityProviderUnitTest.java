@@ -21,7 +21,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("DefaultTrackingCapabilityProvider 测试")
-class DefaultTrackingCapabilityProviderTest {
+class DefaultTrackingCapabilityProviderUnitTest {
 
     private TrackingCapabilityProvider provider;
 

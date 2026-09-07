@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ul>
  */
 @DisplayName("TrackingConfiguration 不可变契约")
-class TrackingConfigurationTest {
+class TrackingConfigurationUnitTest {
 
     static class Money {
     }

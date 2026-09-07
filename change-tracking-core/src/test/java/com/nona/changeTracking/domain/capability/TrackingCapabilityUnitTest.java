@@ -19,7 +19,7 @@ import static org.mockito.Mockito.when;
 
 @DisplayName("TrackingCapability 接口契约测试")
 @ExtendWith(MockitoExtension.class)
-class TrackingCapabilityTest {
+class TrackingCapabilityUnitTest {
 
     @Mock
     private TrackingCapability<ValueNodeSnapshot> capability;

@@ -16,7 +16,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("ChangeSet 相关模型契约测试")
-class ChangeSetModelTest {
+class ChangeSetModelUnitTest {
 
     // --- Test Data ---
     private final FieldChangeNode fieldChangeNode = new FieldChangeNode("path.name", "old", "new");
