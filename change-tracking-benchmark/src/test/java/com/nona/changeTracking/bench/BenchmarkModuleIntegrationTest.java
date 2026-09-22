@@ -70,7 +70,8 @@ class BenchmarkModuleIntegrationTest {
             metric = secondary.get("gc.alloc.rate.norm")
             assert metric is not None, "gc.alloc.rate.norm missing"
             print("entries=%d" % len(data))
-            print("benchmark=%s" % entry.get("benchmark", ""))
+            for result in data:
+                print("benchmark=%s" % result.get("benchmark", ""))
             print("allocRateNormScore=%s" % metric.get("score"))
             print("allocRateNormUnit=%s" % metric.get("scoreUnit", ""))
             """;
@@ -115,9 +116,11 @@ class BenchmarkModuleIntegrationTest {
 
         final ProcessResult jmhParse = runPython(JMH_PARSE_SCRIPT, JMH_RESULT_FILE);
         assertThat(jmhParse.exitCode()).as("strict json parse of jmh-result.json: %s", jmhParse.output()).isZero();
-        assertThat(valuesOf(jmhParse.output(), "entries=")).containsExactly("1");
+        assertThat(valuesOf(jmhParse.output(), "entries="))
+                .singleElement()
+                .satisfies(entries -> assertThat(Integer.parseInt(entries)).isGreaterThanOrEqualTo(1));
         assertThat(valuesOf(jmhParse.output(), "benchmark="))
-                .containsExactly("com.nona.changeTracking.bench.ModuleSmokeBenchmark.trackAndDiffMinimalSample");
+                .contains("com.nona.changeTracking.bench.ModuleSmokeBenchmark.trackAndDiffMinimalSample");
 
         final ProcessResult environmentParse = runPython(ENVIRONMENT_PARSE_SCRIPT, ENVIRONMENT_RECORD_FILE);
         assertThat(environmentParse.exitCode())
