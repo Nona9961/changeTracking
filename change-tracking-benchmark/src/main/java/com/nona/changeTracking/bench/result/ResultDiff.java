@@ -6,7 +6,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Difference table of two benchmark result files, the artefact AC3 asks for.
+ * Difference table of two benchmark result files, the artefact the comparison asks for.
  * <p>
  * The table has two parts: the comparable deltas (entries present in both results, compared metric
  * by metric with a significance verdict) and the incomparable entries — the ones present in one
@@ -30,8 +30,7 @@ public record ResultDiff(String firstLabel,
     /**
      * Takes immutable copies of the two lists.
      * <p>
-     * Contract implemented in the green phase: both lists are copied defensively and the labels must
-     * not be null.
+     * Both lists are copied defensively and the labels must not be null.
      *
      * @param firstLabel   label of the first result
      * @param secondLabel  label of the second result
@@ -66,7 +65,7 @@ public record ResultDiff(String firstLabel,
     /**
      * Renders the difference table as text.
      * <p>
-     * Contract implemented in the green phase, one line per element:
+     * One line per element:
      * <ol>
      *   <li>the header line {@code Benchmark result diff: <firstLabel> vs <secondLabel>}</li>
      *   <li>the column line {@code metric|entry|first|second|delta|significance}</li>

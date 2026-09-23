@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Compares two JMH native result files and produces the difference table of AC3.
+ * Compares two JMH native result files and produces the difference table of the comparison.
  * <p>
  * The two sources may be two consecutive runs of the same version or runs of two different versions;
  * the comparator only needs both result files. Entries are paired on {@link BenchmarkResultEntry#key()}
@@ -43,7 +43,7 @@ public final class BenchmarkResultComparator {
     /**
      * Compares the two given JMH native result files.
      * <p>
-     * Contract implemented in the green phase: both files are parsed with
+     * Both files are parsed with
      * {@link JmhResultJsonParser#parse(Path)}; a file without entries throws
      * {@link IllegalStateException} (nothing to compare, and an empty result silently reported as an
      * empty table would hide a failed run); entries present in both results are compared on
@@ -121,9 +121,8 @@ public final class BenchmarkResultComparator {
      */
     private static MetricDelta delta(final String entryKey, final String metricName,
                                      final MetricValue first, final MetricValue second) {
-        if (!first.scoreUnit().equals(second.scoreUnit())) {
-            throw new IllegalStateException(entryKey + "#" + metricName + ": scoreUnit mismatch ("
-                    + first.scoreUnit() + " vs " + second.scoreUnit() + ")");
+        if (!MetricValue.sameUnit(first, second)) {
+            throw new IllegalStateException(MetricDelta.unitMismatchMessage(entryKey, metricName, first, second));
         }
         return MetricDelta.between(entryKey, metricName, first, second);
     }

@@ -52,8 +52,8 @@ import java.util.concurrent.TimeUnit;
  *       instances, because the measured append is appended at the end. Without that restoration the
  *       collection would grow by one item per call and the collection size dimension would drift.</li>
  * </ul>
- * The reset is a target state reset: it converges to the iteration initial state, so it is a no-op
- * before the first measured call, repeated resets are idempotent, and it never rebuilds the iteration
+ * The reset is a target state reset: it anchors the untracked state of the sample and the iteration
+ * initial collection, so repeated resets are idempotent, and it never rebuilds the iteration
  * fixture (sample and tracker are reused) and never allocates. Rebuilding the fixture per invocation
  * is ruled out on purpose: the rebuilding allocation of the whole sample tree would be divided by the
  * operation count into {@code gc.alloc.rate.norm} and would misattribute the rebuilding cost to the
@@ -126,9 +126,9 @@ public class EndToEndBenchmark {
          * set and returns the item collection to the size of the iteration initial state, which
          * restores the appended item as well.
          * <p>
-         * The reset is a target state reset: it is a no-op while the sample still holds the iteration
-         * initial collection, so it is safe before the first measured call, and repeated resets are
-         * idempotent. The target size is read from the iteration level cache, never derived here,
+         * The reset is a target state reset: it anchors the untracked state of the sample and the
+         * iteration initial collection, and repeated resets are idempotent.
+         * The target size is read from the iteration level cache, never derived here,
          * because this hook runs inside the measured window and every allocation it performs would be
          * divided into {@code gc.alloc.rate.norm}. Both the target state comparison and the removal of
          * the appended item are in place operations on the sample built by the iteration fixture: the

@@ -8,7 +8,7 @@ import java.util.Objects;
 
 /**
  * Command line entry point of the comparison step: it compares two JMH native result files and
- * writes the difference table of AC3 to standard output.
+ * writes the difference table of the two results to standard output.
  * <p>
  * Reporting contract: the rendered difference table ({@link ResultDiff#toTable()}) is written to
  * {@link System#out}. A rejected request, a failing read and a comparison rejected because two values
@@ -73,7 +73,7 @@ public final class CompareResultsMain {
     /**
      * Parses the comparison command line.
      * <p>
-     * Contract implemented in the green phase: both {@code --first} and {@code --second} are
+     * Both {@code --first} and {@code --second} are
      * mandatory and must carry a non blank path; an option without a value, an unknown option and a
      * missing mandatory option throw {@link IllegalArgumentException}; the order of the options does
      * not matter.

@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EnvironmentRecordUnitTest {
 
     @Test
-    @DisplayName("toJson 应包含 AC4 的四项环境事实")
+    @DisplayName("toJson 应包含四项环境事实")
     void toJson_shouldContainAllEnvironmentFacts() {
         final String json = fullRecord().toJson();
 

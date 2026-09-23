@@ -8,8 +8,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for {@link MetricDelta#between}: the difference is oriented, the threshold is the
- * larger of the two reported errors and the verdict follows AC3 (a difference inside the reported
- * error is insignificant).
+ * larger of the two reported errors and the verdict marks a difference inside the reported error as
+ * insignificant.
  */
 @DisplayName("MetricDelta 指标差异与显著性单元测试")
 class MetricDeltaUnitTest {

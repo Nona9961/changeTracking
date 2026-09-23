@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Shared state of a dimension scan: it derives the {@link SampleShape} of one scanned dimension
  * level, builds the iteration fixture from the frozen sample family and registers the tracking
- * baseline.
+ * baseline the reuse paths without a per invocation reset rely on.
  * <p>
  * A benchmark task declares one concrete subclass per scanned dimension carrying exactly one
  * {@code @Param} level, while every other dimension stays at {@link SampleShape#defaults()}; a scan
@@ -41,7 +41,8 @@ public abstract class DimensionScanState {
      * Builds the fixture of one iteration: the sample of the scanned shape through
      * {@link SampleFamily#create(SampleShape)}, the tracker assembled through
      * {@link ChangeTrackerFactory#builder()}, and the baseline registration that makes the sample
-     * tracked before the first measured invocation.
+     * tracked before the first measured invocation of a reuse path that declares no per invocation
+     * reset.
      */
     @Setup(Level.Iteration)
     public void setUpIteration() {

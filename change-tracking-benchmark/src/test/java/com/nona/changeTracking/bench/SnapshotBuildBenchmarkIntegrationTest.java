@@ -82,10 +82,10 @@ class SnapshotBuildBenchmarkIntegrationTest {
     private static final String ENTRY_PREFIX = "ENTRY|";
 
     /** 集合规模维的最小档位，档位效应的对照基准。 */
-    private static final int SMALL_COLLECTION_SIZE = 10;
+    private static final int SMALL_COLLECTION_SIZE = FrozenScanLevels.COLLECTION_SIZE_SMALL;
 
     /** 集合规模维的最大档位，档位效应的对照基准。 */
-    private static final int LARGE_COLLECTION_SIZE = 1_000;
+    private static final int LARGE_COLLECTION_SIZE = FrozenScanLevels.COLLECTION_SIZE_LARGE;
 
     /** 档位效应判据：大档位指标不低于小档位的该倍数。 */
     private static final double LEVEL_EFFECT_FACTOR = 3.0;
@@ -111,8 +111,8 @@ class SnapshotBuildBenchmarkIntegrationTest {
     /** 冻结的档位：方法名 → 该维全部档位。 */
     private static final Map<String, List<Integer>> FROZEN_LEVELS_BY_METHOD = Map.of(
             FIELD_COUNT_METHOD, List.of(SampleShape.SUPPORTED_FIELD_COUNT_LOW, SampleShape.SUPPORTED_FIELD_COUNT_HIGH),
-            NESTING_DEPTH_METHOD, List.of(1, 2, 3, 4, 5),
-            COLLECTION_SIZE_METHOD, List.of(SMALL_COLLECTION_SIZE, 100, LARGE_COLLECTION_SIZE));
+            NESTING_DEPTH_METHOD, FrozenScanLevels.NESTING_DEPTH,
+            COLLECTION_SIZE_METHOD, FrozenScanLevels.COLLECTION_SIZE);
 
     /** 冻结的扫描维：方法名 → 该维的 {@code @Param} 字段名。 */
     private static final Map<String, String> SCANNED_DIMENSION_BY_METHOD = Map.of(

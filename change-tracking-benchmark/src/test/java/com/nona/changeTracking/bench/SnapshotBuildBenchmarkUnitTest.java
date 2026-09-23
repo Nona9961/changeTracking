@@ -243,8 +243,8 @@ class SnapshotBuildBenchmarkUnitTest {
             case "fieldCount" -> List.of(
                     String.valueOf(SampleShape.SUPPORTED_FIELD_COUNT_LOW),
                     String.valueOf(SampleShape.SUPPORTED_FIELD_COUNT_HIGH));
-            case "nestingDepth" -> List.of("1", "2", "3", "4", "5");
-            case "collectionSize" -> List.of("10", "100", "1000");
+            case "nestingDepth" -> FrozenScanLevels.NESTING_DEPTH.stream().map(String::valueOf).toList();
+            case "collectionSize" -> FrozenScanLevels.COLLECTION_SIZE.stream().map(String::valueOf).toList();
             default -> List.of();
         };
     }

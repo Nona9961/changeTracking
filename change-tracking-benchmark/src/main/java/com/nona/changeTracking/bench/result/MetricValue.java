@@ -17,10 +17,9 @@ public record MetricValue(double score, double scoreError, String scoreUnit) {
     /**
      * Validates the metric value.
      * <p>
-     * Contract implemented in the green phase: a {@code null} or blank unit throws
-     * {@link IllegalArgumentException}; a negative or {@code NaN} error throws
-     * {@link IllegalArgumentException}; the score itself may be any double, including zero and
-     * {@link Double#MAX_VALUE}.
+     * A {@code null} or blank unit throws {@link IllegalArgumentException}; a negative or
+     * {@code NaN} error throws {@link IllegalArgumentException}; the score itself may be any double,
+     * including zero and {@link Double#MAX_VALUE}.
      *
      * @param score      the reported score of the metric
      * @param scoreError the reported error of the score
@@ -33,5 +32,16 @@ public record MetricValue(double score, double scoreError, String scoreUnit) {
         if (Double.isNaN(scoreError) || scoreError < 0.0) {
             throw new IllegalArgumentException("scoreError must not be negative or NaN, got: " + scoreError);
         }
+    }
+
+    /**
+     * Tells whether the two values are expressed in the same unit.
+     *
+     * @param first  the first value, must not be null
+     * @param second the second value, must not be null
+     * @return {@code true} when both values carry the same unit
+     */
+    static boolean sameUnit(final MetricValue first, final MetricValue second) {
+        return first.scoreUnit().equals(second.scoreUnit());
     }
 }

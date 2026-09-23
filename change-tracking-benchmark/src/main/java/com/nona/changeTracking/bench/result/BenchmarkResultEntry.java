@@ -26,9 +26,8 @@ public record BenchmarkResultEntry(String benchmark,
     /**
      * Validates the entry and takes an immutable copy of the parameter binding.
      * <p>
-     * Contract implemented in the green phase: a null or blank benchmark name throws
-     * {@link IllegalArgumentException}; the parameter map is copied defensively, so the entry stays
-     * immutable; the two metrics are mandatory.
+     * A null or blank benchmark name throws {@link IllegalArgumentException}; the parameter map is
+     * copied defensively, so the entry stays immutable; the two metrics are mandatory.
      *
      * @param benchmark        fully qualified benchmark name
      * @param params           parameter binding of the entry

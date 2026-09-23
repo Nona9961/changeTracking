@@ -37,10 +37,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * benchmark method pairing, the naming rule, the assembly hooks and the whole path the measured
  * methods run.
  * <p>
- * The whole path tests are the behavioral tests of this task: they assemble the scan state, reset the
+ * The whole path tests are the behavioral tests of this class: they assemble the scan state, reset the
  * consumed precondition and call the measured method, then assert the path effect on the sample (one
- * appended item) and on the tracker (a change set holding the appended item). They fail in the red
- * phase because the measured bodies are implementation stubs.
+ * appended item) and on the tracker (a change set holding the appended item). The measured methods are
+ * invoked by reflection outside the JMH harness, so the asserted effect comes from the measured path
+ * itself and not from the benchmark runtime.
  */
 @DisplayName("EndToEndBenchmark 参数化模式单元测试")
 class EndToEndBenchmarkUnitTest {

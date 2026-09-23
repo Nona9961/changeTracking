@@ -3,7 +3,7 @@ package com.nona.changeTracking.bench.result;
 import java.util.Objects;
 
 /**
- * Delta of one metric of one paired result entry, with the significance verdict required by AC3.
+ * Delta of one metric of one paired result entry, with its significance verdict.
  * <p>
  * The delta is a value object: the two compared values, the difference in the metric unit, the
  * error threshold taken from the two reports and the verdict. It carries no reference to the
@@ -30,8 +30,8 @@ public record MetricDelta(String entryKey,
     /**
      * Validates the delta identity fields.
      * <p>
-     * Contract implemented in the green phase: a null or blank entry key, metric name or unit throws
-     * {@link IllegalArgumentException}; the numbers are taken as computed by
+     * A null or blank entry key, metric name or unit throws {@link IllegalArgumentException}; the
+     * numbers are taken as computed by
      * {@link #between(String, String, MetricValue, MetricValue)}.
      *
      * @param entryKey     pairing key of the compared entry
@@ -59,10 +59,9 @@ public record MetricDelta(String entryKey,
     /**
      * Creates the delta of one metric of one paired entry.
      * <p>
-     * Contract implemented in the green phase: both values must carry the same unit, otherwise
-     * {@link IllegalArgumentException} is thrown; the comparison layer reads that as "this comparison
-     * cannot be made" and rejects the whole comparison instead of translating one unit into the other
-     * or listing the metric as an entry that cannot be compared.
+     * Both values must carry the same unit, otherwise {@link IllegalArgumentException} is thrown and
+     * no delta is produced. A unit mismatch is not translated into a comparable number and not listed
+     * as an entry that cannot be compared: the comparison is rejected as a whole.
      * The threshold is the larger of the two reported errors (a missing error is passed as zero).
      * The delta is {@code second.score() - first.score()}. The verdict is
      * {@link Significance#INSIGNIFICANT} when the delta is zero or when its absolute value does not
@@ -84,9 +83,8 @@ public record MetricDelta(String entryKey,
         Objects.requireNonNull(metricName, "metricName");
         Objects.requireNonNull(first, "first");
         Objects.requireNonNull(second, "second");
-        if (!first.scoreUnit().equals(second.scoreUnit())) {
-            throw new IllegalArgumentException(entryKey + "#" + metricName + ": scoreUnit mismatch ("
-                    + first.scoreUnit() + " vs " + second.scoreUnit() + ")");
+        if (!MetricValue.sameUnit(first, second)) {
+            throw new IllegalArgumentException(unitMismatchMessage(entryKey, metricName, first, second));
         }
         final double delta = second.score() - first.score();
         final double threshold = Math.max(first.scoreError(), second.scoreError());
@@ -95,5 +93,24 @@ public record MetricDelta(String entryKey,
                 : Significance.SIGNIFICANT;
         return new MetricDelta(entryKey, metricName, first.scoreUnit(), first.score(), second.score(),
                 delta, threshold, significance);
+    }
+
+    /**
+     * Builds the rejection diagnostic of two values that do not share their unit.
+     * <p>
+     * Shared by the delta factory and the comparison layer, which report the same mismatch with
+     * different exception types: the factory rejects an invalid delta argument and the comparison
+     * layer rejects a comparison that cannot be made.
+     *
+     * @param entryKey   pairing key of the compared entry
+     * @param metricName name of the compared metric
+     * @param first      value of the first result, must not be null
+     * @param second     value of the second result, must not be null
+     * @return the diagnostic of the unit mismatch
+     */
+    static String unitMismatchMessage(final String entryKey, final String metricName,
+                                      final MetricValue first, final MetricValue second) {
+        return entryKey + "#" + metricName + ": scoreUnit mismatch ("
+                + first.scoreUnit() + " vs " + second.scoreUnit() + ")";
     }
 }

@@ -68,7 +68,7 @@ public final class BenchmarkResultArchiver {
     /**
      * Resolves the archive directory of one archival and creates it.
      * <p>
-     * Contract implemented in the green phase: the candidate names are {@code baseName} followed by
+     * The candidate names are {@code baseName} followed by
      * {@code baseName.withSequence(2)} up to {@code withSequence(}{@value #MAX_CONFLICT_ATTEMPTS}{@code )};
      * each candidate is created with a single atomic directory creation, so a name that appears
      * concurrently is detected instead of being overwritten. An existing directory or regular file of
@@ -109,7 +109,7 @@ public final class BenchmarkResultArchiver {
     /**
      * Archives the two run artefacts under a freshly resolved directory of the archive root.
      * <p>
-     * Contract implemented in the green phase, in this order:
+     * In this order:
      * <ol>
      *   <li>the source directory must exist and must be a directory, otherwise
      *       {@link IllegalStateException};</li>

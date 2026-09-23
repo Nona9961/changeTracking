@@ -31,7 +31,7 @@ public record ArchiveDirectoryName(String name) {
     /**
      * Validates the directory name.
      * <p>
-     * Contract implemented in the green phase: a {@code null}, empty or blank name, a name with
+     * A {@code null}, empty or blank name, a name with
      * surrounding whitespace, a name equal to {@code .}, and a name containing {@code /}, {@code \}
      * or the {@code ..} traversal sequence throw {@link IllegalArgumentException}; every other
      * non blank name is kept verbatim.
@@ -58,7 +58,7 @@ public record ArchiveDirectoryName(String name) {
      * Derives the directory name of one archival from the caller supplied identifier and the instant
      * of the archival.
      * <p>
-     * Contract implemented in the green phase: an empty identifier means the caller supplied none (no
+     * An empty identifier means the caller supplied none (no
      * {@code --id} on the command line) and the name is the rendered timestamp alone; a present
      * identifier is rendered verbatim, followed by {@code -} and the timestamp. The timestamp is
      * rendered as {@code yyyyMMdd'T'HHmmss'Z'} in UTC, truncated to the second.
@@ -79,7 +79,7 @@ public record ArchiveDirectoryName(String name) {
     /**
      * Derives the directory name of one archival that carries no run identifier.
      * <p>
-     * Contract implemented in the green phase: the name is the rendered UTC timestamp alone, which is
+     * The name is the rendered UTC timestamp alone, which is
      * the naming of {@link #of(Optional, Instant)} with an empty identifier.
      *
      * @param timestamp instant of the archival
@@ -93,7 +93,7 @@ public record ArchiveDirectoryName(String name) {
     /**
      * Derives the candidate directory name of one further conflict attempt.
      * <p>
-     * Contract implemented in the green phase: the candidate name is this name followed by
+     * The candidate name is this name followed by
      * {@code -} and the sequence number, so the second attempt is {@code -2}, the third {@code -3}
      * and so on. A sequence number below 2 throws {@link IllegalArgumentException}: the base name
      * itself is the first attempt and is never written with a sequence number.

@@ -26,8 +26,8 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * <b>Scan axes</b>: the coverage matrix crosses the change ratio with the collection change shape,
  * but the two are scanned as two independent single dimension axes instead of one cartesian product:
- * a zero change ratio combined with a collection change shape is not a meaningful load, and the
- * composition would multiply the entry count without adding any measured operation. Axis A varies
+ * the cartesian product would only repeat the axis B entries once per axis A level without adding
+ * any measured operation. Axis A varies
  * the number of changed scalar fields ({@code 0} no change, {@code 1} single field,
  * {@value SampleShape#DEFAULT_FIELD_COUNT} every scalar field of the wide sample); axis B varies the
  * collection change shape (value replacement, addition and removal, reorder). Every level is applied

@@ -81,7 +81,7 @@ public final class ArchiveResultsMain {
     /**
      * Parses the archive command line.
      * <p>
-     * Contract implemented in the green phase: {@code --id} is optional and, when given, is validated
+     * {@code --id} is optional and, when given, is validated
      * by {@link BenchmarkRunId}; without it the parsed request carries
      * {@code Optional.empty()} as its identifier. {@code --source} and {@code --root} fall back to the
      * module relative defaults; an option without a value, an unknown option and an unusable

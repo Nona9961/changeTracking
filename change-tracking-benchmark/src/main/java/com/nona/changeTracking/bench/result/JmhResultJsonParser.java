@@ -69,7 +69,7 @@ public final class JmhResultJsonParser {
     /**
      * Parses the given JMH native result file.
      * <p>
-     * Contract implemented in the green phase: an empty root array yields an empty list instead of
+     * An empty root array yields an empty list instead of
      * failing; a root that is not an array, a missing or blank {@code benchmark}, a missing
      * {@code primaryMetric}, a missing or blank {@code score} or {@code scoreUnit}, a {@code score}
      * that is not a number, a missing {@code secondaryMetrics.gc.alloc.rate.norm} (a run without the

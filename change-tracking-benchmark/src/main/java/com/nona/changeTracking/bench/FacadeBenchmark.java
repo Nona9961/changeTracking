@@ -46,10 +46,11 @@ import java.util.concurrent.TimeUnit;
  *   <li>{@code facadeTrack} over {@code directTrack}: one {@code track} call per invocation on a
  *       tracker assembled at iteration level by the corresponding path. Both sides end up with the
  *       same {@link ChangeTracker} implementation and the same provider, so the difference is the
- *       facade built information only. In the recorded run the paired allocation per operation
- *       ({@code gc.alloc.rate.norm}) differs by about 2.5 KB per operation (about 2.4%), more than
- *       the reported error of either side, so the difference can be read only relative to that
- *       noise floor and not as the facade wrapper cost.</li>
+ *       facade built information only. The measured bodies of the pair are source equivalent, so the
+ *       only remaining source of difference is the iteration level assembly path outside the measured
+ *       region. Across runs the paired allocation per operation ({@code gc.alloc.rate.norm}) ranges
+ *       from far below the reported errors to more than them and changes sign, so the difference is
+ *       dominated by run to run variation and cannot be read as the facade wrapper cost.</li>
  * </ul>
  * <p>
  * <b>Discovery cost ownership.</b> The facade api exposes no entry point that accepts an already

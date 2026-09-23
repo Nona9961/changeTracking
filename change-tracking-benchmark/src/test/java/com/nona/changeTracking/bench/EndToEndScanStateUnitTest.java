@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>
  * The rounds of the last test replay the path declared by the benchmark class Javadoc -
  * {@code track}, one in place append and {@code calculateChanges} - through the public library and
- * sample family api, because the measured bodies are implementation stubs in the red phase.
+ * sample family api, independently of the benchmark method and the JMH harness.
  */
 @DisplayName("EndToEndBenchmark 扫描状态单元测试")
 class EndToEndScanStateUnitTest {
@@ -126,7 +126,7 @@ class EndToEndScanStateUnitTest {
     }
 
     @Test
-    @DisplayName("样本未被修改时的复位应是无副作用的 no-op")
+    @DisplayName("样本未被修改时的复位应保持集合内容不变，并清除追踪态")
     void resetPrecondition_withoutAPrecedingModification_shouldKeepTheIterationState() {
         final EndToEndBenchmark.CollectionSizeScan scan = collectionSizeScan(SMALL_COLLECTION_SIZE);
         scan.setUpIteration();

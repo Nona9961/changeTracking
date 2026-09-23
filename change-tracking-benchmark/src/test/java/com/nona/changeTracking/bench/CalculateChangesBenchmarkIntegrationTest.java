@@ -36,9 +36,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * ({@code -wi 2 -i 3 -w 200ms -r 200ms}) to keep the integration test short. The shortening weakens
  * none of the three criteria checked here: the six entries and their parameters come from the
  * declared {@code @Param} levels, which a shortened run expands unchanged; the positivity of the
- * time and allocation metrics does not depend on the window length; and the lower bound of the path
- * is separated from a degraded early return by more than five orders of magnitude, because the
- * measured comparison visits the whole default sample.
+ * time and allocation metrics does not depend on the window length; and the measured time per
+ * operation stays far above a degraded early return, because the measured comparison visits the
+ * whole default sample.
  * <p>
  * Like {@code BenchmarkModuleIntegrationTest}, this class is excluded by the default surefire
  * configuration ({@code **}{@code /}{@code *IntegrationTest}) and runs under {@code -Pfull} only. A

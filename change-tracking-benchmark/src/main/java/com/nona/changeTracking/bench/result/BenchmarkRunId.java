@@ -17,7 +17,7 @@ public record BenchmarkRunId(String value) {
     /**
      * Validates the run identifier.
      * <p>
-     * Contract implemented in the green phase: a {@code null} value, a blank value, a value with
+     * A {@code null} value, a blank value, a value with
      * surrounding whitespace, a value equal to {@code .}, a value containing {@code /}, {@code \}
      * or the {@code ..} traversal sequence throws {@link IllegalArgumentException}; every other
      * non blank value is kept verbatim (no trimming, no rewriting).
