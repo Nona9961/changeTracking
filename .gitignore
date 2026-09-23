@@ -12,3 +12,8 @@ target/
 
 # CodeGraph local index (build artifact, host watcher maintains)
 .codegraph/
+
+# Benchmark result archive: archived run outputs are evidence, not sources; the archives a
+# maintainer picked by hand below committed/ are the exception and are tracked
+change-tracking-benchmark/benchmark/results/*
+!change-tracking-benchmark/benchmark/results/committed/
