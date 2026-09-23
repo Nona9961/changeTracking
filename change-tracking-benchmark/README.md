@@ -54,7 +54,7 @@ java -cp target/benchmarks.jar com.nona.changeTracking.bench.result.CompareResul
 
 `bench/sample` 提供冻结的样本形态：`SampleShape` 描述字段数、嵌套深度与集合规模，
 `SampleFamily` 是唯一构造入口，`SampleMutator` 提供属性变更与集合值替换、增删、重排操作。
-四条基准 task 复用该样本族，不自建样本。
+四条基准路径复用该样本族，不自建样本。
 
 ## 环境记录
 

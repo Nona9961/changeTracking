@@ -43,11 +43,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * The test runs the benchmark itself instead of reading a pre-existing result file, because the
  * archive and the comparison are only meaningful on the products of a real run: an entry set with
- * both metrics, a score error to judge significance and an environment record of the run. Both runs
- * are shortened ({@code -f 1 -wi 2 -i 3 -w 200ms -r 200ms}) like the other assembly tests of this
- * module; the shortening weakens none of the checks here, because the number of entries follows from
- * the benchmark methods of the scanned class and the positivity of the two metrics does not depend on
- * the window length.
+ * both metrics, a score error to judge significance and an environment record of the run. An omitted
+ * {@code --source} and an omitted {@code --root} are checked at the entry point itself: they resolve
+ * against the module directory of the classpath location the entry class was loaded from, whatever
+ * the working directory of the call is, and the working directory of the call gains no archive root.
+ * Both runs are shortened ({@code -f 1 -wi 2 -i 3 -w 200ms -r 200ms}) like the other assembly tests of
+ * this module; the shortening weakens none of the checks here, because the number of entries follows
+ * from the benchmark methods of the scanned class and the positivity of the two metrics does not
+ * depend on the window length.
  * <p>
  * Like the other assembly tests of this module, this class is excluded by the default surefire
  * configuration ({@code **}{@code /}{@code *IntegrationTest}) and runs under {@code -Pfull} only. The
@@ -97,6 +100,18 @@ class BenchmarkResultsIntegrationTest {
 
     /** 仓库忽略规则复核用例的运行标识。 */
     private static final String IGNORE_RUN_ID = "integration-ignore";
+
+    /** 缺省归档根用例的运行标识：归档根必须落入口所在模块内，而非调用目录。 */
+    private static final String CWD_ROOT_RUN_ID = "integration-cwd-root";
+
+    /** 缺省产物目录用例的运行标识。 */
+    private static final String DEFAULT_SOURCE_RUN_ID = "integration-default-source";
+
+    /** 模块目录判定失败用例的运行标识。 */
+    private static final String RELOCATED_RUN_ID = "integration-relocated";
+
+    /** 显式相对路径用例的运行标识。 */
+    private static final String RELATIVE_ROOT_RUN_ID = "integration-relative-root";
 
     /** 时间指标的计量单位，由基准类的 {@code @OutputTimeUnit} 决定。 */
     private static final String TIME_UNIT = "us/op";
@@ -443,6 +458,169 @@ class BenchmarkResultsIntegrationTest {
                 .isEqualTo(scratchDirectory.resolve("other-module").resolve("benchmark").resolve("results"));
     }
 
+    @Test
+    @Order(8)
+    @DisplayName("从非模块工作目录调用归档入口时缺省归档根应落模块内，调用目录不产生 benchmark 目录")
+    void archiveEntryPoint_shouldResolveTheDefaultRootAgainstTheModuleDirectory() throws IOException {
+        final Path foreignWorkingDirectory =
+                Files.createDirectories(scratchDirectory.resolve("foreign-working-directory"));
+
+        final EntryPointResult archived = runEntryPointFrom(foreignWorkingDirectory, BENCHMARK_JAR,
+                ArchiveResultsMain.class,
+                List.of("--id", CWD_ROOT_RUN_ID, "--source", FIRST_RUN_DIRECTORY.toString()));
+
+        assertThat(archived.exitCode())
+                .as("archive entry point with the default root, output tail: %s", tail(archived.output()))
+                .isZero();
+        final Path archiveDirectory = Path.of(archived.standardOutput().strip());
+        assertThat(Files.isDirectory(archiveDirectory))
+                .as("archive directory on standard output: %s, standard error: %s",
+                        archived.standardOutput(), tail(archived.standardError()))
+                .isTrue();
+        assertThat(archiveDirectory.getParent())
+                .as("default archive root of the entry point")
+                .isEqualTo(BenchmarkResultArchiver.resolveResultsRoot(MODULE_DIRECTORY));
+        assertThat(archiveDirectory.getFileName().toString())
+                .as("archive directory name of the defaulted run")
+                .matches(Pattern.quote(CWD_ROOT_RUN_ID) + "-\\d{8}T\\d{6}Z");
+        assertThat(entriesOf(archiveDirectory))
+                .as("artefacts archived below the module archive root")
+                .containsExactlyInAnyOrder(RESULT_FILE_NAME, ENVIRONMENT_FILE_NAME);
+        assertThat(Files.mismatch(resultFileOf(archiveDirectory), resultFileOf(FIRST_RUN_DIRECTORY)))
+                .as("archived result file is byte identical to the run artefact")
+                .isEqualTo(-1L);
+        assertThat(Files.notExists(foreignWorkingDirectory.resolve("benchmark")))
+                .as("the working directory of the call must not receive an archive root")
+                .isTrue();
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("缺省产物目录应解析为入口所在模块内的 target/benchmark-results：缺失时报缺失，齐备时归档落该模块")
+    void archiveEntryPoint_shouldResolveTheDefaultSourceAgainstTheModuleDirectory() throws IOException {
+        final Path moduleDirectory = Files.createDirectories(scratchDirectory.resolve("fake-module"));
+        final Path targetDirectory = Files.createDirectories(moduleDirectory.resolve("target"));
+        final Path classpathJar = targetDirectory.resolve("benchmarks.jar");
+        Files.copy(BENCHMARK_JAR, classpathJar);
+        final Path defaultSourceDirectory = moduleDirectory.resolve(BenchmarkResultArchiver.DEFAULT_SOURCE_DIRECTORY);
+        final Path foreignWorkingDirectory =
+                Files.createDirectories(scratchDirectory.resolve("fake-module-working-directory"));
+
+        final EntryPointResult missingArtefacts = runEntryPointFrom(foreignWorkingDirectory, classpathJar,
+                ArchiveResultsMain.class, List.of("--id", DEFAULT_SOURCE_RUN_ID));
+
+        assertThat(missingArtefacts.exitCode())
+                .as("exit code of the defaulted source directory without artefacts, output tail: %s",
+                        tail(missingArtefacts.output()))
+                .isEqualTo(1);
+        assertThat(missingArtefacts.standardError())
+                .as("diagnostic of the defaulted source directory")
+                .contains(defaultSourceDirectory.toString());
+        assertThat(Files.notExists(moduleDirectory.resolve(BenchmarkResultArchiver.DEFAULT_RESULTS_ROOT)))
+                .as("a rejected archive request must not create the archive root")
+                .isTrue();
+
+        Files.createDirectories(defaultSourceDirectory);
+        Files.copy(resultFileOf(FIRST_RUN_DIRECTORY), defaultSourceDirectory.resolve(RESULT_FILE_NAME));
+        Files.copy(environmentRecordOf(FIRST_RUN_DIRECTORY), defaultSourceDirectory.resolve(ENVIRONMENT_FILE_NAME));
+
+        final EntryPointResult archived = runEntryPointFrom(foreignWorkingDirectory, classpathJar,
+                ArchiveResultsMain.class, List.of("--id", DEFAULT_SOURCE_RUN_ID));
+
+        assertThat(archived.exitCode())
+                .as("archive entry point with both options defaulted, output tail: %s", tail(archived.output()))
+                .isZero();
+        final Path archiveDirectory = Path.of(archived.standardOutput().strip());
+        assertThat(archiveDirectory.getParent())
+                .as("default archive root of the module the entry class was loaded from, standard error: %s",
+                        tail(archived.standardError()))
+                .isEqualTo(moduleDirectory.resolve(BenchmarkResultArchiver.DEFAULT_RESULTS_ROOT));
+        assertThat(entriesOf(archiveDirectory))
+                .as("artefacts archived from the defaulted source directory")
+                .containsExactlyInAnyOrder(RESULT_FILE_NAME, ENVIRONMENT_FILE_NAME);
+        assertThat(Files.mismatch(resultFileOf(archiveDirectory), resultFileOf(FIRST_RUN_DIRECTORY)))
+                .as("archived result file is byte identical to the run artefact")
+                .isEqualTo(-1L);
+        assertThat(Files.notExists(foreignWorkingDirectory.resolve("benchmark")))
+                .as("the working directory of the call must not receive an archive root")
+                .isTrue();
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("入口类不在 target 之下时缺省解析应被拒，两项显式时不触发模块目录判定")
+    void archiveEntryPoint_shouldRejectAnUnlocatableModuleDirectoryOnlyWhenAnOptionIsOmitted() throws IOException {
+        final Path relocatedDirectory = Files.createDirectories(scratchDirectory.resolve("relocated-jar"));
+        final Path relocatedJar = relocatedDirectory.resolve("benchmarks.jar");
+        Files.copy(BENCHMARK_JAR, relocatedJar);
+        final Path foreignWorkingDirectory =
+                Files.createDirectories(scratchDirectory.resolve("relocated-working-directory"));
+        final Path explicitRoot = scratchDirectory.resolve("relocated-explicit-root");
+
+        final EntryPointResult rejected = runEntryPointFrom(foreignWorkingDirectory, relocatedJar,
+                ArchiveResultsMain.class,
+                List.of("--id", RELOCATED_RUN_ID, "--source", FIRST_RUN_DIRECTORY.toString()));
+
+        assertThat(rejected.exitCode())
+                .as("exit code of an entry point whose module directory cannot be located, output tail: %s",
+                        tail(rejected.output()))
+                .isEqualTo(1);
+        assertThat(rejected.standardError())
+                .as("diagnostic of an unlocatable module directory")
+                .contains("module directory cannot be located")
+                .contains(relocatedJar.toString());
+        assertThat(Files.notExists(foreignWorkingDirectory.resolve("benchmark")))
+                .as("the working directory of the call must not receive an archive root")
+                .isTrue();
+
+        final EntryPointResult explicit = runEntryPointFrom(foreignWorkingDirectory, relocatedJar,
+                ArchiveResultsMain.class, List.of("--id", RELOCATED_RUN_ID,
+                        "--source", FIRST_RUN_DIRECTORY.toString(), "--root", explicitRoot.toString()));
+
+        assertThat(explicit.exitCode())
+                .as("explicit --source and --root must not need the module directory, output tail: %s",
+                        tail(explicit.output()))
+                .isZero();
+        assertThat(entriesOf(explicitRoot)).as("archive directory below the explicit root").singleElement()
+                .satisfies(name -> assertThat(name).matches(Pattern.quote(RELOCATED_RUN_ID) + "-\\d{8}T\\d{6}Z"));
+        assertThat(Files.mismatch(resultFileOf(explicitRoot.resolve(onlyEntryOf(explicitRoot))),
+                resultFileOf(FIRST_RUN_DIRECTORY)))
+                .as("archived result file below the explicit root")
+                .isEqualTo(-1L);
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("显式相对路径应按调用目录原样解析，不被模块目录改写")
+    void archiveEntryPoint_shouldUseExplicitRelativePathsAsGiven() throws IOException {
+        final Path workingDirectory = Files.createDirectories(scratchDirectory.resolve("relative-working-directory"));
+        final Path relativeSourceDirectory = Files.createDirectories(workingDirectory.resolve("run-source"));
+        Files.copy(resultFileOf(FIRST_RUN_DIRECTORY), relativeSourceDirectory.resolve(RESULT_FILE_NAME));
+        Files.copy(environmentRecordOf(FIRST_RUN_DIRECTORY), relativeSourceDirectory.resolve(ENVIRONMENT_FILE_NAME));
+
+        final EntryPointResult archived = runEntryPointFrom(workingDirectory, BENCHMARK_JAR, ArchiveResultsMain.class,
+                List.of("--id", RELATIVE_ROOT_RUN_ID, "--source", "run-source", "--root", "archive-output"));
+
+        assertThat(archived.exitCode())
+                .as("archive entry point with explicit relative paths, output tail: %s", tail(archived.output()))
+                .isZero();
+        final Path reportedArchiveDirectory = Path.of(archived.standardOutput().strip());
+        assertThat(reportedArchiveDirectory.isAbsolute())
+                .as("an explicitly given relative root stays verbatim instead of being absolutised, "
+                        + "standard error: %s", tail(archived.standardError()))
+                .isFalse();
+        final Path archiveDirectory = workingDirectory.resolve(reportedArchiveDirectory);
+        assertThat(archiveDirectory.getParent())
+                .as("the relative root of the reported archive directory is the working directory of the call")
+                .isEqualTo(workingDirectory.resolve("archive-output"));
+        assertThat(entriesOf(archiveDirectory))
+                .as("artefacts archived from the explicit relative source directory")
+                .containsExactlyInAnyOrder(RESULT_FILE_NAME, ENVIRONMENT_FILE_NAME);
+        assertThat(Files.mismatch(resultFileOf(archiveDirectory), resultFileOf(FIRST_RUN_DIRECTORY)))
+                .as("archived result file of the explicit relative source")
+                .isEqualTo(-1L);
+    }
+
     /**
      * 断言归档的环境记录与本次运行的真实环境对应：JDK 版本、JVM 参数、GC 收集器与机器标识四项。
      *
@@ -521,17 +699,31 @@ class BenchmarkResultsIntegrationTest {
     }
 
     /**
-     * 经 shaded 基准 jar 以独立进程执行一个入口类，并把标准输出与标准错误分别捕获：只断言退出码
-     * 的用例读 {@link EntryPointResult#exitCode()}，输出契约的用例读
-     * {@link EntryPointResult#standardOutput()} 与 {@link EntryPointResult#standardError()}。
+     * 经 shaded 基准 jar 在模块目录执行一个入口类，并把标准输出与标准错误分别捕获。
      *
      * @param entryPoint 入口类
      * @param arguments  入口类的命令行参数
      * @return 入口进程的退出码、标准输出与标准错误
      */
     private static EntryPointResult runEntryPoint(final Class<?> entryPoint, final List<String> arguments) {
+        return runEntryPointFrom(MODULE_DIRECTORY, BENCHMARK_JAR, entryPoint, arguments);
+    }
+
+    /**
+     * 经给定的 jar 在给定的工作目录以独立进程执行一个入口类，并把标准输出与标准错误分别捕获：只
+     * 断言退出码的用例读 {@link EntryPointResult#exitCode()}，输出契约的用例读
+     * {@link EntryPointResult#standardOutput()} 与 {@link EntryPointResult#standardError()}。
+     *
+     * @param workingDirectory 入口进程的工作目录
+     * @param classpathJar     承载入口类与运行期的 jar
+     * @param entryPoint       入口类
+     * @param arguments        入口类的命令行参数
+     * @return 入口进程的退出码、标准输出与标准错误
+     */
+    private static EntryPointResult runEntryPointFrom(final Path workingDirectory, final Path classpathJar,
+                                                      final Class<?> entryPoint, final List<String> arguments) {
         final List<String> command = new ArrayList<>(
-                List.of("java", "-cp", BENCHMARK_JAR.toString(), entryPoint.getName()));
+                List.of("java", "-cp", classpathJar.toString(), entryPoint.getName()));
         command.addAll(arguments);
         final Path standardOutputFile;
         final Path standardErrorFile;
@@ -544,7 +736,7 @@ class BenchmarkResultsIntegrationTest {
             throw new UncheckedIOException("Failed to create the entry point stream files", failure);
         }
         final ProcessBuilder builder = new ProcessBuilder(new ArrayList<>(command));
-        builder.directory(MODULE_DIRECTORY.toFile());
+        builder.directory(workingDirectory.toFile());
         builder.redirectOutput(standardOutputFile.toFile());
         builder.redirectError(standardErrorFile.toFile());
         try {

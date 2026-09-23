@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Command line entry point of the archive step: it archives the artefacts of the last run under the
@@ -15,10 +16,15 @@ import java.util.Optional;
  * Usage: {@code [--id <identifier>] [--source <run output directory>] [--root <archive root>]}.
  * {@code --id} is optional: the caller decides which identifier identifies the run (a version, or a
  * short commit id it looked up itself) and omits the option when it has none; this tool never runs
- * git or any other external process and never guesses an identifier from the environment. Defaults:
- * {@code --source} is {@value BenchmarkResultArchiver#DEFAULT_SOURCE_DIRECTORY} and {@code --root} is
- * {@value BenchmarkResultArchiver#DEFAULT_RESULTS_ROOT}, both relative to the benchmark module
- * directory. The entry point only parses arguments, supplies the current instant and delegates to
+ * git or any other external process and never guesses an identifier from the environment. Defaults: an
+ * omitted {@code --source} is {@value BenchmarkResultArchiver#DEFAULT_SOURCE_DIRECTORY} and an omitted
+ * {@code --root} is {@value BenchmarkResultArchiver#DEFAULT_RESULTS_ROOT}, both resolved against the
+ * benchmark module directory of the classpath location this class was loaded from
+ * ({@link BenchmarkModuleDirectory#resolve()}) and never against the working directory of the call:
+ * the archive root of an omitted {@code --root} is the module's {@code benchmark/results} wherever
+ * the tool is started from. An explicitly given path is used verbatim, so a relative one stays
+ * relative to the working directory of the call. The entry point only parses arguments, supplies the
+ * current instant and delegates to
  * {@link BenchmarkResultArchiver#archive(Optional, Path, Path, Instant)}; it holds no archiving rule.
  * <p>
  * Reporting contract: the path of the created archive directory is written to {@link System#out}. A
@@ -79,24 +85,54 @@ public final class ArchiveResultsMain {
     }
 
     /**
-     * Parses the archive command line.
+     * Parses the archive command line with the defaults of the benchmark module this class was loaded
+     * from.
      * <p>
-     * {@code --id} is optional and, when given, is validated
-     * by {@link BenchmarkRunId}; without it the parsed request carries
-     * {@code Optional.empty()} as its identifier. {@code --source} and {@code --root} fall back to the
-     * module relative defaults; an option without a value, an unknown option and an unusable
-     * identifier throw {@link IllegalArgumentException}; the order of the options does not matter.
+     * The omitted {@code --source} and {@code --root} are resolved by
+     * {@link #parse(String[], Supplier)} against {@link BenchmarkModuleDirectory#resolve()}, so they
+     * point into the module of this class and never into the working directory of the call.
      *
      * @param args the command line arguments, must not be null
      * @return the parsed archive request
      * @throws NullPointerException     if args is null
      * @throws IllegalArgumentException if the identifier is unusable, or an option is unknown or without value
+     * @throws IllegalStateException    if an omitted option cannot be defaulted because the benchmark module
+     *                                  directory cannot be located
      */
     static Request parse(final String[] args) {
+        return parse(args, BenchmarkModuleDirectory::resolve);
+    }
+
+    /**
+     * Parses the archive command line, resolving the omitted options against a benchmark module
+     * directory.
+     * <p>
+     * {@code --id} is optional and, when given, is validated by {@link BenchmarkRunId}; without it the
+     * parsed request carries {@code Optional.empty()} as its identifier. An omitted {@code --source} is
+     * {@value BenchmarkResultArchiver#DEFAULT_SOURCE_DIRECTORY} and an omitted {@code --root} is
+     * {@value BenchmarkResultArchiver#DEFAULT_RESULTS_ROOT}, both below the given module directory: the
+     * module directory is asked for through the given supplier and only when an option was omitted, so a
+     * command line carrying both paths is parsed without one. An explicitly given path is kept verbatim,
+     * so a relative one stays relative to the working directory of the call. An option without a value,
+     * an unknown option and an unusable identifier throw {@link IllegalArgumentException}; the order of
+     * the options does not matter.
+     *
+     * @param args            the command line arguments, must not be null
+     * @param moduleDirectory the benchmark module directory the omitted options are resolved against,
+     *                        consulted only when an option was omitted, must not be null
+     * @return the parsed archive request
+     * @throws NullPointerException     if args or moduleDirectory is null
+     * @throws IllegalArgumentException if the identifier is unusable, or an option is unknown or without value
+     * @throws IllegalStateException    if an omitted option cannot be defaulted because the module directory
+     *                                  cannot be located
+     */
+    static Request parse(final String[] args, final Supplier<Path> moduleDirectory) {
+        LOG.info("parse: parsing the archive command line with the supplied module directory");
         Objects.requireNonNull(args, "args");
+        Objects.requireNonNull(moduleDirectory, "moduleDirectory");
         Optional<BenchmarkRunId> runId = Optional.empty();
-        Path sourceDirectory = BenchmarkResultArchiver.DEFAULT_SOURCE_DIRECTORY;
-        Path resultsRoot = BenchmarkResultArchiver.DEFAULT_RESULTS_ROOT;
+        Optional<Path> sourceDirectory = Optional.empty();
+        Optional<Path> resultsRoot = Optional.empty();
         for (int index = 0; index < args.length; index++) {
             final String option = args[index];
             switch (option) {
@@ -105,19 +141,23 @@ public final class ArchiveResultsMain {
                     index++;
                 }
                 case SOURCE_OPTION -> {
-                    sourceDirectory = Path.of(valueOf(args, index));
+                    sourceDirectory = Optional.of(Path.of(valueOf(args, index)));
                     index++;
                 }
                 case ROOT_OPTION -> {
-                    resultsRoot = Path.of(valueOf(args, index));
+                    resultsRoot = Optional.of(Path.of(valueOf(args, index)));
                     index++;
                 }
                 default -> throw new IllegalArgumentException("Unknown option: " + option);
             }
         }
+        final Path resolvedSourceDirectory = sourceDirectory.orElseGet(
+                () -> moduleDirectory.get().resolve(BenchmarkResultArchiver.DEFAULT_SOURCE_DIRECTORY));
+        final Path resolvedResultsRoot = resultsRoot.orElseGet(
+                () -> BenchmarkResultArchiver.resolveResultsRoot(moduleDirectory.get()));
         LOG.info("Parsed the archive command line: id={} source={} root={}",
-                runId.map(BenchmarkRunId::value).orElse("none"), sourceDirectory, resultsRoot);
-        return new Request(runId, sourceDirectory, resultsRoot);
+                runId.map(BenchmarkRunId::value).orElse("none"), resolvedSourceDirectory, resolvedResultsRoot);
+        return new Request(runId, resolvedSourceDirectory, resolvedResultsRoot);
     }
 
     /**
