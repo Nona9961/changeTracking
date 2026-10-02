@@ -1,5 +1,6 @@
 package com.nona.changeTracking.bench;
 
+import com.nona.changeTracking.bench.sample.SampleMutator;
 import com.nona.changeTracking.bench.sample.SampleShape;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -17,6 +18,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -74,8 +76,9 @@ public class SparseChangePathBenchmark {
         @Override
         @Setup(Level.Iteration)
         public void setUpIteration() {
+            super.setUpIteration();
+            applySparseChange(sample());
             log.info("Assembling the sparse change iteration fixture of {}", getClass().getSimpleName());
-            throw new UnsupportedOperationException("TODO: red stage");
         }
 
         /**
@@ -113,7 +116,7 @@ public class SparseChangePathBenchmark {
          */
         @Override
         public SampleShape shape() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return SampleShape.defaults();
         }
 
         /**
@@ -125,7 +128,14 @@ public class SparseChangePathBenchmark {
          */
         @Override
         public void applySparseChange(final Object sample) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            switch (this.sparseChangeLevel) {
+                case NO_CHANGE_LEVEL -> {
+                    // 零变更档位：样本保持与追踪基线一致。
+                }
+                case SINGLE_FIELD_LEVEL -> SampleMutator.changeField(sample, SINGLE_FIELD_NAME);
+                default -> throw new IllegalArgumentException(
+                        "Unsupported sparseChangeLevel: " + this.sparseChangeLevel);
+            }
         }
     }
 
@@ -152,7 +162,7 @@ public class SparseChangePathBenchmark {
          */
         @Override
         public SampleShape shape() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return SampleShape.deepChain();
         }
 
         /**
@@ -164,7 +174,14 @@ public class SparseChangePathBenchmark {
          */
         @Override
         public void applySparseChange(final Object sample) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            switch (this.deepChainChangeLevel) {
+                case NO_CHANGE_LEVEL -> {
+                    // 零变更档位：样本保持与追踪基线一致。
+                }
+                case DEEPEST_LEAF_LEVEL -> SampleMutator.changeDeepestLeafField(sample);
+                default -> throw new IllegalArgumentException(
+                        "Unsupported deepChainChangeLevel: " + this.deepChainChangeLevel);
+            }
         }
     }
 
@@ -176,7 +193,8 @@ public class SparseChangePathBenchmark {
      */
     @Benchmark
     public void calculateChangesBySparseChangeLevel(final DefaultSparseChangeScan state, final Blackhole blackhole) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(state, "state");
+        blackhole.consume(state.tracker().calculateChanges());
     }
 
     /**
@@ -187,6 +205,7 @@ public class SparseChangePathBenchmark {
      */
     @Benchmark
     public void calculateChangesByDeepChainChangeLevel(final DeepChainChangeScan state, final Blackhole blackhole) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(state, "state");
+        blackhole.consume(state.tracker().calculateChanges());
     }
 }

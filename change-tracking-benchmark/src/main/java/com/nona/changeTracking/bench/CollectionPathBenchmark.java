@@ -1,7 +1,11 @@
 package com.nona.changeTracking.bench;
 
+import com.nona.changeTracking.bench.sample.SampleFamily;
+import com.nona.changeTracking.bench.sample.SampleLineItem;
+import com.nona.changeTracking.bench.sample.SampleMutator;
 import com.nona.changeTracking.bench.sample.SampleShape;
 import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
+import com.nona.changeTracking.spi.TrackingCapabilityProvider;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -18,6 +22,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -93,8 +98,13 @@ public class CollectionPathBenchmark {
          */
         @Setup(Level.Iteration)
         public void setUpIteration() {
+            this.sample = SampleFamily.create(SampleShape.defaults());
+            final TrackingCapabilityProvider provider = CacheStateBenchmark.capabilityProvider();
+            provider.withIdentifier(SampleLineItem.class, SampleLineItem::id);
+            this.tracker = new ChangeTracker(provider.create());
+            this.tracker.track(this.sample);
+            applyCollectionChange(this.sample);
             log.info("Assembling the collection path iteration fixture of {}", getClass().getSimpleName());
-            throw new UnsupportedOperationException("TODO: red stage");
         }
 
         /**
@@ -103,7 +113,7 @@ public class CollectionPathBenchmark {
          * @return the sample built by the frozen sample family
          */
         public Object sample() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.sample;
         }
 
         /**
@@ -112,7 +122,7 @@ public class CollectionPathBenchmark {
          * @return the tracker carrying the business identifier configuration
          */
         public ChangeTracker tracker() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.tracker;
         }
 
         /**
@@ -121,7 +131,7 @@ public class CollectionPathBenchmark {
          * @return the default shape of the frozen sample family
          */
         public SampleShape shape() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return SampleShape.defaults();
         }
 
         /**
@@ -133,7 +143,19 @@ public class CollectionPathBenchmark {
          * @param sample the sample assembled by the iteration fixture
          */
         public void applyCollectionChange(final Object sample) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            switch (this.collectionChangeShape) {
+                case NO_CHANGE_LEVEL -> {
+                    // 零变更档位：集合保持与追踪基线一致。
+                }
+                case VALUE_REPLACEMENT_LEVEL -> SampleMutator.replaceItem(sample, FIRST_ITEM_INDEX);
+                case ADDITION_AND_REMOVAL_LEVEL -> {
+                    SampleMutator.addItem(sample);
+                    SampleMutator.removeItem(sample, FIRST_ITEM_INDEX);
+                }
+                case REORDER_LEVEL -> SampleMutator.reorderItems(sample);
+                default -> throw new IllegalArgumentException(
+                        "Unsupported collectionChangeShape: " + this.collectionChangeShape);
+            }
         }
     }
 
@@ -147,6 +169,7 @@ public class CollectionPathBenchmark {
     @Benchmark
     public void calculateChangesByCollectionChangeShape(final CollectionIdentifierPathState state,
                                                         final Blackhole blackhole) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(state, "state");
+        blackhole.consume(state.tracker().calculateChanges());
     }
 }

@@ -1,12 +1,20 @@
 package com.nona.changeTracking.domain.capability;
 
 import com.nona.changeTracking.domain.model.changeset.ChangeNode;
+import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
+import com.nona.changeTracking.domain.model.changeset.FieldChangeNode;
+import com.nona.changeTracking.domain.model.changeset.ItemAddedNode;
+import com.nona.changeTracking.domain.model.changeset.ItemRemovedNode;
+import com.nona.changeTracking.domain.model.changeset.ObjectFieldChangeNode;
+import com.nona.changeTracking.domain.model.snapshot.ArrayNode;
 import com.nona.changeTracking.domain.model.snapshot.CollectionNode;
 import com.nona.changeTracking.domain.model.snapshot.NullNode;
 import com.nona.changeTracking.domain.model.snapshot.ObjectNode;
 import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
 import com.nona.changeTracking.domain.model.snapshot.ValueNode;
 import com.nona.changeTracking.domain.model.snapshot.ValueNodeSnapshot;
+
+import java.util.Objects;
 
 /**
  * 基于 {@link ValueNode} 树结构的快照比较策略实现。
@@ -49,7 +57,10 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     @Override
     public ChangeNode compare(final ValueNodeSnapshot oldSnapshot, final ValueNodeSnapshot newSnapshot) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        final ComparisonContext context = new ComparisonContext();
+        final ChangeAccumulator accumulator = new ChangeAccumulator();
+        diffRoot(oldSnapshot.getSnapshotData(), newSnapshot.getSnapshotData(), context, accumulator);
+        return new ContainerChangeNode("", accumulator.toList());
     }
 
     /**
@@ -65,7 +76,13 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     private void diffRoot(final ValueNode oldNode, final ValueNode newNode,
                           final ComparisonContext context, final ChangeAccumulator accumulator) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        final boolean bothObject = oldNode instanceof ObjectNode && newNode instanceof ObjectNode;
+        final boolean bothCollection = oldNode instanceof CollectionNode && newNode instanceof CollectionNode;
+        if (bothObject || bothCollection) {
+            diffChildren(oldNode, newNode, context, accumulator);
+            return;
+        }
+        diffNode(oldNode, newNode, context, accumulator);
     }
 
     /**
@@ -90,7 +107,60 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     private void diffNode(final ValueNode oldNode, final ValueNode newNode,
                           final ComparisonContext context, final ChangeAccumulator accumulator) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        if (oldNode == newNode) {
+            return;
+        }
+
+        if (oldNode instanceof NullNode && newNode instanceof NullNode) {
+            return;
+        }
+
+        if (oldNode instanceof PrimitiveNode oldPrim && newNode instanceof PrimitiveNode newPrim) {
+            if (Objects.equals(oldPrim.value(), newPrim.value())) {
+                return;
+            }
+            accumulator.add(new FieldChangeNode(context.currentPath(), oldPrim.value(), newPrim.value()));
+            return;
+        }
+
+        // 基本值↔基本值（P↔N / N↔P）：快照中业务值可得，仍走 FieldChangeNode
+        if ((oldNode instanceof PrimitiveNode || oldNode instanceof NullNode)
+                && (newNode instanceof PrimitiveNode || newNode instanceof NullNode)) {
+            accumulator.add(new FieldChangeNode(context.currentPath(), extractValue(oldNode), extractValue(newNode)));
+            return;
+        }
+
+        // 数组↔数组（A↔A）：内容比较（顺序敏感，ArrayNode.equals 已是内容语义）
+        if (oldNode instanceof ArrayNode oldArray && newNode instanceof ArrayNode newArray) {
+            if (oldArray.equals(newArray)) {
+                return;
+            }
+            accumulator.add(new FieldChangeNode(context.currentPath(), oldArray.array(), newArray.array()));
+            return;
+        }
+
+        // 容器同类型（O↔O / C↔C）：递归子节点
+        final boolean bothObject = oldNode instanceof ObjectNode && newNode instanceof ObjectNode;
+        final boolean bothCollection = oldNode instanceof CollectionNode && newNode instanceof CollectionNode;
+        if (bothObject || bothCollection) {
+            if (!context.enterNodePair(oldNode, newNode)) {
+                // 循环引用：同一对节点在当前递归路径上再次出现，终止递归以避免 StackOverflow。
+                return;
+            }
+            try {
+                final ChangeAccumulator inner = new ChangeAccumulator();
+                diffChildren(oldNode, newNode, context, inner);
+                if (!inner.isEmpty()) {
+                    accumulator.add(new ContainerChangeNode(context.currentPath(), inner.toList()));
+                }
+            } finally {
+                context.exitNodePair(oldNode, newNode);
+            }
+            return;
+        }
+
+        // 容器参与的跨类型变化：快照中无业务对象可提取，原样携带 ValueNode 表示
+        accumulator.add(new ObjectFieldChangeNode(context.currentPath(), oldNode, newNode));
     }
 
     /**
@@ -105,7 +175,13 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     private void diffChildren(final ValueNode oldNode, final ValueNode newNode,
                               final ComparisonContext context, final ChangeAccumulator accumulator) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        if (oldNode instanceof ObjectNode oldObj && newNode instanceof ObjectNode newObj) {
+            diffObjectChildren(oldObj, newObj, context, accumulator);
+            return;
+        }
+        if (oldNode instanceof CollectionNode oldColl && newNode instanceof CollectionNode newColl) {
+            diffCollectionChildren(oldColl, newColl, context, accumulator);
+        }
     }
 
     /**
@@ -121,7 +197,26 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     private void diffObjectChildren(final ObjectNode oldObj, final ObjectNode newObj,
                                     final ComparisonContext context, final ChangeAccumulator accumulator) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        oldObj.forEachField((key, oldFieldNode) -> {
+            final ValueNode newFieldNode = fieldOrNullNode(newObj, key);
+            context.pushField(key);
+            try {
+                diffNode(oldFieldNode, newFieldNode, context, accumulator);
+            } finally {
+                context.pop();
+            }
+        });
+        newObj.forEachField((key, newFieldNode) -> {
+            if (oldObj.field(key) != null) {
+                return;
+            }
+            context.pushField(key);
+            try {
+                diffNode(new NullNode(), newFieldNode, context, accumulator);
+            } finally {
+                context.pop();
+            }
+        });
     }
 
     /**
@@ -137,7 +232,35 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     private void diffCollectionChildren(final CollectionNode oldColl, final CollectionNode newColl,
                                         final ComparisonContext context, final ChangeAccumulator accumulator) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        final CollectionMatchIndex index = CollectionMatchIndex.of(oldColl, newColl);
+        index.forEachGroup(group -> {
+            final boolean useOccurrenceSuffix = group.oldCount() > 1 || group.newCount() > 1;
+            final int common = Math.min(group.oldCount(), group.newCount());
+            for (int position = 0; position < common; position++) {
+                context.pushItem(group.identity(), toOccurrence(useOccurrenceSuffix, position));
+                try {
+                    diffNode(group.oldItem(position), group.newItem(position), context, accumulator);
+                } finally {
+                    context.pop();
+                }
+            }
+            for (int position = common; position < group.newCount(); position++) {
+                context.pushItem(group.identity(), toOccurrence(useOccurrenceSuffix, position));
+                try {
+                    accumulator.add(new ItemAddedNode(context.currentPath(), group.newItem(position)));
+                } finally {
+                    context.pop();
+                }
+            }
+            for (int position = common; position < group.oldCount(); position++) {
+                context.pushItem(group.identity(), toOccurrence(useOccurrenceSuffix, position));
+                try {
+                    accumulator.add(new ItemRemovedNode(context.currentPath(), group.oldItem(position)));
+                } finally {
+                    context.pop();
+                }
+            }
+        });
     }
 
     /**
@@ -150,7 +273,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * @return 从 1 开始的出现序；不需要后缀时返回 {@link ComparisonContext#NO_OCCURRENCE}。
      */
     private static int toOccurrence(final boolean useOccurrenceSuffix, final int zeroBasedIndex) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return useOccurrenceSuffix ? zeroBasedIndex + 1 : ComparisonContext.NO_OCCURRENCE;
     }
 
     /**

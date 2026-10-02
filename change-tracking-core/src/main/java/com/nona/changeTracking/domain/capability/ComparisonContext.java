@@ -55,7 +55,9 @@ final class ComparisonContext {
      * 创建一次比较的独立会话状态。
      */
     ComparisonContext() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        this.pathStack = new PathSegment[INITIAL_PATH_CAPACITY];
+        this.activeNodePairs = new HashSet<>();
+        this.depth = 0;
     }
 
     /**
@@ -65,7 +67,9 @@ final class ComparisonContext {
      * @throws NullPointerException 如果 fieldName 为 null。
      */
     void pushField(final String fieldName) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(fieldName, "fieldName");
+        segmentAt(this.depth).asField(fieldName);
+        this.depth++;
     }
 
     /**
@@ -77,7 +81,8 @@ final class ComparisonContext {
      * @param occurrence 数值出现序；{@link #NO_OCCURRENCE} 表示不加后缀。
      */
     void pushItem(final Object identity, final int occurrence) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        segmentAt(this.depth).asItem(identity, occurrence);
+        this.depth++;
     }
 
     /**
@@ -86,7 +91,11 @@ final class ComparisonContext {
      * @throws IllegalStateException 如果当前没有已压入的路径段。
      */
     void pop() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        if (this.depth == 0) {
+            throw new IllegalStateException("No path segment to pop");
+        }
+        this.depth--;
+        this.pathStack[this.depth].clear();
     }
 
     /**
@@ -98,7 +107,14 @@ final class ComparisonContext {
      * @return 完整路径；栈为空时返回空字符串。
      */
     String currentPath() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        if (this.depth == 0) {
+            return "";
+        }
+        final StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < this.depth; index++) {
+            this.pathStack[index].appendTo(builder, index == 0);
+        }
+        return builder.toString();
     }
 
     /**
@@ -110,7 +126,9 @@ final class ComparisonContext {
      * @throws NullPointerException 如果任一节点为 null。
      */
     boolean enterNodePair(final ValueNode oldNode, final ValueNode newNode) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(oldNode, "oldNode");
+        Objects.requireNonNull(newNode, "newNode");
+        return this.activeNodePairs.add(new NodePair(oldNode, newNode));
     }
 
     /**
@@ -121,7 +139,9 @@ final class ComparisonContext {
      * @throws NullPointerException 如果任一节点为 null。
      */
     void exitNodePair(final ValueNode oldNode, final ValueNode newNode) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(oldNode, "oldNode");
+        Objects.requireNonNull(newNode, "newNode");
+        this.activeNodePairs.remove(new NodePair(oldNode, newNode));
     }
 
     /**
@@ -131,7 +151,15 @@ final class ComparisonContext {
      * @return 可复用的路径段槽位。
      */
     private PathSegment segmentAt(final int index) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        if (index == this.pathStack.length) {
+            this.pathStack = Arrays.copyOf(this.pathStack, this.pathStack.length * 2);
+        }
+        PathSegment segment = this.pathStack[index];
+        if (segment == null) {
+            segment = new PathSegment();
+            this.pathStack[index] = segment;
+        }
+        return segment;
     }
 
     /**
@@ -167,7 +195,10 @@ final class ComparisonContext {
          * @param name 字段名，不能为 null。
          */
         void asField(final String name) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            this.fieldName = name;
+            this.identity = null;
+            this.occurrence = NO_OCCURRENCE;
+            this.identityText = null;
         }
 
         /**
@@ -177,7 +208,10 @@ final class ComparisonContext {
          * @param occurrence 数值出现序；{@link #NO_OCCURRENCE} 表示不加后缀。
          */
         void asItem(final Object identity, final int occurrence) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            this.fieldName = null;
+            this.identity = identity;
+            this.occurrence = occurrence;
+            this.identityText = null;
         }
 
         /**
@@ -187,14 +221,28 @@ final class ComparisonContext {
          * @param first   本段是否为路径首段（字段段首段不加点号）。
          */
         void appendTo(final StringBuilder builder, final boolean first) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            if (this.fieldName != null) {
+                if (!first) {
+                    builder.append('.');
+                }
+                builder.append(this.fieldName);
+                return;
+            }
+            builder.append('[').append(identifierText());
+            if (this.occurrence != NO_OCCURRENCE) {
+                builder.append('#').append(this.occurrence);
+            }
+            builder.append(']');
         }
 
         /**
          * 清理本槽位的原标识与文本引用，供后续复用。
          */
         void clear() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            this.fieldName = null;
+            this.identity = null;
+            this.occurrence = NO_OCCURRENCE;
+            this.identityText = null;
         }
 
         /**
@@ -204,7 +252,10 @@ final class ComparisonContext {
          * @return 标识文本。
          */
         String identifierText() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            if (this.identityText == null) {
+                this.identityText = this.identity == null ? "null" : String.valueOf(this.identity);
+            }
+            return this.identityText;
         }
     }
 
@@ -242,7 +293,13 @@ final class ComparisonContext {
          */
         @Override
         public boolean equals(final Object other) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof NodePair that)) {
+                return false;
+            }
+            return this.oldNode == that.oldNode && this.newNode == that.newNode;
         }
 
         /**
@@ -252,7 +309,7 @@ final class ComparisonContext {
          */
         @Override
         public int hashCode() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return 31 * System.identityHashCode(this.oldNode) + System.identityHashCode(this.newNode);
         }
     }
 }

@@ -34,7 +34,11 @@ final class ChangeAccumulator {
      * @throws NullPointerException 如果 change 为 null。
      */
     void add(final ChangeNode change) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(change, "change");
+        if (this.changes == null) {
+            this.changes = new ArrayList<>();
+        }
+        this.changes.add(change);
     }
 
     /**
@@ -43,7 +47,7 @@ final class ChangeAccumulator {
      * @return 空态返回 true。
      */
     boolean isEmpty() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return this.changes == null;
     }
 
     /**
@@ -52,6 +56,6 @@ final class ChangeAccumulator {
      * @return 收集到的变更列表（空态为空列表）。
      */
     List<ChangeNode> toList() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return this.changes == null ? List.of() : this.changes;
     }
 }

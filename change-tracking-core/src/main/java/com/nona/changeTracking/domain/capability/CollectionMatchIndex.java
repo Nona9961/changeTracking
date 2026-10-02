@@ -51,7 +51,18 @@ final class CollectionMatchIndex {
      * @throws NullPointerException 如果任一集合节点为 null。
      */
     static CollectionMatchIndex of(final CollectionNode oldColl, final CollectionNode newColl) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(oldColl, "oldColl");
+        Objects.requireNonNull(newColl, "newColl");
+        final Map<Object, MatchGroup> groups = new LinkedHashMap<>();
+        for (int index = 0; index < oldColl.size(); index++) {
+            final ValueNode item = oldColl.item(index);
+            groups.computeIfAbsent(extractIdentity(item, index), MatchGroup::new).addOld(item);
+        }
+        for (int index = 0; index < newColl.size(); index++) {
+            final ValueNode item = newColl.item(index);
+            groups.computeIfAbsent(extractIdentity(item, index), MatchGroup::new).addNew(item);
+        }
+        return new CollectionMatchIndex(groups);
     }
 
     /**
@@ -60,7 +71,8 @@ final class CollectionMatchIndex {
      * @param consumer 接收每个匹配项组的消费者，不能为 null。
      */
     void forEachGroup(final Consumer<MatchGroup> consumer) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(consumer, "consumer");
+        this.groups.values().forEach(consumer);
     }
 
     /**
@@ -72,7 +84,16 @@ final class CollectionMatchIndex {
      * {@link NullNode} → null；其他 → 位置标识。
      */
     private static Object extractIdentity(final ValueNode node, final int position) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        if (node instanceof ObjectNode objNode) {
+            return objNode.identifier();
+        }
+        if (node instanceof PrimitiveNode primNode) {
+            return primNode.value();
+        }
+        if (node instanceof NullNode) {
+            return null;
+        }
+        return new PositionalIdentity(position);
     }
 
     /**
@@ -122,7 +143,7 @@ final class CollectionMatchIndex {
          * @return 首次出现的标识实例（可能为 null）。
          */
         Object identity() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.identity;
         }
 
         /**
@@ -131,7 +152,15 @@ final class CollectionMatchIndex {
          * @param item 旧侧项，不能为 null。
          */
         void addOld(final ValueNode item) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            Objects.requireNonNull(item, "item");
+            if (this.oldFirst == null) {
+                this.oldFirst = item;
+                return;
+            }
+            if (this.oldRest == null) {
+                this.oldRest = new ArrayList<>(2);
+            }
+            this.oldRest.add(item);
         }
 
         /**
@@ -140,7 +169,15 @@ final class CollectionMatchIndex {
          * @param item 新侧项，不能为 null。
          */
         void addNew(final ValueNode item) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            Objects.requireNonNull(item, "item");
+            if (this.newFirst == null) {
+                this.newFirst = item;
+                return;
+            }
+            if (this.newRest == null) {
+                this.newRest = new ArrayList<>(2);
+            }
+            this.newRest.add(item);
         }
 
         /**
@@ -149,7 +186,7 @@ final class CollectionMatchIndex {
          * @return 旧侧项数量。
          */
         int oldCount() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return (this.oldFirst == null ? 0 : 1) + (this.oldRest == null ? 0 : this.oldRest.size());
         }
 
         /**
@@ -158,7 +195,7 @@ final class CollectionMatchIndex {
          * @return 新侧项数量。
          */
         int newCount() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return (this.newFirst == null ? 0 : 1) + (this.newRest == null ? 0 : this.newRest.size());
         }
 
         /**
@@ -169,7 +206,10 @@ final class CollectionMatchIndex {
          * @throws IndexOutOfBoundsException 如果下标越界。
          */
         ValueNode oldItem(final int index) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            if (index < 0 || index >= oldCount()) {
+                throw new IndexOutOfBoundsException("Old item index out of range: " + index);
+            }
+            return index == 0 ? this.oldFirst : this.oldRest.get(index - 1);
         }
 
         /**
@@ -180,7 +220,10 @@ final class CollectionMatchIndex {
          * @throws IndexOutOfBoundsException 如果下标越界。
          */
         ValueNode newItem(final int index) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            if (index < 0 || index >= newCount()) {
+                throw new IndexOutOfBoundsException("New item index out of range: " + index);
+            }
+            return index == 0 ? this.newFirst : this.newRest.get(index - 1);
         }
     }
 
@@ -212,7 +255,13 @@ final class CollectionMatchIndex {
          */
         @Override
         public boolean equals(final Object other) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof PositionalIdentity that)) {
+                return false;
+            }
+            return this.position == that.position;
         }
 
         /**
@@ -222,7 +271,7 @@ final class CollectionMatchIndex {
          */
         @Override
         public int hashCode() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return Integer.hashCode(this.position);
         }
 
         /**
@@ -232,7 +281,7 @@ final class CollectionMatchIndex {
          */
         @Override
         public String toString() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return "pos:" + this.position;
         }
     }
 }
