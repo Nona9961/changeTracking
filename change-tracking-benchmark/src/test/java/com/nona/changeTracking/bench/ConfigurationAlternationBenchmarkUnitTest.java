@@ -75,8 +75,8 @@ class ConfigurationAlternationBenchmarkUnitTest {
     }
 
     @Test
-    @DisplayName("装配应为两个配置各建一个同形状样本与一个追踪器，并登记两份基线")
-    void setUpIteration_shouldAssembleBothConfigurationsWithOwnBaselines() {
+    @DisplayName("装配与测量体应分别在各自选择时登记对应配置的基线")
+    void setUpIterationAndMeasuredBody_shouldRegisterEachSelectedConfigurationBaseline() {
         final ConfigurationAlternationBenchmark benchmark = new ConfigurationAlternationBenchmark();
         final ConfigurationAlternationBenchmark.AlternatingConfigurationState state =
                 new ConfigurationAlternationBenchmark.AlternatingConfigurationState();

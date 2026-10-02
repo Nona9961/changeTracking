@@ -70,7 +70,7 @@ public final class SampleFamily {
      * element is replaced while every other element keeps its value; a snapshot compares by value,
      * therefore exactly one leaf differs from the original chain.
      *
-     * @param chain     the address chain head to rebuild, never null
+     * @param chain      the address chain head to rebuild, never null
      * @param leafStreet street value of the rebuilt deepest element, never null
      * @return a chain of the same depth whose deepest element carries the given street
      * @throws NullPointerException if chain or leafStreet is null
