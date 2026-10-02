@@ -130,7 +130,7 @@ public class SparseChangePathBenchmark {
         public void applySparseChange(final Object sample) {
             switch (this.sparseChangeLevel) {
                 case NO_CHANGE_LEVEL -> {
-                    // 零变更档位：样本保持与追踪基线一致。
+                    // No change level: the sample keeps the tracked baseline.
                 }
                 case SINGLE_FIELD_LEVEL -> SampleMutator.changeField(sample, SINGLE_FIELD_NAME);
                 default -> throw new IllegalArgumentException(
@@ -176,7 +176,7 @@ public class SparseChangePathBenchmark {
         public void applySparseChange(final Object sample) {
             switch (this.deepChainChangeLevel) {
                 case NO_CHANGE_LEVEL -> {
-                    // 零变更档位：样本保持与追踪基线一致。
+                    // No change level: the sample keeps the tracked baseline.
                 }
                 case DEEPEST_LEAF_LEVEL -> SampleMutator.changeDeepestLeafField(sample);
                 default -> throw new IllegalArgumentException(

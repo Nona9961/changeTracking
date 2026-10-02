@@ -126,7 +126,7 @@ public class CollectionPathBenchmark {
         }
 
         /**
-         * Returns the shape both samples of the iteration are built with.
+         * Returns the shape the sample of the iteration is built with.
          *
          * @return the default shape of the frozen sample family
          */
@@ -145,7 +145,7 @@ public class CollectionPathBenchmark {
         public void applyCollectionChange(final Object sample) {
             switch (this.collectionChangeShape) {
                 case NO_CHANGE_LEVEL -> {
-                    // 零变更档位：集合保持与追踪基线一致。
+                    // No change level: the collection keeps the tracked baseline.
                 }
                 case VALUE_REPLACEMENT_LEVEL -> SampleMutator.replaceItem(sample, FIRST_ITEM_INDEX);
                 case ADDITION_AND_REMOVAL_LEVEL -> {
