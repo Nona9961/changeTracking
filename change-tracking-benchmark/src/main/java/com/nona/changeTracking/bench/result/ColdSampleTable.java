@@ -1,6 +1,17 @@
 package com.nona.changeTracking.bench.result;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,6 +47,27 @@ public final class ColdSampleTable {
     /** File name of the raw sampling table. */
     public static final String FILE_NAME = "cold-samples.jsonl";
 
+    /** Field name of the benchmark of one row. */
+    private static final String BENCHMARK_FIELD = "benchmark";
+
+    /** Field name of the parameter binding of one row. */
+    private static final String PARAMS_FIELD = "params";
+
+    /** Field name of the protocol tag of one row. */
+    private static final String PROTOCOL_FIELD = "protocol";
+
+    /** Field name of the time metric of one row. */
+    private static final String NANOS_FIELD = "nanosPerOperation";
+
+    /** Field name of the target allocation metric of one row. */
+    private static final String ALLOCATED_FIELD = "allocatedBytesPerOperation";
+
+    /** Field name of the metering overhead of one row. */
+    private static final String METERING_OVERHEAD_FIELD = "meteringOverheadNanos";
+
+    /** Jackson reader and writer of the raw sampling rows. */
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     /**
      * Private constructor: this class is a static table entry point.
      */
@@ -57,7 +89,18 @@ public final class ColdSampleTable {
      * @throws java.io.UncheckedIOException if the directory cannot be created or the row cannot be appended
      */
     public static void append(final Path outputDirectory, final ColdSample sample) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(outputDirectory, "outputDirectory");
+        Objects.requireNonNull(sample, "sample");
+        requireCompleteMetrics(sample);
+        final String row = renderRow(sample) + System.lineSeparator();
+        final Path table = outputDirectory.resolve(FILE_NAME);
+        try {
+            Files.createDirectories(outputDirectory);
+            Files.writeString(table, row, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to append a raw sample row to " + table, e);
+        }
     }
 
     /**
@@ -74,7 +117,167 @@ public final class ColdSampleTable {
      * @throws java.io.UncheckedIOException if the file cannot be read
      */
     public static List<ColdSample> read(final Path file) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(file, "file");
+        if (!Files.exists(file)) {
+            throw new UncheckedIOException(new FileNotFoundException("Raw sampling table not found: " + file));
+        }
+        final List<String> lines;
+        try {
+            lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to read the raw sampling table " + file, e);
+        }
+        final List<ColdSample> rows = new ArrayList<>();
+        for (final String line : lines) {
+            if (line.isBlank()) {
+                continue;
+            }
+            rows.add(parseRow(file, line));
+        }
+        return List.copyOf(rows);
+    }
+
+    /**
+     * Rejects a row that misses or contradicts one of the two measured metrics before it is written.
+     *
+     * @param sample the row to validate
+     * @throws IllegalArgumentException if the time is not finite and positive, the target allocation is
+     *                                  negative, or the metering overhead is not finite and not negative
+     */
+    private static void requireCompleteMetrics(final ColdSample sample) {
+        if (!Double.isFinite(sample.nanosPerOperation()) || sample.nanosPerOperation() <= 0.0) {
+            throw new IllegalArgumentException("nanosPerOperation must be finite and positive, got: "
+                    + sample.nanosPerOperation());
+        }
+        if (sample.allocatedBytesPerOperation() < 0L) {
+            throw new IllegalArgumentException("allocatedBytesPerOperation must not be negative, got: "
+                    + sample.allocatedBytesPerOperation());
+        }
+        if (!Double.isFinite(sample.meteringOverheadNanos()) || sample.meteringOverheadNanos() < 0.0) {
+            throw new IllegalArgumentException("meteringOverheadNanos must be finite and not negative, got: "
+                    + sample.meteringOverheadNanos());
+        }
+    }
+
+    /**
+     * Renders one row as a JSON object keyed by the record components, so the table stays readable by
+     * this carrier alone and cannot be mistaken for a JMH result document.
+     *
+     * @param sample the row to render
+     * @return the JSON object text of the row
+     * @throws IllegalStateException if the row cannot be serialized
+     */
+    private static String renderRow(final ColdSample sample) {
+        final Map<String, Object> row = new LinkedHashMap<>();
+        row.put(BENCHMARK_FIELD, sample.benchmark());
+        row.put(PARAMS_FIELD, sample.params());
+        row.put(PROTOCOL_FIELD, sample.protocol());
+        row.put(NANOS_FIELD, sample.nanosPerOperation());
+        row.put(ALLOCATED_FIELD, sample.allocatedBytesPerOperation());
+        row.put(METERING_OVERHEAD_FIELD, sample.meteringOverheadNanos());
+        try {
+            return MAPPER.writeValueAsString(row);
+        } catch (final JsonProcessingException e) {
+            throw new IllegalStateException("Failed to render a raw sample row for " + sample.benchmark(), e);
+        }
+    }
+
+    /**
+     * Parses one row, rejecting a row that is not a JSON object or misses one of the required fields;
+     * the two measured metrics must be present explicitly, because a JSON object without them would
+     * otherwise be read as a zero sample.
+     *
+     * @param file the table file, used in the failure messages
+     * @param line the row to parse
+     * @return the parsed row
+     * @throws IllegalStateException if the row does not match the table shape
+     */
+    private static ColdSample parseRow(final Path file, final String line) {
+        final JsonNode row;
+        try {
+            row = MAPPER.readTree(line);
+        } catch (final JsonProcessingException e) {
+            throw new IllegalStateException("Raw sampling table " + file + " holds an invalid JSON row: " + line, e);
+        }
+        if (row == null || !row.isObject()) {
+            throw new IllegalStateException("Raw sampling table " + file + " row must be a JSON object: " + line);
+        }
+        final String benchmark = requiredText(row, BENCHMARK_FIELD, file);
+        final String protocol = requiredText(row, PROTOCOL_FIELD, file);
+        final Map<String, String> params = readParams(row, file);
+        final double nanos = requiredNumber(row, NANOS_FIELD, file).doubleValue();
+        final long allocated = requiredNumber(row, ALLOCATED_FIELD, file).longValue();
+        final double meteringOverhead = requiredNumber(row, METERING_OVERHEAD_FIELD, file).doubleValue();
+        try {
+            return new ColdSample(benchmark, params, protocol, nanos, allocated, meteringOverhead);
+        } catch (final IllegalArgumentException e) {
+            throw new IllegalStateException("Raw sampling table " + file + " holds an unusable row: "
+                    + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Reads a required textual field of one row.
+     *
+     * @param row   the row
+     * @param field the field name
+     * @param file  the table file, used in the failure messages
+     * @return the textual value
+     * @throws IllegalStateException if the field is missing or not textual
+     */
+    private static String requiredText(final JsonNode row, final String field, final Path file) {
+        final JsonNode value = row.get(field);
+        if (value == null || !value.isTextual()) {
+            throw new IllegalStateException("Raw sampling table " + file + " row field " + field
+                    + " must be a string, got: " + value);
+        }
+        return value.asText();
+    }
+
+    /**
+     * Reads a required numeric field of one row.
+     *
+     * @param row   the row
+     * @param field the field name
+     * @param file  the table file, used in the failure messages
+     * @return the numeric value
+     * @throws IllegalStateException if the field is missing or not numeric
+     */
+    private static JsonNode requiredNumber(final JsonNode row, final String field, final Path file) {
+        final JsonNode value = row.get(field);
+        if (value == null || !value.isNumber()) {
+            throw new IllegalStateException("Raw sampling table " + file + " row field " + field
+                    + " must be a number, got: " + value);
+        }
+        return value;
+    }
+
+    /**
+     * Reads the parameter binding of one row; a row without a binding carries an empty one.
+     *
+     * @param row  the row
+     * @param file the table file, used in the failure messages
+     * @return the parameter binding of the row
+     * @throws IllegalStateException if the binding is present but is not an object of strings
+     */
+    private static Map<String, String> readParams(final JsonNode row, final Path file) {
+        final JsonNode params = row.get(PARAMS_FIELD);
+        if (params == null || params.isNull()) {
+            return Map.of();
+        }
+        if (!params.isObject()) {
+            throw new IllegalStateException("Raw sampling table " + file + " row field " + PARAMS_FIELD
+                    + " must be an object, got: " + params);
+        }
+        final Map<String, String> binding = new LinkedHashMap<>();
+        for (final Map.Entry<String, JsonNode> param : params.properties()) {
+            if (!param.getValue().isTextual()) {
+                throw new IllegalStateException("Raw sampling table " + file + " parameter " + param.getKey()
+                        + " must be a string, got: " + param.getValue());
+            }
+            binding.put(param.getKey(), param.getValue().asText());
+        }
+        return binding;
     }
 
     /**

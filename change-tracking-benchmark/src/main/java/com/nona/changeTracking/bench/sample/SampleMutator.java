@@ -18,6 +18,9 @@ public final class SampleMutator {
     /** Suffix appended to string payloads so a mutated value always differs from the original. */
     private static final String CHANGED_SUFFIX = "-changed";
 
+    /** Name of the structural address field carried by every sample root. */
+    private static final String ADDRESS_FIELD_NAME = "address";
+
     /**
      * Private constructor: this class is a static mutation entry point.
      */
@@ -71,7 +74,46 @@ public final class SampleMutator {
      * @throws IllegalArgumentException if the sample type is unsupported or carries no address chain
      */
     public static void changeDeepestLeafField(final Object sample) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(sample, "sample");
+        requireSupported(sample);
+        final Field addressField = addressFieldOf(sample);
+        final Object current = read(addressField, sample);
+        if (!(current instanceof SampleAddress chain)) {
+            throw new IllegalArgumentException(
+                    "Sample carries no address chain: " + sample.getClass().getName());
+        }
+        write(addressField, sample, SampleFamily.chainWithLeafStreet(chain, deepestStreetOf(chain) + CHANGED_SUFFIX));
+    }
+
+    /**
+     * Resolves the structural address field of a supported sample root.
+     *
+     * @param sample a sample root created by {@link SampleFamily#create(SampleShape)}
+     * @return the declared address field of the sample root
+     * @throws IllegalArgumentException if the sample type is unsupported or carries no address field
+     */
+    private static Field addressFieldOf(final Object sample) {
+        requireSupported(sample);
+        try {
+            return sample.getClass().getDeclaredField(ADDRESS_FIELD_NAME);
+        } catch (final NoSuchFieldException e) {
+            throw new IllegalArgumentException("Sample carries no address field: "
+                    + sample.getClass().getName(), e);
+        }
+    }
+
+    /**
+     * Returns the street of the deepest element of an address chain.
+     *
+     * @param chain the address chain head, never null
+     * @return the street of the terminal element
+     */
+    private static String deepestStreetOf(final SampleAddress chain) {
+        SampleAddress current = chain;
+        while (current instanceof SampleAddressLink link) {
+            current = link.next();
+        }
+        return current.street();
     }
 
     /**

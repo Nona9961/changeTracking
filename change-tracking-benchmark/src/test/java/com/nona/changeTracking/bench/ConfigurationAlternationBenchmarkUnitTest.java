@@ -77,6 +77,7 @@ class ConfigurationAlternationBenchmarkUnitTest {
     @Test
     @DisplayName("装配应为两个配置各建一个同形状样本与一个追踪器，并登记两份基线")
     void setUpIteration_shouldAssembleBothConfigurationsWithOwnBaselines() {
+        final ConfigurationAlternationBenchmark benchmark = new ConfigurationAlternationBenchmark();
         final ConfigurationAlternationBenchmark.AlternatingConfigurationState state =
                 new ConfigurationAlternationBenchmark.AlternatingConfigurationState();
 
@@ -86,6 +87,11 @@ class ConfigurationAlternationBenchmarkUnitTest {
         final ChangeTracker firstTracker = state.selectedTracker();
         final Object firstSample = state.selectedSample();
 
+        SampleMutator.changeField(firstSample, "status");
+        assertThat(firstTracker.calculateChangesFor(firstSample).isEmpty())
+                .as("the assembly registers the baseline of the configuration selected after assembly")
+                .isFalse();
+
         state.resetPrecondition();
         final ChangeTracker secondTracker = state.selectedTracker();
         final Object secondSample = state.selectedSample();
@@ -93,13 +99,11 @@ class ConfigurationAlternationBenchmarkUnitTest {
         assertThat(firstSample).isNotSameAs(secondSample);
         assertThat(firstTracker).isNotSameAs(secondTracker);
 
-        SampleMutator.changeField(firstSample, "status");
+        benchmark.trackAndDiffAlternatingConfigurations(state, blackhole());
         SampleMutator.changeField(secondSample, "status");
-
-        assertThat(firstTracker.calculateChangesFor(firstSample).isEmpty())
-                .as("both configurations register their own baseline during the assembly")
+        assertThat(secondTracker.calculateChangesFor(secondSample).isEmpty())
+                .as("the measured body registers the baseline of the newly selected configuration")
                 .isFalse();
-        assertThat(secondTracker.calculateChangesFor(secondSample).isEmpty()).isFalse();
     }
 
     @Test

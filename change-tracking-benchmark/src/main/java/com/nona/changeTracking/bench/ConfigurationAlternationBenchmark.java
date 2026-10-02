@@ -1,8 +1,11 @@
 package com.nona.changeTracking.bench;
 
+import com.nona.changeTracking.api.ChangeTrackerFactory;
+import com.nona.changeTracking.bench.sample.SampleFamily;
 import com.nona.changeTracking.bench.sample.SampleLineItem;
 import com.nona.changeTracking.bench.sample.SampleShape;
 import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
+import com.nona.changeTracking.spi.TrackingCapabilityProvider;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -18,6 +21,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -94,7 +98,17 @@ public class ConfigurationAlternationBenchmark {
          */
         @Setup(Level.Iteration)
         public void setUpIteration() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            this.defaultSample = SampleFamily.create(SampleShape.defaults());
+            this.identifiedSample = SampleFamily.create(SampleShape.defaults());
+            this.defaultTracker = ChangeTrackerFactory.builder().withDefaults().build();
+            final TrackingCapabilityProvider provider = CacheStateBenchmark.capabilityProvider();
+            provider.withIdentifier(SampleLineItem.class, SampleLineItem::id);
+            this.identifiedTracker = new ChangeTracker(provider.create());
+            this.defaultTracker.track(this.defaultSample);
+            this.identifiedTracker.track(this.identifiedSample);
+            this.defaultConfigurationSelected = true;
+            log.info("Alternating iteration fixture assembled for {}: both configurations carry their own "
+                    + "sample and baseline", getClass().getSimpleName());
         }
 
         /**
@@ -104,7 +118,8 @@ public class ConfigurationAlternationBenchmark {
          */
         @Setup(Level.Invocation)
         public void resetPrecondition() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            this.defaultConfigurationSelected = !this.defaultConfigurationSelected;
+            selectedTracker().stopTracking(selectedSample());
         }
 
         /**
@@ -113,7 +128,7 @@ public class ConfigurationAlternationBenchmark {
          * @return the sample of the selected configuration
          */
         public Object selectedSample() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.defaultConfigurationSelected ? this.defaultSample : this.identifiedSample;
         }
 
         /**
@@ -122,7 +137,7 @@ public class ConfigurationAlternationBenchmark {
          * @return the tracker of the selected configuration
          */
         public ChangeTracker selectedTracker() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.defaultConfigurationSelected ? this.defaultTracker : this.identifiedTracker;
         }
 
         /**
@@ -131,7 +146,7 @@ public class ConfigurationAlternationBenchmark {
          * @return true when the default configuration is selected
          */
         public boolean defaultConfigurationSelected() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.defaultConfigurationSelected;
         }
 
         /**
@@ -140,7 +155,7 @@ public class ConfigurationAlternationBenchmark {
          * @return the default shape of the frozen sample family
          */
         public SampleShape shape() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return SampleShape.defaults();
         }
     }
 
@@ -154,6 +169,9 @@ public class ConfigurationAlternationBenchmark {
     @Benchmark
     public void trackAndDiffAlternatingConfigurations(final AlternatingConfigurationState state,
                                                       final Blackhole blackhole) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(state, "state");
+        final ChangeTracker tracker = state.selectedTracker();
+        tracker.track(state.selectedSample());
+        blackhole.consume(tracker.calculateChanges());
     }
 }

@@ -36,6 +36,6 @@ final class ReflectionMetadataCache extends ClassValue<ReflectionTypeMetadata> {
      */
     @Override
     protected ReflectionTypeMetadata computeValue(final Class<?> type) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return ReflectionTypeMetadata.forType(type);
     }
 }

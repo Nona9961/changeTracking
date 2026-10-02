@@ -1,5 +1,7 @@
 package com.nona.changeTracking.bench;
 
+import com.nona.changeTracking.bench.sample.SampleFamily;
+import com.nona.changeTracking.bench.sample.SampleShape;
 import com.nona.changeTracking.domain.capability.TrackingCapability;
 import com.nona.changeTracking.domain.model.tracking.BaselineSnapshot;
 import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
@@ -19,6 +21,10 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.concurrent.TimeUnit;
 
@@ -100,7 +106,11 @@ public class CacheStateBenchmark {
          */
         @Setup(Level.Iteration)
         public void setUpIteration() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            this.sample = SampleFamily.create(SampleShape.defaults());
+            this.tracker = new ChangeTracker(capabilityProvider().create());
+            this.tracker.track(this.sample);
+            log.info("Iteration fixture assembled for {}: the reused capability is warm",
+                    getClass().getSimpleName());
         }
 
         /**
@@ -109,7 +119,7 @@ public class CacheStateBenchmark {
          */
         @Setup(Level.Invocation)
         public void resetPrecondition() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            this.tracker.stopTracking(this.sample);
         }
 
         /**
@@ -118,7 +128,7 @@ public class CacheStateBenchmark {
          * @return the sample built by the frozen sample family
          */
         public Object sample() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.sample;
         }
 
         /**
@@ -127,7 +137,7 @@ public class CacheStateBenchmark {
          * @return the tracker carrying the warmed capability
          */
         public ChangeTracker tracker() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.tracker;
         }
     }
 
@@ -151,7 +161,11 @@ public class CacheStateBenchmark {
          */
         @Setup(Level.Iteration)
         public void setUpIteration() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            this.sample = SampleFamily.create(SampleShape.defaults());
+            this.tracker = new ChangeTracker(capabilityProvider().create());
+            this.tracker.track(this.sample);
+            log.info("Iteration fixture assembled for {}: both cache levels are warm",
+                    getClass().getSimpleName());
         }
 
         /**
@@ -160,7 +174,7 @@ public class CacheStateBenchmark {
          * @return the sample built by the frozen sample family
          */
         public Object sample() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.sample;
         }
 
         /**
@@ -169,7 +183,7 @@ public class CacheStateBenchmark {
          * @return the tracker carrying the warmed capability and the registered baseline
          */
         public ChangeTracker tracker() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.tracker;
         }
     }
 
@@ -200,7 +214,12 @@ public class CacheStateBenchmark {
          */
         @Setup(Level.Iteration)
         public void setUpIteration() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            this.sample = SampleFamily.create(SampleShape.defaults());
+            this.baseline = ColdBaselineFixture.baselineOf(this.sample);
+            this.capability = capabilityProvider().create();
+            warmCapability(this.capability);
+            log.info("Iteration fixture assembled for {}: the reused capability is warm",
+                    getClass().getSimpleName());
         }
 
         /**
@@ -209,7 +228,7 @@ public class CacheStateBenchmark {
          * @return the sample built by the frozen sample family
          */
         public Object sample() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.sample;
         }
 
         /**
@@ -218,7 +237,7 @@ public class CacheStateBenchmark {
          * @return the baseline built by {@link ColdBaselineFixture}
          */
         public BaselineSnapshot baseline() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.baseline;
         }
 
         /**
@@ -227,7 +246,7 @@ public class CacheStateBenchmark {
          * @return the capability every measured invocation reuses
          */
         public TrackingCapability<?> capability() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.capability;
         }
 
         /**
@@ -236,7 +255,7 @@ public class CacheStateBenchmark {
          * @return the tracker of the last measured invocation, null before the first one
          */
         public ChangeTracker lastTracker() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.lastTracker;
         }
     }
 
@@ -271,7 +290,12 @@ public class CacheStateBenchmark {
          */
         @Setup(Level.Iteration)
         public void setUpIteration() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            this.sample = SampleFamily.create(SampleShape.defaults());
+            this.baseline = ColdBaselineFixture.baselineOf(this.sample);
+            this.provider = capabilityProvider();
+            warmCapability(this.provider.create());
+            log.info("Iteration fixture assembled for {}: the shared class metadata is warm",
+                    getClass().getSimpleName());
         }
 
         /**
@@ -280,7 +304,7 @@ public class CacheStateBenchmark {
          * @return the sample built by the frozen sample family
          */
         public Object sample() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.sample;
         }
 
         /**
@@ -289,7 +313,7 @@ public class CacheStateBenchmark {
          * @return the baseline built by {@link ColdBaselineFixture}
          */
         public BaselineSnapshot baseline() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.baseline;
         }
 
         /**
@@ -298,7 +322,7 @@ public class CacheStateBenchmark {
          * @return the capability of the last measured invocation, null before the first one
          */
         public TrackingCapability<?> lastCapability() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.lastCapability;
         }
 
         /**
@@ -307,7 +331,7 @@ public class CacheStateBenchmark {
          * @return the tracker of the last measured invocation, null before the first one
          */
         public ChangeTracker lastTracker() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.lastTracker;
         }
     }
 
@@ -319,7 +343,10 @@ public class CacheStateBenchmark {
      */
     @Benchmark
     public void snapshotByReusedCapability(final ReusedCapabilitySnapshotState state, final Blackhole blackhole) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(state, "state");
+        final ChangeTracker tracker = state.tracker();
+        tracker.track(state.sample());
+        blackhole.consume(tracker);
     }
 
     /**
@@ -331,7 +358,8 @@ public class CacheStateBenchmark {
     @Benchmark
     public void calculateChangesByReusedCapability(final ReusedCapabilityCalculationState state,
                                                    final Blackhole blackhole) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(state, "state");
+        blackhole.consume(state.tracker().calculateChanges());
     }
 
     /**
@@ -344,7 +372,10 @@ public class CacheStateBenchmark {
     @Benchmark
     public void calculateChangesByNewTrackerReusingCapability(final ReusedCapabilityNewTrackerState state,
                                                               final Blackhole blackhole) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(state, "state");
+        final ChangeTracker tracker = ChangeTracker.fromBaseline(state.capability(), state.baseline());
+        state.lastTracker = tracker;
+        blackhole.consume(tracker.calculateChanges());
     }
 
     /**
@@ -357,7 +388,24 @@ public class CacheStateBenchmark {
     @Benchmark
     public void calculateChangesByNewTrackerAndCapability(final NewCapabilityState state,
                                                           final Blackhole blackhole) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(state, "state");
+        final TrackingCapability<?> capability = state.provider.create();
+        final ChangeTracker tracker = ChangeTracker.fromBaseline(capability, state.baseline());
+        state.lastCapability = capability;
+        state.lastTracker = tracker;
+        blackhole.consume(tracker.calculateChanges());
+    }
+
+    /**
+     * Warms the class level and the configuration level cache of a capability with one throwaway
+     * snapshot, so a measured invocation starts from a warm shared metadata and a warm capability
+     * without measuring the warmup itself.
+     *
+     * @param capability the capability to warm
+     */
+    private static void warmCapability(final TrackingCapability<?> capability) {
+        final ChangeTracker warmer = new ChangeTracker(capability);
+        warmer.track(SampleFamily.create(SampleShape.defaults()));
     }
 
     /**
@@ -369,6 +417,17 @@ public class CacheStateBenchmark {
      * @throws IllegalStateException if no provider is visible to the caller
      */
     static TrackingCapabilityProvider capabilityProvider() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        final Map<String, TrackingCapabilityProvider> providers = new HashMap<>();
+        for (final TrackingCapabilityProvider provider : ServiceLoader.load(TrackingCapabilityProvider.class)) {
+            providers.put(provider.getName(), provider);
+        }
+        if (providers.isEmpty()) {
+            throw new IllegalStateException("No TrackingCapabilityProviders found. "
+                    + "Ensure at least one is available via ServiceLoader.");
+        }
+        final String selectedName = providers.containsKey(DEFAULT_PROVIDER_NAME)
+                ? DEFAULT_PROVIDER_NAME
+                : Collections.min(providers.keySet());
+        return providers.get(selectedName);
     }
 }

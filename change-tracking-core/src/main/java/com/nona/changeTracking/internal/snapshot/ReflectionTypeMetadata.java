@@ -1,5 +1,14 @@
 package com.nona.changeTracking.internal.snapshot;
 
+import com.nona.changeTracking.internal.util.ReflectionUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+
 /**
  * 一个类的反射元数据（ADR-002）：只读提供该类的有序非静态字段及其字段访问准备状态。
  * <p>
@@ -15,9 +24,26 @@ package com.nona.changeTracking.internal.snapshot;
 final class ReflectionTypeMetadata {
 
     /**
-     * 私有构造器：元数据只经 {@link #forType(Class)} 或 {@link ReflectionMetadataCache} 构造。
+     * 有序非静态字段：子类到父类，各类内保持 {@code getDeclaredFields()} 的返回顺序。
      */
-    private ReflectionTypeMetadata() {
+    private final Field[] fields;
+
+    /**
+     * 按位置的字段访问准备结果：首次 {@link #access(int)} 成功时写入，未准备的位置为 null。
+     * <p>
+     * {@link AtomicReferenceArray} 提供易失读写语义，使并发读取不会看到未安全发布的访问对象；
+     * 准备本身在 {@link #prepare(int)} 的监视器内串行，因此同一位置的两个并发首次访问也会得到同一实例。
+     */
+    private final AtomicReferenceArray<ReflectionFieldAccess> accesses;
+
+    /**
+     * 私有构造器：元数据只经 {@link #forType(Class)} 或 {@link ReflectionMetadataCache} 构造。
+     *
+     * @param fields 已收集的有序非静态字段
+     */
+    private ReflectionTypeMetadata(final Field[] fields) {
+        this.fields = fields;
+        this.accesses = new AtomicReferenceArray<>(fields.length);
     }
 
     /**
@@ -28,7 +54,15 @@ final class ReflectionTypeMetadata {
      * @throws NullPointerException 如果 type 为 null
      */
     static ReflectionTypeMetadata forType(final Class<?> type) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(type, "type");
+        final List<Field> collected = new ArrayList<>();
+        for (final Field field : ReflectionUtils.getAllFields(type)) {
+            if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            collected.add(field);
+        }
+        return new ReflectionTypeMetadata(collected.toArray(new Field[0]));
     }
 
     /**
@@ -37,7 +71,7 @@ final class ReflectionTypeMetadata {
      * @return 非静态字段数量，无字段的类返回 0
      */
     int size() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return this.fields.length;
     }
 
     /**
@@ -50,7 +84,35 @@ final class ReflectionTypeMetadata {
      * @throws java.lang.reflect.InaccessibleObjectException 如果该字段无法准备访问（准备失败不被记为成功）
      */
     ReflectionFieldAccess access(final int index) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        if (index < 0 || index >= this.fields.length) {
+            throw new IndexOutOfBoundsException(
+                    "Field index out of range: " + index + ", field count: " + this.fields.length);
+        }
+        final ReflectionFieldAccess prepared = this.accesses.get(index);
+        if (prepared != null) {
+            return prepared;
+        }
+        return prepare(index);
+    }
+
+    /**
+     * 首次准备一个位置的字段访问并发布结果；准备失败时不写入任何访问对象，因此后续调用仍会重新准备
+     * 并把失败暴露在实际读取处，失败不会被记为成功。
+     *
+     * @param index 已通过范围检查的字段位置
+     * @return 该位置的访问准备结果
+     * @throws java.lang.reflect.InaccessibleObjectException 如果该字段无法准备访问
+     */
+    private synchronized ReflectionFieldAccess prepare(final int index) {
+        final ReflectionFieldAccess existing = this.accesses.get(index);
+        if (existing != null) {
+            return existing;
+        }
+        final Field field = this.fields[index];
+        field.setAccessible(true);
+        final ReflectionFieldAccess access = new ReflectionFieldAccess(field);
+        this.accesses.set(index, access);
+        return access;
     }
 
     /**
@@ -61,10 +123,16 @@ final class ReflectionTypeMetadata {
      */
     static final class ReflectionFieldAccess {
 
+        /** 已准备访问权限的字段，读取时按当前对象取值。 */
+        private final Field field;
+
         /**
          * 私有构造器：访问对象只由所属元数据在准备成功时构造。
+         *
+         * @param field 已成功准备访问权限的字段
          */
-        private ReflectionFieldAccess() {
+        private ReflectionFieldAccess(final Field field) {
+            this.field = field;
         }
 
         /**
@@ -73,7 +141,7 @@ final class ReflectionTypeMetadata {
          * @return 字段名，不含类名限定
          */
         String fieldName() {
-            throw new UnsupportedOperationException("TODO: red stage");
+            return this.field.getName();
         }
 
         /**
@@ -86,7 +154,8 @@ final class ReflectionTypeMetadata {
          *                                {@link IllegalStateException}）
          */
         Object read(final Object target) throws IllegalAccessException {
-            throw new UnsupportedOperationException("TODO: red stage");
+            Objects.requireNonNull(target, "target");
+            return this.field.get(target);
         }
     }
 }

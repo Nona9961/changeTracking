@@ -76,7 +76,12 @@ public final class SampleFamily {
      * @throws NullPointerException if chain or leafStreet is null
      */
     static SampleAddress chainWithLeafStreet(final SampleAddress chain, final String leafStreet) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(chain, "chain");
+        Objects.requireNonNull(leafStreet, "leafStreet");
+        if (chain instanceof SampleAddressLink link) {
+            return new SampleAddressLink(link.city(), link.street(), chainWithLeafStreet(link.next(), leafStreet));
+        }
+        return new SampleAddressLeaf(chain.city(), leafStreet);
     }
 
     /**

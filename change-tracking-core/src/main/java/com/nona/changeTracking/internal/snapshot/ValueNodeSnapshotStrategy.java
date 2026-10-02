@@ -217,7 +217,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      * @return 值类型数组返回 true。
      */
     private boolean isValueArray(final Class<?> type) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return this.rulesCache.isValueArray(type);
     }
 
     /**
@@ -254,7 +254,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      * @return 如果是值类型返回 true。
      */
     private boolean isValueType(final Class<?> type) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return this.rulesCache.isValueType(type);
     }
 
     /**
@@ -274,7 +274,31 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      * @return 对象的 ObjectNode 表示。
      */
     private ObjectNode processComplexObject(final Object obj, final Map<Object, ValueNode> visited) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        final Object identifier = extractIdentifier(obj);
+
+        // LinkedHashMap：保字段声明序（元数据为子类→父类序，putIfAbsent 保留先到者）——
+        // 比较层 diffObjectChildren 以 ObjectNode 字段迭代序为输出基准（P5），
+        // HashMap 会丢失声明序，导致输出顺序与字段声明顺序不一致。
+        final Map<String, ValueNode> fieldsMap = new LinkedHashMap<>();
+        final ObjectNode objectNode = new ObjectNode(fieldsMap, identifier);
+        visited.put(obj, objectNode);
+
+        // 直接向 fieldsMap 填充（先登记后填充：空 map 已入 visited，循环引用返回本节点安全）；
+        // 字段结构（子类→父类的非静态字段序列）与字段访问准备状态由共享元数据缓存按类复用，
+        // 字段值仍通过已准备的访问按当前对象读取（P6）。
+        final ReflectionTypeMetadata metadata = ReflectionMetadataCache.SHARED.get(obj.getClass());
+        for (int index = 0; index < metadata.size(); index++) {
+            final ReflectionTypeMetadata.ReflectionFieldAccess access = metadata.access(index);
+            try {
+                final ValueNode value = toValueRecursive(access.read(obj), visited);
+                // 字段隐藏（子类同名字段覆盖父类字段）：保留更具体类型（子类）先遍历到的值。
+                fieldsMap.putIfAbsent(access.fieldName(), value);
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException("Failed to access field: " + access.fieldName(), e);
+            }
+        }
+
+        return objectNode;
     }
 
     /**
@@ -292,6 +316,12 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      * @return 对象的业务标识符，不会返回 null。
      */
     private Object extractIdentifier(final Object obj) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        final Object id = this.rulesCache.identifierRule(obj.getClass()).extractor().apply(obj);
+        // 已注册提取器返回 null 时仍回退 identityHashCode（与既有一致）；
+        // 未找到提取器的类型由规则缓存返回显式的 IDENTITY_FALLBACK 规则。
+        if (id != null) {
+            return id;
+        }
+        return System.identityHashCode(obj);
     }
 }

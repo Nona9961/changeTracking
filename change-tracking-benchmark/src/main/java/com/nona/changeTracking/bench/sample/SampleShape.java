@@ -95,6 +95,6 @@ public record SampleShape(int fieldCount, int nestingDepth, int collectionSize) 
      * @return the frozen deep chain shape
      */
     public static SampleShape deepChain() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return SampleShape.of(DEFAULT_FIELD_COUNT, DEEP_NESTING_DEPTH, DEFAULT_COLLECTION_SIZE);
     }
 }

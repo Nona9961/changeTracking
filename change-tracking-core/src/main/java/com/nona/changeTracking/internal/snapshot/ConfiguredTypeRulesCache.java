@@ -1,10 +1,12 @@
 package com.nona.changeTracking.internal.snapshot;
 
 import com.nona.changeTracking.domain.capability.TrackingConfiguration;
+import com.nona.changeTracking.internal.util.ReflectionUtils;
 
 import java.io.File;
 import java.nio.file.Path;
 import java.util.Currency;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -85,7 +87,8 @@ final class ConfiguredTypeRulesCache {
      * @throws NullPointerException 如果 type 为 null
      */
     boolean isValueType(final Class<?> type) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(type, "type");
+        return this.valueTypes.get(type);
     }
 
     /**
@@ -100,7 +103,8 @@ final class ConfiguredTypeRulesCache {
      * @throws IllegalArgumentException 如果 type 不是数组类型
      */
     boolean isValueArray(final Class<?> type) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(type, "type");
+        return this.valueArrays.get(type);
     }
 
     /**
@@ -114,7 +118,8 @@ final class ConfiguredTypeRulesCache {
      * @throws NullPointerException 如果 type 为 null
      */
     IdentifierRule identifierRule(final Class<?> type) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        Objects.requireNonNull(type, "type");
+        return this.identifierRules.get(type);
     }
 
     /**
@@ -166,7 +171,26 @@ final class ConfiguredTypeRulesCache {
          */
         @Override
         protected Boolean computeValue(final Class<?> type) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            if (ReflectionUtils.isPrimitiveOrWrapper(type)) {
+                return Boolean.TRUE;
+            }
+            if (type.equals(String.class)) {
+                return Boolean.TRUE;
+            }
+            if (type.isEnum()) {
+                return Boolean.TRUE;
+            }
+            final String packageName = type.getPackageName();
+            if (DEFAULT_VALUE_PACKAGES.contains(packageName)) {
+                return Boolean.TRUE;
+            }
+            if (DEFAULT_VALUE_CLASSES.contains(type)) {
+                return Boolean.TRUE;
+            }
+            if (this.configuration.getCustomValuePackages().contains(packageName)) {
+                return Boolean.TRUE;
+            }
+            return this.configuration.getCustomValueTypes().contains(type);
         }
     }
 
@@ -195,7 +219,14 @@ final class ConfiguredTypeRulesCache {
          */
         @Override
         protected Boolean computeValue(final Class<?> type) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            if (!type.isArray()) {
+                throw new IllegalArgumentException("Not an array type: " + type.getName());
+            }
+            Class<?> component = type.getComponentType();
+            while (component.isArray()) {
+                component = component.getComponentType();
+            }
+            return component.isPrimitive() || this.valueTypes.get(component);
         }
     }
 
@@ -225,7 +256,44 @@ final class ConfiguredTypeRulesCache {
          */
         @Override
         protected IdentifierRule computeValue(final Class<?> type) {
-            throw new UnsupportedOperationException("TODO: red stage");
+            Class<?> current = type;
+            while (current != null && current != Object.class) {
+                final Function<Object, Object> exact = this.extractors.get(current);
+                if (exact != null) {
+                    return new IdentifierRule(exact);
+                }
+                final IdentifierRule fromInterfaces = findInInterfaceChain(current, new HashSet<>());
+                if (fromInterfaces != null) {
+                    return fromInterfaces;
+                }
+                current = current.getSuperclass();
+            }
+            return IdentifierRule.IDENTITY_FALLBACK;
+        }
+
+        /**
+         * 递归查找接口链（接口 + 父接口）中注册的提取器；{@link Class#getInterfaces()} 只返回直接接口，
+         * 菱形接口链采用访问集防环。
+         *
+         * @param type    当前层要展开接口链的类型
+         * @param visited 已访问接口集合（防环）
+         * @return 命中的规则，未命中返回 null
+         */
+        private IdentifierRule findInInterfaceChain(final Class<?> type, final Set<Class<?>> visited) {
+            for (final Class<?> iface : type.getInterfaces()) {
+                if (!visited.add(iface)) {
+                    continue;
+                }
+                final Function<Object, Object> exact = this.extractors.get(iface);
+                if (exact != null) {
+                    return new IdentifierRule(exact);
+                }
+                final IdentifierRule fromParents = findInInterfaceChain(iface, visited);
+                if (fromParents != null) {
+                    return fromParents;
+                }
+            }
+            return null;
         }
     }
 }

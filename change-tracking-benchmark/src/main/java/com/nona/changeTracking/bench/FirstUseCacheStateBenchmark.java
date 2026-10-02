@@ -1,9 +1,17 @@
 package com.nona.changeTracking.bench;
 
+import com.nona.changeTracking.bench.env.EnvironmentRecordCollector;
+import com.nona.changeTracking.bench.env.EnvironmentRecordWriter;
+import com.nona.changeTracking.bench.result.ColdSampleTable;
+import com.nona.changeTracking.bench.sample.SampleFamily;
+import com.nona.changeTracking.bench.sample.SampleShape;
 import com.nona.changeTracking.domain.capability.TrackingCapability;
+import com.nona.changeTracking.domain.model.changeset.ChangeSet;
 import com.nona.changeTracking.domain.model.snapshot.ValueNodeSnapshot;
 import com.nona.changeTracking.domain.model.tracking.BaselineSnapshot;
+import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
 import com.nona.changeTracking.spi.SnapshotStrategy;
+import com.sun.management.ThreadMXBean;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -20,7 +28,9 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -78,6 +88,13 @@ public class FirstUseCacheStateBenchmark {
     /** Logger of the trial assembly; the assembly runs outside the measured region. */
     private static final Logger log = LoggerFactory.getLogger(FirstUseCacheStateBenchmark.class);
 
+    /**
+     * Thread allocation meter of the metering facility: the thread allocated bytes around the target
+     * operation are read through it, and the same reads measure the facility cost once per trial.
+     */
+    private static final ThreadMXBean THREAD_MX_BEAN =
+            (ThreadMXBean) ManagementFactory.getThreadMXBean();
+
     /** Sample of this fork, created by the frozen sample family at trial level. */
     private Object sample;
 
@@ -104,7 +121,14 @@ public class FirstUseCacheStateBenchmark {
      */
     @Setup(Level.Trial)
     public void setUpTrial() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        this.sample = SampleFamily.create(SampleShape.defaults());
+        this.baseline = ColdBaselineFixture.baselineOf(this.sample);
+        this.capability = defaultCapability();
+        this.strategy = this.capability.getSnapshotStrategy();
+        this.meteringOverheadNanos = measureMeteringOverhead();
+        final Path record = EnvironmentRecordWriter.write(EnvironmentRecordCollector.capture(), RESULT_DIRECTORY);
+        log.info("Cold first use fixture assembled without touching the measured strategy or caches; "
+                + "environment record archived to {}", record);
     }
 
     /**
@@ -117,7 +141,13 @@ public class FirstUseCacheStateBenchmark {
      */
     @Benchmark
     public void firstTargetStrategySnapshot(final Blackhole blackhole) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        final long allocatedBefore = allocatedBytesOfCurrentThread();
+        final long start = System.nanoTime();
+        final ValueNodeSnapshot snapshot = this.strategy.createSnapshot(this.sample);
+        final long elapsedNanos = System.nanoTime() - start;
+        final long allocatedBytes = allocatedBytesOfCurrentThread() - allocatedBefore;
+        blackhole.consume(snapshot);
+        appendRawSample("firstTargetStrategySnapshot", elapsedNanos, allocatedBytes);
     }
 
     /**
@@ -132,7 +162,67 @@ public class FirstUseCacheStateBenchmark {
      */
     @Benchmark
     public void firstFullCalculationAfterBaselineRestore(final Blackhole blackhole) {
-        throw new UnsupportedOperationException("TODO: red stage");
+        final long allocatedBefore = allocatedBytesOfCurrentThread();
+        final long start = System.nanoTime();
+        final ChangeTracker tracker = ChangeTracker.fromBaseline(this.capability, this.baseline);
+        final ChangeSet changeSet = tracker.calculateChanges();
+        final long elapsedNanos = System.nanoTime() - start;
+        final long allocatedBytes = allocatedBytesOfCurrentThread() - allocatedBefore;
+        blackhole.consume(changeSet);
+        appendRawSample("firstFullCalculationAfterBaselineRestore", elapsedNanos, allocatedBytes);
+    }
+
+    /**
+     * Appends one raw sample row of this fork for the given measured method; the row is appended after
+     * the measured window closed.
+     *
+     * @param measuredMethod    simple name of the measured method
+     * @param elapsedNanos      time of the target operation in nanoseconds
+     * @param allocatedBytes    thread allocated bytes around the target operation
+     */
+    private void appendRawSample(final String measuredMethod, final long elapsedNanos, final long allocatedBytes) {
+        ColdSampleTable.append(RESULT_DIRECTORY, new ColdSampleTable.ColdSample(
+                FirstUseCacheStateBenchmark.class.getName() + "." + measuredMethod,
+                Map.of(),
+                PROTOCOL,
+                (double) elapsedNanos,
+                allocatedBytes,
+                this.meteringOverheadNanos));
+    }
+
+    /**
+     * Discovers the default capability through the public extension point: the documented provider
+     * selection of the facade, implemented once by {@link CacheStateBenchmark#capabilityProvider()}.
+     * The capability is created, but no snapshot is taken, so the measured caches stay cold.
+     *
+     * @return the default capability of this fork, its caches still cold
+     */
+    @SuppressWarnings("unchecked")
+    private static TrackingCapability<ValueNodeSnapshot> defaultCapability() {
+        return (TrackingCapability<ValueNodeSnapshot>) CacheStateBenchmark.capabilityProvider().create();
+    }
+
+    /**
+     * Measures the cost of one empty metering sequence: the two {@code nanoTime} reads and the two
+     * thread allocation reads, without any target operation between them. The cost is stored on every
+     * row, so the facility cost is reported next to the target allocation instead of inside it.
+     *
+     * @return the cost of one empty metering sequence in nanoseconds
+     */
+    private static double measureMeteringOverhead() {
+        final long start = System.nanoTime();
+        allocatedBytesOfCurrentThread();
+        allocatedBytesOfCurrentThread();
+        return (double) (System.nanoTime() - start);
+    }
+
+    /**
+     * Reads the allocated bytes of the current thread.
+     *
+     * @return the allocated bytes of the current thread
+     */
+    private static long allocatedBytesOfCurrentThread() {
+        return THREAD_MX_BEAN.getThreadAllocatedBytes(Thread.currentThread().getId());
     }
 
     /**
@@ -141,7 +231,7 @@ public class FirstUseCacheStateBenchmark {
      * @return the sample built by the frozen sample family
      */
     public Object sample() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return this.sample;
     }
 
     /**
@@ -150,7 +240,7 @@ public class FirstUseCacheStateBenchmark {
      * @return the baseline built by {@link ColdBaselineFixture}
      */
     public BaselineSnapshot baseline() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return this.baseline;
     }
 
     /**
@@ -159,7 +249,7 @@ public class FirstUseCacheStateBenchmark {
      * @return the capability whose caches are cold before the first measured operation
      */
     public TrackingCapability<ValueNodeSnapshot> capability() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return this.capability;
     }
 
     /**
@@ -168,6 +258,6 @@ public class FirstUseCacheStateBenchmark {
      * @return cost of one empty metering sequence in nanoseconds
      */
     public double meteringOverheadNanos() {
-        throw new UnsupportedOperationException("TODO: red stage");
+        return this.meteringOverheadNanos;
     }
 }
