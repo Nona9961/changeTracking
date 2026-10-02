@@ -62,6 +62,24 @@ public final class SampleFamily {
     }
 
     /**
+     * Returns a copy of the given address chain whose deepest element carries the given street.
+     * <p>
+     * The chain is built by the sample family, so the deep leaf change of {@link SampleMutator}
+     * does not construct sample parts of its own: the caller supplies the new street value, the
+     * construction of the rebuilt chain stays here. Chain elements are immutable, so the deepest
+     * element is replaced while every other element keeps its value; a snapshot compares by value,
+     * therefore exactly one leaf differs from the original chain.
+     *
+     * @param chain     the address chain head to rebuild, never null
+     * @param leafStreet street value of the rebuilt deepest element, never null
+     * @return a chain of the same depth whose deepest element carries the given street
+     * @throws NullPointerException if chain or leafStreet is null
+     */
+    static SampleAddress chainWithLeafStreet(final SampleAddress chain, final String leafStreet) {
+        throw new UnsupportedOperationException("TODO: red stage");
+    }
+
+    /**
      * Fills every wide sample field, the address chain and the item collection.
      *
      * @param sample the wide sample to fill

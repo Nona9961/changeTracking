@@ -2,20 +2,13 @@ package com.nona.changeTracking.internal.snapshot;
 
 import com.nona.changeTracking.domain.capability.TrackingConfiguration;
 import com.nona.changeTracking.domain.model.snapshot.*;
-import com.nona.changeTracking.internal.util.ReflectionUtils;
 import com.nona.changeTracking.spi.SnapshotStrategy;
 
-import java.io.File;
 import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
-import java.util.regex.Pattern;
 
 /**
  * 基于反射的快照策略实现，将对象转换为 {@link ValueNode} 树。
@@ -45,51 +38,20 @@ import java.util.regex.Pattern;
  *   <li>自定义值类型包 - 被视为原始值的额外包名</li>
  *   <li>标识符提取器 - 用于集合项匹配的业务标识</li>
  * </ul>
+ * <p>
+ * <b>类型处理信息复用（ADR-002）</b>：字段结构、字段访问准备状态与配置相关的类型规则不再按实例
+ * 重复分析。配置无关的元数据经共享的 {@link ReflectionMetadataCache} 按类复用（隐藏字段保持读取
+ * 与处理）；值类型分类、值数组分类与标识规则的解析结果经本策略持有的
+ * {@link ConfiguredTypeRulesCache} 按类复用并按实例隔离。两套缓存都不保存字段值、标识值或业务实例，
+ * 字段值、标识值与提取器执行结果仍按当前对象读取或执行。
  */
 public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnapshot> {
 
     /**
-     * 默认的值类型包名，这些包下的类会被视为原始值。
-     * <p>
-     * 参考 Jackson 的设计，包含常用的 JDK 值类型包。
+     * 配置绑定的类型规则缓存：值类型分类、值数组分类与标识规则的解析结果按本策略实例隔离复用
+     * （ADR-002）。配置无关的字段结构与字段访问准备状态由共享的 {@link ReflectionMetadataCache} 复用。
      */
-    private static final Set<String> DEFAULT_VALUE_PACKAGES = Set.of(
-            "java.time",      // LocalDate, LocalDateTime, Instant, Duration, Period, ZonedDateTime, etc.
-            "java.math",      // BigInteger, BigDecimal
-            "java.net"        // URL, URI, InetAddress, InetSocketAddress
-    );
-
-    /**
-     * 默认的值类型类，这些类会被视为原始值。
-     * <p>
-     * 参考 Jackson 的 BasicSerializerFactory，包含常用的 JDK 值类型。
-     */
-    private static final Set<Class<?>> DEFAULT_VALUE_CLASSES = Set.of(
-            // java.util
-            UUID.class,
-            Locale.class,
-            Currency.class,
-            // java.util.regex
-            Pattern.class,
-            // java.io / java.nio
-            File.class,
-            Path.class
-    );
-
-    /**
-     * 用户配置的自定义值类型（<b>必须不可变</b>，违反者将污染旧快照导致变更静默丢失）。
-     */
-    private final Set<Class<?>> customValueTypes;
-
-    /**
-     * 用户配置的自定义值类型包。
-     */
-    private final Set<String> customValuePackages;
-
-    /**
-     * 用户配置的标识符提取器。
-     */
-    private final Map<Class<?>, Function<Object, Object>> identifierExtractors;
+    private final ConfiguredTypeRulesCache rulesCache;
 
     /**
      * 使用指定配置创建快照策略实例。
@@ -99,9 +61,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      */
     public ValueNodeSnapshotStrategy(final TrackingConfiguration configuration) {
         Objects.requireNonNull(configuration, "Configuration cannot be null.");
-        this.customValueTypes = configuration.getCustomValueTypes();
-        this.customValuePackages = configuration.getCustomValuePackages();
-        this.identifierExtractors = configuration.getIdentifierExtractors();
+        this.rulesCache = new ConfiguredTypeRulesCache(configuration);
     }
 
     /**
@@ -250,16 +210,14 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      * 一维：组件类型是基本类型或值类型（如 {@code byte[]} / {@code String[]}）→ 值数组；
      * 多维：递归到最底层组件类型（如 {@code int[][]} 的最底层是 {@code int}）→ 值数组；
      * 复杂对象数组（如 {@code Order[]} / {@code Order[][]}）→ 非值数组（走 CollectionNode 递归）。
+     * <p>
+     * 判定按类按需解析并复用，且与当前配置的值类型分类使用同一份配置结论。
      *
      * @param type 数组类型。
      * @return 值类型数组返回 true。
      */
     private boolean isValueArray(final Class<?> type) {
-        Class<?> component = type.getComponentType();
-        while (component.isArray()) {
-            component = component.getComponentType();
-        }
-        return component.isPrimitive() || isValueType(component);
+        throw new UnsupportedOperationException("TODO: red stage");
     }
 
     /**
@@ -279,8 +237,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
     /**
      * 判断给定类型是否为值类型。
      * <p>
-     * 值类型会被视为原始值，不会递归展开其字段。
-     * 判断顺序：
+     * 值类型会被视为原始值，不会递归展开其字段。判断顺序保持既有语义：
      * <ol>
      *   <li>原始类型或包装类</li>
      *   <li>String</li>
@@ -290,33 +247,14 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      *   <li>用户自定义值类型包</li>
      *   <li>用户自定义值类型类</li>
      * </ol>
+     * 判定结果由 {@link ConfiguredTypeRulesCache} 按类按需解析并复用：同一类型的后续实例不重复分类，
+     * 不同配置的结论互不污染。
      *
      * @param type 要判断的类型。
      * @return 如果是值类型返回 true。
      */
     private boolean isValueType(final Class<?> type) {
-        if (ReflectionUtils.isPrimitiveOrWrapper(type)) {
-            return true;
-        }
-        if (type.equals(String.class)) {
-            return true;
-        }
-        if (type.isEnum()) {
-            return true;
-        }
-
-        final String packageName = type.getPackageName();
-
-        if (DEFAULT_VALUE_PACKAGES.contains(packageName)) {
-            return true;
-        }
-        if (DEFAULT_VALUE_CLASSES.contains(type)) {
-            return true;
-        }
-        if (this.customValuePackages.contains(packageName)) {
-            return true;
-        }
-        return this.customValueTypes.contains(type);
+        throw new UnsupportedOperationException("TODO: red stage");
     }
 
     /**
@@ -336,112 +274,24 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      * @return 对象的 ObjectNode 表示。
      */
     private ObjectNode processComplexObject(final Object obj, final Map<Object, ValueNode> visited) {
-        final Object identifier = extractIdentifier(obj);
-
-        // LinkedHashMap：保字段声明序（getAllFields 为子类→父类序，putIfAbsent 保留先到者）——
-        // 比较层 diffObjectChildren 以 ObjectNode 字段迭代序为输出基准（P5），
-        // HashMap 会丢失声明序，导致输出顺序与字段声明顺序不一致。
-        final Map<String, ValueNode> fieldsMap = new LinkedHashMap<>();
-        final ObjectNode objectNode = new ObjectNode(fieldsMap, identifier);
-        visited.put(obj, objectNode);
-
-        // 直接向 fieldsMap 填充（先登记后填充：空 map 已入 visited，循环引用返回本节点安全）；
-        // 无临时 map + putAll 复制（P6）。
-        for (final Field field : ReflectionUtils.getAllFields(obj.getClass())) {
-            if (Modifier.isStatic(field.getModifiers())) {
-                continue;
-            }
-            field.setAccessible(true);
-            try {
-                final ValueNode value = toValueRecursive(field.get(obj), visited);
-                // 字段隐藏（子类同名字段覆盖父类字段）：保留更具体类型（子类）先遍历到的值。
-                fieldsMap.putIfAbsent(field.getName(), value);
-            } catch (IllegalAccessException e) {
-                throw new IllegalStateException("Failed to access field: " + field.getName(), e);
-            }
-        }
-
-        return objectNode;
+        throw new UnsupportedOperationException("TODO: red stage");
     }
 
     /**
      * 提取对象的业务标识符。
      * <p>
-     * 查找顺序：
-     * <ol>
-     *   <li>精确匹配：查找对象类型的标识提取器</li>
-     *   <li>继承链匹配：类链 × 每层接口链统一递归查找提取器</li>
-     *   <li>默认值：使用 {@link System#identityHashCode(Object)} 包装为 {@link Integer}</li>
-     * </ol>
+     * 解析顺序保持既有语义：注册提取器（类链 × 每层接口链查找）→ 提取器执行 → 返回 null 时回退
+     * {@link System#identityHashCode(Object)} 包装为 {@link Integer}；未注册提取器的类型直接使用
+     * identity 回退规则。
      * <p>
-     * 返回的标识符对象将直接用于集合项匹配（作为 Map key），
+     * 规则解析结果由 {@link ConfiguredTypeRulesCache} 按类复用（含未找到的结果）；提取器本身每次按
+     * 当前对象实际执行，执行结果不缓存。返回的标识符对象将直接用于集合项匹配（作为 Map key），
      * 因此必须正确实现 {@link Object#equals(Object)} 和 {@link Object#hashCode()}。
      *
      * @param obj 要提取标识的对象。
      * @return 对象的业务标识符，不会返回 null。
      */
     private Object extractIdentifier(final Object obj) {
-        final Function<Object, Object> extractor = findExtractor(obj.getClass());
-        if (extractor != null) {
-            final Object id = extractor.apply(obj);
-            // 如果提取器返回 null，回退到 identityHashCode
-            if (id != null) {
-                return id;
-            }
-            return System.identityHashCode(obj);
-        }
-        return System.identityHashCode(obj);
-    }
-
-    /**
-     * 在继承链中查找标识提取器（类链 × 每层接口链统一递归）。
-     * <p>
-     * 对 {@code type} 及每个父类（到 Object 为止）：先查该类精确 key，
-     * 再递归该类的接口链（接口 + 父接口）查 key。
-     * 与父类链对称——父类实现的接口、接口的父接口都能命中，
-     * 避免漏检导致回退 identityHashCode（跨会话标识不稳定）。
-     *
-     * @param type 要查找的类型。
-     * @return 找到的提取器，如果没有则返回 null。
-     */
-    private Function<Object, Object> findExtractor(final Class<?> type) {
-        Class<?> current = type;
-        while (current != null && current != Object.class) {
-            if (this.identifierExtractors.containsKey(current)) {
-                return this.identifierExtractors.get(current);
-            }
-            final Function<Object, Object> interfaceExtractor = findInterfaceExtractor(current, new HashSet<>());
-            if (interfaceExtractor != null) {
-                return interfaceExtractor;
-            }
-            current = current.getSuperclass();
-        }
-        return null;
-    }
-
-    /**
-     * 递归查找接口链（接口 + 父接口）中的提取器。
-     * <p>
-     * {@link Class#getInterfaces()} 只返回直接接口，父接口需递归展开；
-     * Java 接口支持多继承（菱形），用 visited 集合防环防重复。
-     *
-     * @param type    当前要展开接口链的类型。
-     * @param visited 已访问接口集合（防环）。
-     * @return 找到的提取器，如果没有则返回 null。
-     */
-    private Function<Object, Object> findInterfaceExtractor(final Class<?> type, final Set<Class<?>> visited) {
-        for (final Class<?> iface : type.getInterfaces()) {
-            if (!visited.add(iface)) {
-                continue;
-            }
-            if (this.identifierExtractors.containsKey(iface)) {
-                return this.identifierExtractors.get(iface);
-            }
-            final Function<Object, Object> parentExtractor = findInterfaceExtractor(iface, visited);
-            if (parentExtractor != null) {
-                return parentExtractor;
-            }
-        }
-        return null;
+        throw new UnsupportedOperationException("TODO: red stage");
     }
 }
