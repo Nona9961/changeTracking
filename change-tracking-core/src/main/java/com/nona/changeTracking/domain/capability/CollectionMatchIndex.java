@@ -51,8 +51,6 @@ final class CollectionMatchIndex {
      * @throws NullPointerException 如果任一集合节点为 null。
      */
     static CollectionMatchIndex of(final CollectionNode oldColl, final CollectionNode newColl) {
-        Objects.requireNonNull(oldColl, "oldColl");
-        Objects.requireNonNull(newColl, "newColl");
         final Map<Object, MatchGroup> groups = new LinkedHashMap<>();
         for (int index = 0; index < oldColl.size(); index++) {
             final ValueNode item = oldColl.item(index);
@@ -71,7 +69,6 @@ final class CollectionMatchIndex {
      * @param consumer 接收每个匹配项组的消费者，不能为 null。
      */
     void forEachGroup(final Consumer<MatchGroup> consumer) {
-        Objects.requireNonNull(consumer, "consumer");
         this.groups.values().forEach(consumer);
     }
 

@@ -6,7 +6,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -51,10 +50,8 @@ final class ReflectionTypeMetadata {
      *
      * @param type 目标类，不能为 null
      * @return 该类的只读元数据
-     * @throws NullPointerException 如果 type 为 null
      */
     static ReflectionTypeMetadata forType(final Class<?> type) {
-        Objects.requireNonNull(type, "type");
         final List<Field> collected = new ArrayList<>();
         for (final Field field : ReflectionUtils.getAllFields(type)) {
             if (Modifier.isStatic(field.getModifiers())) {
@@ -84,10 +81,6 @@ final class ReflectionTypeMetadata {
      * @throws java.lang.reflect.InaccessibleObjectException 如果该字段无法准备访问（准备失败不被记为成功）
      */
     ReflectionFieldAccess access(final int index) {
-        if (index < 0 || index >= this.fields.length) {
-            throw new IndexOutOfBoundsException(
-                    "Field index out of range: " + index + ", field count: " + this.fields.length);
-        }
         final ReflectionFieldAccess prepared = this.accesses.get(index);
         if (prepared != null) {
             return prepared;
@@ -154,7 +147,6 @@ final class ReflectionTypeMetadata {
          *                                {@link IllegalStateException}）
          */
         Object read(final Object target) throws IllegalAccessException {
-            Objects.requireNonNull(target, "target");
             return this.field.get(target);
         }
     }

@@ -67,10 +67,8 @@ final class ConfiguredTypeRulesCache {
      * 绑定不可变配置创建规则缓存。
      *
      * @param configuration 快照策略持有的不可变追踪配置，不能为 null
-     * @throws NullPointerException 如果 configuration 为 null
      */
     ConfiguredTypeRulesCache(final TrackingConfiguration configuration) {
-        Objects.requireNonNull(configuration, "configuration");
         this.valueTypes = new ValueTypeLookup(configuration);
         this.valueArrays = new ValueArrayLookup(this.valueTypes);
         this.identifierRules = new IdentifierRuleLookup(configuration.getIdentifierExtractors());
@@ -84,10 +82,8 @@ final class ConfiguredTypeRulesCache {
      *
      * @param type 目标类，不能为 null
      * @return 值类型返回 true
-     * @throws NullPointerException 如果 type 为 null
      */
     boolean isValueType(final Class<?> type) {
-        Objects.requireNonNull(type, "type");
         return this.valueTypes.get(type);
     }
 
@@ -99,11 +95,9 @@ final class ConfiguredTypeRulesCache {
      *
      * @param type 数组类型，不能为 null
      * @return 值数组返回 true
-     * @throws NullPointerException     如果 type 为 null
      * @throws IllegalArgumentException 如果 type 不是数组类型
      */
     boolean isValueArray(final Class<?> type) {
-        Objects.requireNonNull(type, "type");
         return this.valueArrays.get(type);
     }
 
@@ -115,10 +109,8 @@ final class ConfiguredTypeRulesCache {
      *
      * @param type 目标类，不能为 null
      * @return 该类的标识规则，注册的提取器或 {@link IdentifierRule#IDENTITY_FALLBACK}，永不为 null
-     * @throws NullPointerException 如果 type 为 null
      */
     IdentifierRule identifierRule(final Class<?> type) {
-        Objects.requireNonNull(type, "type");
         return this.identifierRules.get(type);
     }
 
