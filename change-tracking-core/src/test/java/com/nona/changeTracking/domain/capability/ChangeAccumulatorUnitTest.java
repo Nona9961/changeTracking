@@ -8,10 +8,13 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * {@link ChangeAccumulator} 单元测试：空态、按发现顺序收集与空列表契约（US01）。
+ * <p>
+ * 非空守卫口径（T03）：{@code add} 为包内私有且调用点已保证非空，不再写重复守卫，
+ * 因此不对 {@code add(null)} 断言 NPE；依据与留痕见
+ * {@code review/red-designer-t03-revision-2026-10-02.md}「跨 task 断言的处置」。
  */
 @DisplayName("ChangeAccumulator 按需变更收集单元测试")
 class ChangeAccumulatorUnitTest {
@@ -81,18 +84,6 @@ class ChangeAccumulatorUnitTest {
             accumulator.add(change);
 
             assertThat(accumulator.toList()).containsExactly(change, change);
-        }
-    }
-
-    @Nested
-    @DisplayName("非法输入")
-    class InvalidInput {
-
-        @Test
-        @DisplayName("收集 null 应抛 NullPointerException")
-        void add_withNull_shouldThrowNullPointerException() {
-            assertThatThrownBy(() -> accumulator.add(null))
-                    .isInstanceOf(NullPointerException.class);
         }
     }
 

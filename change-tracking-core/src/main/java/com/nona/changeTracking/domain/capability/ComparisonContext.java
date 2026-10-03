@@ -3,9 +3,7 @@ package com.nona.changeTracking.domain.capability;
 import com.nona.changeTracking.domain.model.snapshot.ValueNode;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * 单次比较的会话状态（ADR-003、US05）。
@@ -18,11 +16,22 @@ import java.util.Set;
  *       路径栈按最大深度扩容并复用槽位，压入不为每个被检查字段新建路径段对象或可选值包装；
  *       标识不因入栈而字符串化，仅在当前活动项需要输出时准备文本并供其后续输出复用，
  *       退出时清理原标识与文本引用（US05）。</li>
- *   <li><b>活动节点对</b>：当前递归路径上的节点对（按新旧节点引用身份组合），用于循环引用终止；
- *       T03 将在同一上下文内增加安全无变更结论与循环截断计数（ADR-003）。</li>
+ *   <li><b>节点对状态（ADR-003，单表三态）</b>：路径段栈之外只保留<b>一份</b>
+ *       {@link NodePairStates 节点对状态表}，按新旧节点引用身份组合记录。同一份表同时回答两个
+ *       问题——「这个节点对是否正在比较」（{@link NodePairStates#IN_PROGRESS}，用于循环终止）
+ *       与「是否已完整比较并确认没有变化」（{@link NodePairStates#COMPLETED_UNCHANGED}，用于复用
+ *       跳过重复工作）。进入时<b>一次查询</b>即按状态分发，不再为复用判定另付一次逐节点查询；
+ *       退出时把本次结论写回同一状态。有变化、发生循环截断或异常退出的节点对为
+ *       {@link NodePairStates#COMPLETED_CHANGED}，不可复用。</li>
  * </ul>
  * 本类不承担业务比较规则：匹配在 {@link CollectionMatchIndex}，分类与输出在
  * {@link ValueNodeComparisonStrategy}。
+ * <p>
+ * <b>非空守卫口径（T03）</b>：本类是包内私有实现，节点对相关方法（进入查询、状态更新、退出）
+ * <b>不写重复的非空守卫</b>——调用方（{@link ValueNodeComparisonStrategy#compare} 的递归遍历）
+ * 在分派前已用 {@code instanceof ObjectNode/CollectionNode} 判定两侧节点，传 null 不可达。
+ * 守卫只保留在边界入口（本类构造器与 {@link #pushField(String)} 的字段名边界），
+ * 不为被调用点已保证的前置条件再付一次检查。
  */
 final class ComparisonContext {
 
@@ -47,16 +56,23 @@ final class ComparisonContext {
     private int depth;
 
     /**
-     * 当前递归路径上的活动节点对，用于循环引用终止（按节点引用身份比较）。
+     * 节点对状态表：单表三态，同时承担循环终止与安全无变更复用判定（ADR-003）。
      */
-    private final Set<NodePair> activeNodePairs;
+    private final NodePairStates nodePairStates;
+
+    /**
+     * 本次比较累计的循环截断次数：遇到状态为 {@link NodePairStates#IN_PROGRESS}（正在比较）的
+     * 节点对而终止递归的次数。
+     */
+    private int cycleTruncationCount;
 
     /**
      * 创建一次比较的独立会话状态。
      */
     ComparisonContext() {
         this.pathStack = new PathSegment[INITIAL_PATH_CAPACITY];
-        this.activeNodePairs = new HashSet<>();
+        this.nodePairStates = new NodePairStates();
+        this.cycleTruncationCount = 0;
         this.depth = 0;
     }
 
@@ -118,30 +134,72 @@ final class ComparisonContext {
     }
 
     /**
-     * 登记当前递归路径上的活动节点对（循环引用终止）。
+     * 进入节点对：<b>一次查询</b>节点对状态，同时完成循环判断与复用判断。
+     * <p>
+     * 按查询到的状态分发：
+     * <ul>
+     *   <li>{@link NodePairStates#IN_PROGRESS}（正在比较）→ 循环截断：按原规则返回 false，并使累计
+     *       截断计数加一；</li>
+     *   <li>{@link NodePairStates#COMPLETED_UNCHANGED}（已完成且无变更）→ 复用跳过：返回 false，
+     *       不改动状态；</li>
+     *   <li>{@link NodePairStates#COMPLETED_CHANGED}（已完成但有变更）或未记录 → 置为
+     *       {@link NodePairStates#IN_PROGRESS}（记录进入时的截断计数），返回 true。</li>
+     * </ul>
+     * 调用方只在返回 true 时递归子节点并在结束时调用退出方法；返回 false 时直接返回，不生成变更、
+     * 不生成路径，也不再重复登记。
      *
-     * @param oldNode 旧侧节点，不能为 null。
-     * @param newNode 新侧节点，不能为 null。
-     * @return 首次登记返回 true；同一节点对已在当前路径上返回 false（循环）。
-     * @throws NullPointerException 如果任一节点为 null。
+     * @param oldNode 旧侧节点（调用方已保证非空，本方法不重复守卫）。
+     * @param newNode 新侧节点（调用方已保证非空，本方法不重复守卫）。
+     * @return 已置为「正在比较」返回 true；循环截断或复用命中返回 false。
      */
     boolean enterNodePair(final ValueNode oldNode, final ValueNode newNode) {
-        Objects.requireNonNull(oldNode, "oldNode");
-        Objects.requireNonNull(newNode, "newNode");
-        return this.activeNodePairs.add(new NodePair(oldNode, newNode));
+        final byte previous = this.nodePairStates.enter(oldNode, newNode, this.cycleTruncationCount);
+        if (previous == NodePairStates.IN_PROGRESS) {
+            this.cycleTruncationCount++;
+            return false;
+        }
+        return previous != NodePairStates.COMPLETED_UNCHANGED;
     }
 
     /**
-     * 退出活动节点对；无论正常或异常退出都须调用，保证状态不泄漏到其他路径。
+     * 退出节点对并保守地置为「已完成有变更」（不可复用）。
+     * <p>
+     * 等价于 {@code exitNodePair(oldNode, newNode, false)}：无法确认无变更的退出（含异常退出路径）
+     * 一律视为不可复用，下次遇到同一节点对时重新完整比较。无论正常或异常退出都须调用，保证状态
+     * 不泄漏到其他路径。
      *
-     * @param oldNode 旧侧节点，不能为 null。
-     * @param newNode 新侧节点，不能为 null。
-     * @throws NullPointerException 如果任一节点为 null。
+     * @param oldNode 旧侧节点（调用方已保证非空，本方法不重复守卫）。
+     * @param newNode 新侧节点（调用方已保证非空，本方法不重复守卫）。
      */
     void exitNodePair(final ValueNode oldNode, final ValueNode newNode) {
-        Objects.requireNonNull(oldNode, "oldNode");
-        Objects.requireNonNull(newNode, "newNode");
-        this.activeNodePairs.remove(new NodePair(oldNode, newNode));
+        this.exitNodePair(oldNode, newNode, false);
+    }
+
+    /**
+     * 退出节点对并按本次结论更新状态。
+     * <p>
+     * 本次无变更<b>且</b>期间未发生循环截断 → {@link NodePairStates#COMPLETED_UNCHANGED}（可复用）；
+     * 否则 → {@link NodePairStates#COMPLETED_CHANGED}（不可复用）。是否发生循环截断由本方法按
+     * 进入时记录的截断计数与当前计数比较判定，调用方只需给出本次是否无变更。
+     *
+     * @param oldNode   旧侧节点（调用方已保证非空，本方法不重复守卫）。
+     * @param newNode   新侧节点（调用方已保证非空，本方法不重复守卫）。
+     * @param unchanged 本次子比较是否无变更。
+     */
+    void exitNodePair(final ValueNode oldNode, final ValueNode newNode, final boolean unchanged) {
+        this.nodePairStates.exit(oldNode, newNode, unchanged, this.cycleTruncationCount);
+    }
+
+    /**
+     * 返回本次比较累计的循环截断次数。
+     * <p>
+     * 数值口径与既有语义保持一致：仅在遇到状态为「正在比较」的节点对而终止递归时加一；
+     * 复用命中（已完成且无变更）与「已完成有变更」的重新比较均不增加该计数。
+     *
+     * @return 累计的循环截断次数，未发生截断时为 0。
+     */
+    int cycleTruncationCount() {
+        return this.cycleTruncationCount;
     }
 
     /**
@@ -260,56 +318,204 @@ final class ComparisonContext {
     }
 
     /**
-     * 当前递归路径上的一个活动节点对：按新旧节点引用身份组合记录，不使用节点内容相等性。
+     * 节点对状态表（ADR-003 单表三态）：按 (old,new) 引用身份组合开放寻址存储，
+     * 用<b>一份</b>表同时回答「正在比较」与「已完成且无变更」两个问题。
+     * <p>
+     * 查询与登记都<b>不构造临时节点对对象、不另建第二份集合</b>：普通树、共享图与循环图共用同一
+     * 比较热路径，会话记录成本必须与节点数同阶且常数足够小（AC03.6）。表在本轮 {@code compare}
+     * 内驻留，随 {@link ComparisonContext} 回收。
+     * <p>
+     * 槽位三态，空槽表示未记录：
+     * <ul>
+     *   <li>{@link #IN_PROGRESS}：该节点对正在当前递归路径上比较（循环终止语义）；</li>
+     *   <li>{@link #COMPLETED_UNCHANGED}：已完整比较、无变更且期间未发生循环截断，可复用；</li>
+     *   <li>{@link #COMPLETED_CHANGED}：有变更、依赖循环截断或异常退出，不可复用，下次重新比较。</li>
+     * </ul>
+     * 只支持登记与状态更新，不删除条目；每个槽位另存该节点对进入比较时的截断计数，用于退出时判定
+     * 「本次空结果是否依赖循环截断」。
      */
-    private static final class NodePair {
+    private static final class NodePairStates {
 
         /**
-         * 旧侧节点。
+         * 查询结果：本次查询前该节点对未记录（空槽）。
          */
-        private final ValueNode oldNode;
+        static final byte NOT_RECORDED = 0;
 
         /**
-         * 新侧节点。
+         * 状态：该节点对正在当前递归路径上比较。
          */
-        private final ValueNode newNode;
+        static final byte IN_PROGRESS = 1;
 
         /**
-         * 创建活动节点对。
-         *
-         * @param oldNode 旧侧节点。
-         * @param newNode 新侧节点。
+         * 状态：该节点对已完整比较、无变更且未发生循环截断，可复用。
          */
-        NodePair(final ValueNode oldNode, final ValueNode newNode) {
-            this.oldNode = oldNode;
-            this.newNode = newNode;
+        static final byte COMPLETED_UNCHANGED = 2;
+
+        /**
+         * 状态：该节点对已比较但有变更、依赖截断或异常退出，不可复用。
+         */
+        static final byte COMPLETED_CHANGED = 3;
+
+        /**
+         * 初始槽位数（2 的幂）：节点对不超过 {@code INITIAL_CAPACITY / 2} 的小对象图不触发扩容，
+         * 不为小负载固定分配大数组。
+         */
+        private static final int INITIAL_CAPACITY = 16;
+
+        /**
+         * 扩容倍数（2 的幂）：按需增长的跳跃幅度。取 4 让常见中小对象图（节点对约 32 以内）
+         * 至多付一次扩容，同时不改变装载因子上限与摊销复杂度。
+         */
+        private static final int GROWTH_FACTOR = 4;
+
+        /**
+         * 旧侧节点引用数组；null 表示空槽（节点引用永不为 null）。
+         */
+        private ValueNode[] oldNodes;
+
+        /**
+         * 新侧节点引用数组，与 {@link #oldNodes} 逐槽对应。
+         */
+        private ValueNode[] newNodes;
+
+        /**
+         * 槽位状态数组，取值见本类状态常量。
+         */
+        private byte[] states;
+
+        /**
+         * 各槽位记录进入比较时的截断计数，用于退出时判定截断窗口。
+         */
+        private int[] truncationCountsAtEntry;
+
+        /**
+         * 已登记的节点对数。
+         */
+        private int size;
+
+        /**
+         * 下一次扩容前可容纳的节点对数。
+         */
+        private int threshold;
+
+        /**
+         * 创建一张空表。
+         */
+        NodePairStates() {
+            this.oldNodes = new ValueNode[INITIAL_CAPACITY];
+            this.newNodes = new ValueNode[INITIAL_CAPACITY];
+            this.states = new byte[INITIAL_CAPACITY];
+            this.truncationCountsAtEntry = new int[INITIAL_CAPACITY];
+            this.size = 0;
+            this.threshold = INITIAL_CAPACITY / 2;
         }
 
         /**
-         * 按节点引用身份比较。
+         * 一次查询并登记：返回查询前该节点对的状态，按状态决定是否置为「正在比较」。
+         * <p>
+         * 命中 {@link #IN_PROGRESS} 时不改动状态；命中 {@link #COMPLETED_UNCHANGED} 时不改动状态；
+         * 命中 {@link #COMPLETED_CHANGED} 或未记录（空槽）时置为 {@link #IN_PROGRESS} 并记录本次
+         * 进入时的截断计数。查询不构造临时节点对对象。
          *
-         * @param other 待比较对象。
-         * @return 身份相同返回 true。
+         * @param oldNode                      旧侧节点（调用方已保证非空）。
+         * @param newNode                      新侧节点（调用方已保证非空）。
+         * @param cycleTruncationCountAtEntry  本次进入时的累计截断计数。
+         * @return 查询前的状态：{@link #NOT_RECORDED} / {@link #IN_PROGRESS} /
+         *         {@link #COMPLETED_UNCHANGED} / {@link #COMPLETED_CHANGED}。
          */
-        @Override
-        public boolean equals(final Object other) {
-            if (this == other) {
-                return true;
+        byte enter(final ValueNode oldNode, final ValueNode newNode, final int cycleTruncationCountAtEntry) {
+            if (this.size >= this.threshold) {
+                resize();
             }
-            if (!(other instanceof NodePair that)) {
-                return false;
+            int index = hash(oldNode, newNode) & (this.oldNodes.length - 1);
+            while (this.oldNodes[index] != null) {
+                if (this.oldNodes[index] == oldNode && this.newNodes[index] == newNode) {
+                    final byte previous = this.states[index];
+                    if (previous == IN_PROGRESS || previous == COMPLETED_UNCHANGED) {
+                        return previous;
+                    }
+                    this.states[index] = IN_PROGRESS;
+                    this.truncationCountsAtEntry[index] = cycleTruncationCountAtEntry;
+                    return COMPLETED_CHANGED;
+                }
+                index = (index + 1) & (this.oldNodes.length - 1);
             }
-            return this.oldNode == that.oldNode && this.newNode == that.newNode;
+            this.oldNodes[index] = oldNode;
+            this.newNodes[index] = newNode;
+            this.states[index] = IN_PROGRESS;
+            this.truncationCountsAtEntry[index] = cycleTruncationCountAtEntry;
+            this.size++;
+            return NOT_RECORDED;
         }
 
         /**
-         * 与 {@link #equals(Object)} 对应：两侧节点身份哈希的组合。
+         * 退出本次比较并按结论更新同一状态。
+         * <p>
+         * 本次无变更且当前累计截断计数与进入时记录相同 → {@link #COMPLETED_UNCHANGED}；
+         * 否则 → {@link #COMPLETED_CHANGED}。更新不构造临时节点对对象。
          *
-         * @return 节点身份哈希。
+         * @param oldNode                     旧侧节点（调用方已保证非空）。
+         * @param newNode                     新侧节点（调用方已保证非空）。
+         * @param unchanged                   本次子比较是否无变更。
+         * @param cycleTruncationCountAtExit  本次退出时的累计截断计数。
          */
-        @Override
-        public int hashCode() {
-            return 31 * System.identityHashCode(this.oldNode) + System.identityHashCode(this.newNode);
+        void exit(final ValueNode oldNode, final ValueNode newNode, final boolean unchanged,
+                  final int cycleTruncationCountAtExit) {
+            int index = hash(oldNode, newNode) & (this.oldNodes.length - 1);
+            while (this.oldNodes[index] != null) {
+                if (this.oldNodes[index] == oldNode && this.newNodes[index] == newNode) {
+                    if (this.states[index] == IN_PROGRESS) {
+                        this.states[index] = unchanged
+                                && cycleTruncationCountAtExit == this.truncationCountsAtEntry[index]
+                                ? COMPLETED_UNCHANGED : COMPLETED_CHANGED;
+                    }
+                    return;
+                }
+                index = (index + 1) & (this.oldNodes.length - 1);
+            }
+        }
+
+        /**
+         * 计算节点对的身份组合散列：组合两侧的 {@link System#identityHashCode(Object)}，
+         * 使 (old,new) 的顺序参与散列（(a,b) 与 (b,a) 通常落到不同槽位）。
+         *
+         * @param oldNode 旧侧节点，调用方已保证非空。
+         * @param newNode 新侧节点，调用方已保证非空。
+         * @return 节点对的身份散列值。
+         */
+        private static int hash(final ValueNode oldNode, final ValueNode newNode) {
+            return 31 * System.identityHashCode(oldNode) + System.identityHashCode(newNode);
+        }
+
+        /**
+         * 容量按 {@link #GROWTH_FACTOR} 倍扩容并按身份散列重新放置全部条目。
+         * <p>
+         * 扩容保持装载因子不超过 1/2，保证探测总能遇到空槽而终止；重散列不构造临时节点对对象。
+         */
+        private void resize() {
+            final ValueNode[] previousOldNodes = this.oldNodes;
+            final ValueNode[] previousNewNodes = this.newNodes;
+            final byte[] previousStates = this.states;
+            final int[] previousTruncationCounts = this.truncationCountsAtEntry;
+            final int newCapacity = previousOldNodes.length * GROWTH_FACTOR;
+            this.oldNodes = new ValueNode[newCapacity];
+            this.newNodes = new ValueNode[newCapacity];
+            this.states = new byte[newCapacity];
+            this.truncationCountsAtEntry = new int[newCapacity];
+            this.threshold = newCapacity / 2;
+            for (int source = 0; source < previousOldNodes.length; source++) {
+                if (previousOldNodes[source] == null) {
+                    continue;
+                }
+                int index = hash(previousOldNodes[source], previousNewNodes[source]) & (newCapacity - 1);
+                while (this.oldNodes[index] != null) {
+                    index = (index + 1) & (newCapacity - 1);
+                }
+                this.oldNodes[index] = previousOldNodes[source];
+                this.newNodes[index] = previousNewNodes[source];
+                this.states[index] = previousStates[source];
+                this.truncationCountsAtEntry[index] = previousTruncationCounts[source];
+            }
         }
     }
 }

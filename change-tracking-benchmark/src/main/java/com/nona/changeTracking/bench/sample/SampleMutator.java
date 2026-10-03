@@ -86,6 +86,33 @@ public final class SampleMutator {
     }
 
     /**
+     * Changes the layer value of the root of a graph sample: the single change level of the shared,
+     * plain, cyclic and mixed graph benchmarks.
+     * <p>
+     * The graph samples of the family are mutable in place, so exactly one layer value of exactly one
+     * node differs from the tracking baseline afterwards; every other node pair stays unchanged, which
+     * is the precondition the subgraph reuse is measured on. The root of every graph sample is a
+     * {@link SampleGraphNode} carrying a layer value.
+     *
+     * @param sample a graph sample root created by {@link SampleFamily}
+     * @throws NullPointerException     if sample is null
+     * @throws IllegalArgumentException if the sample type is not a graph sample node
+     */
+    public static void changeGraphRootValue(final Object sample) {
+        Objects.requireNonNull(sample, "sample");
+        if (!(sample instanceof SampleGraphNode node)) {
+            throw new IllegalArgumentException("Unsupported graph sample type: " + sample.getClass().getName());
+        }
+        if (node instanceof SampleGraphLeaf leaf) {
+            leaf.layerValue = leaf.layerValue + CHANGED_SUFFIX;
+        } else if (node instanceof SampleGraphBranch branch) {
+            branch.layerValue = branch.layerValue + CHANGED_SUFFIX;
+        } else if (node instanceof SampleGraphCycleNode cycle) {
+            cycle.layerValue = cycle.layerValue + CHANGED_SUFFIX;
+        }
+    }
+
+    /**
      * Resolves the structural address field of a supported sample root.
      *
      * @param sample a sample root created by {@link SampleFamily#create(SampleShape)}

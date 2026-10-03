@@ -4,7 +4,6 @@ import com.nona.changeTracking.domain.model.changeset.ChangeNode;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * 按需变更收集器（US01）：一个容器比较生命周期内按发现顺序收集子变更。
@@ -29,12 +28,13 @@ final class ChangeAccumulator {
 
     /**
      * 收集一个实际变化（节点比较的零或一项结果直接传入）。
+     * <p>
+     * 非空守卫口径（T03）：{@link com.nona.changeTracking.domain.capability.ValueNodeComparisonStrategy}
+     * 的每个调用点传入的都是 {@code new …ChangeNode(...)}，本包内私有方法不再重复非空检查。
      *
-     * @param change 变更节点，不能为 null。
-     * @throws NullPointerException 如果 change 为 null。
+     * @param change 变更节点（调用方已保证非空）。
      */
     void add(final ChangeNode change) {
-        Objects.requireNonNull(change, "change");
         if (this.changes == null) {
             this.changes = new ArrayList<>();
         }

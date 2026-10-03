@@ -35,6 +35,11 @@ import java.util.Objects;
  * {@link ChangeAccumulator}，零或一项结果直接交给所属容器。既有匹配规则、输出顺序、
  * 变更类型、载荷与循环终止语义保持不变。
  * <p>
+ * <b>安全无变更复用（ADR-003、T03）</b>：容器节点对在递归前对单表三态节点对状态做<b>一次查询</b>，
+ * 返回 false 即直接返回——该 false 同时表达「循环截断」与「已完成且无变更的复用命中」；返回 true
+ * 才递归子节点，并在退出时把「无变更且期间未发生循环截断」写为可复用状态。有变化、依赖截断或
+ * 异常退出的节点对不可复用，仍沿各条路径生成必要输出；根节点保留原来的直接展开方式，不登记根节点对。
+ * <p>
  * 集合项匹配基于 {@link ObjectNode#identifier()} 业务标识符，
  * 允许检测集合中项的新增、删除和修改。
  */
@@ -71,7 +76,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      *
      * @param oldNode     旧根节点。
      * @param newNode     新根节点。
-     * @param context     单次比较上下文（路径段栈与活动节点对）。
+     * @param context     单次比较上下文（路径段栈与节点对状态表）。
      * @param accumulator 根层变更收集器。
      */
     private void diffRoot(final ValueNode oldNode, final ValueNode newNode,
@@ -99,6 +104,13 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      *       {@link com.nona.changeTracking.domain.model.changeset.ObjectFieldChangeNode}（原样携带 ValueNode）</li>
      *   <li>N↔N / 同实例 → 无变更</li>
      * </ul>
+     * <p>
+     * 容器同类型（O↔O / C↔C）分支按 ADR-003 对单表三态节点对状态做<b>一次查询</b>：
+     * {@link ComparisonContext#enterNodePair} 返回 false 即直接返回——该 false 同时涵盖循环截断
+     * （原规则）与「已完成且无变更」的复用命中（不生成路径、不生成变更）；返回 true 时递归子节点，
+     * 并在退出时把本次结论（无变更且期间未发生循环截断）写回同一状态。有变化时仍按当前路径输出
+     * {@link com.nona.changeTracking.domain.model.changeset.ContainerChangeNode}；节点对状态在正常与
+     * 异常退出时均按结论更新，不泄漏到其他路径。
      *
      * @param oldNode     旧节点。
      * @param newNode     新节点。
@@ -139,22 +151,25 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             return;
         }
 
-        // 容器同类型（O↔O / C↔C）：递归子节点
+        // 容器同类型（O↔O / C↔C）：一次查询同时回答循环终止与安全无变更复用
         final boolean bothObject = oldNode instanceof ObjectNode && newNode instanceof ObjectNode;
         final boolean bothCollection = oldNode instanceof CollectionNode && newNode instanceof CollectionNode;
         if (bothObject || bothCollection) {
             if (!context.enterNodePair(oldNode, newNode)) {
-                // 循环引用：同一对节点在当前递归路径上再次出现，终止递归以避免 StackOverflow。
+                // false 同时涵盖循环截断（终止递归）与「已完成且无变更」的复用命中（不生成路径、不生成变更）
                 return;
             }
+            boolean unchanged = false;
             try {
                 final ChangeAccumulator inner = new ChangeAccumulator();
                 diffChildren(oldNode, newNode, context, inner);
-                if (!inner.isEmpty()) {
+                unchanged = inner.isEmpty();
+                if (!unchanged) {
                     accumulator.add(new ContainerChangeNode(context.currentPath(), inner.toList()));
                 }
             } finally {
-                context.exitNodePair(oldNode, newNode);
+                // 异常退出保持 unchanged=false，按 ADR-003 置为不可复用
+                context.exitNodePair(oldNode, newNode, unchanged);
             }
             return;
         }
