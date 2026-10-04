@@ -1,10 +1,5 @@
-package com.nona.changeTracking.domain.changeset;
+package com.nona.changeTracking.domain.model.changeset;
 
-import com.nona.changeTracking.domain.model.changeset.Change;
-import com.nona.changeTracking.domain.model.changeset.ChangeSet;
-import com.nona.changeTracking.domain.model.changeset.ContainerChange;
-import com.nona.changeTracking.domain.model.changeset.ItemAddedChange;
-import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
 import com.nona.changeTracking.internal.capability.DefaultTrackingCapabilityProvider;
 import com.nona.changeTracking.spi.TrackingCapabilityProvider;

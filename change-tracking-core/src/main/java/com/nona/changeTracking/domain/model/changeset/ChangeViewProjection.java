@@ -23,13 +23,16 @@ import java.util.Objects;
  * state across calls, so a repeated acquisition rebuilds the views on demand. Two output positions
  * may hold the same {@link Change} instance when their path, metadata and children are equal; the
  * uniqueness of instances is not part of the contract.
+ * <p>
+ * The class stays package private: it is an implementation detail of {@link ChangeSet}, not part
+ * of the published model surface of this package.
  */
-public final class ChangeViewProjection {
+final class ChangeViewProjection {
 
     /**
      * Creates the stateless conversion core; the caller keeps a single shared instance.
      */
-    public ChangeViewProjection() {
+    ChangeViewProjection() {
     }
 
     /**

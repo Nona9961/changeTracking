@@ -1,21 +1,5 @@
-package com.nona.changeTracking.domain.changeset;
+package com.nona.changeTracking.domain.model.changeset;
 
-import com.nona.changeTracking.domain.model.changeset.ChangeViewProjection;
-
-import com.nona.changeTracking.domain.model.changeset.Change;
-import com.nona.changeTracking.domain.model.changeset.ChangeNode;
-import com.nona.changeTracking.domain.model.changeset.ChangeSet;
-import com.nona.changeTracking.domain.model.changeset.ContainerChange;
-import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
-import com.nona.changeTracking.domain.model.changeset.FieldChangeNode;
-import com.nona.changeTracking.domain.model.changeset.ItemAddedChange;
-import com.nona.changeTracking.domain.model.changeset.ItemAddedNode;
-import com.nona.changeTracking.domain.model.changeset.ItemRemovedChange;
-import com.nona.changeTracking.domain.model.changeset.ItemRemovedNode;
-import com.nona.changeTracking.domain.model.changeset.ObjectChange;
-import com.nona.changeTracking.domain.model.changeset.ObjectFieldChange;
-import com.nona.changeTracking.domain.model.changeset.ObjectFieldChangeNode;
-import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import com.nona.changeTracking.domain.model.snapshot.NullNode;
 import com.nona.changeTracking.domain.model.snapshot.ObjectNode;
 import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
