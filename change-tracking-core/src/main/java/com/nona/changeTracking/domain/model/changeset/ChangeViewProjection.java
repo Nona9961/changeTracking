@@ -6,43 +6,36 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * The single conversion core of the two change views (A9).
+ * 两个变更视图的唯一转换核心。
  * <p>
- * The complete view ({@link #toAllChanges(List)}) assembles the containers bottom up: entering a
- * node with a non empty path reserves the place of its entry in the flat output, the local
- * representation of the node is assembled once its children returned theirs, and the reserved place
- * is back filled, so the flat list keeps the pre order sequence while every logical node is
- * converted a constant number of times instead of being rebuilt from every flat entry above it. The
- * leaf view ({@link #toLeafChanges(List)}) walks the same tree carrying the actual parent path and
- * the nearest collection field name, and calls the single build core only for leaves, without
- * building the container views it does not return.
+ * 完整视图（{@link #toAllChanges(List)}）自底向上组装容器：进入路径非空的节点时，先在扁平输出中
+ * 预留其条目的位置，待子节点返回各自的表示后再组装本节点的局部表示，并回填该预留位置；因此扁平
+ * 列表保持前序，而每个逻辑节点只被转换常数次，而不是被其上方的每个扁平条目重复重建。叶子视图
+ * （{@link #toLeafChanges(List)}）遍历同一棵树并携带实际父路径与最近的集合字段名，只对叶子调用
+ * 唯一构建核心，不构建它不返回的容器视图。
  * <p>
- * Both entries share the metadata resolution and the five {@link Change} construction rules of
- * {@link #buildChange(ChangeNode, String, String, String, String, List)} and return read only lists.
- * This class is stateless: it holds no mutable session field, no conversion result cache and no
- * state across calls, so a repeated acquisition rebuilds the views on demand. Sub results are shared
- * by construction only: a child representation is handed back to its parent as returned, without any
- * equality based deduplication; whether two output positions hold the same {@link Change} instance is
- * not part of the contract.
+ * 两个入口共享元数据解析与
+ * {@link #buildChange(ChangeNode, String, String, String, String, List)} 的五条 {@link Change}
+ * 构造规则，并返回只读列表。本类无状态：不持有任何可变会话字段、转换结果缓存或跨调用状态，因此
+ * 重复获取按需重建视图。子结果仅按构造关系共享：子节点的表示按原样交回父节点，不做任何基于相等的
+ * 去重；两个输出位置是否持有同一个 {@link Change} 实例不属于契约。
  * <p>
- * The class stays package private: it is an implementation detail of {@link ChangeSet}, not part
- * of the published model surface of this package.
+ * 本类保持包内可见：它是 {@link ChangeSet} 的实现细节，不属于本包公开的模型面。
  */
 final class ChangeViewProjection {
 
     /**
-     * Creates the stateless conversion core; the caller keeps a single shared instance.
+     * 创建无状态的转换核心；调用方保持单个共享实例。
      */
     ChangeViewProjection() {
     }
 
     /**
-     * Projects the complete view: every container and every leaf of the trees, flattened in pre
-     * order, with the container children kept as a nested tree of relative paths.
+     * 投影完整视图：树的每个容器与每个叶子，按前序展平，容器子节点保持为相对路径的嵌套树。
      *
-     * @param changes the object changes to project, never null
-     * @return the unmodifiable flat view holding every node with a non empty path exactly once
-     * @throws NullPointerException if changes is null
+     * @param changes 待投影的对象变更，非空
+     * @return 不可变的扁平视图，持有路径非空的每个节点恰好一次
+     * @throws NullPointerException 当 changes 为 null 时
      */
     public List<Change> toAllChanges(final List<ObjectChange> changes) {
         Objects.requireNonNull(changes, "changes");
@@ -54,12 +47,11 @@ final class ChangeViewProjection {
     }
 
     /**
-     * Projects the leaf view: the leaves of the trees only, flattened in pre order, with the actual
-     * parent path and the nearest collection field name inherited from the containing nodes.
+     * 投影叶子视图：仅树的叶子，按前序展平，携带实际父路径与从包含节点继承的最近集合字段名。
      *
-     * @param changes the object changes to project, never null
-     * @return the unmodifiable flat view holding every leaf with its full path
-     * @throws NullPointerException if changes is null
+     * @param changes 待投影的对象变更，非空
+     * @return 不可变的扁平视图，持有每个叶子及其完整路径
+     * @throws NullPointerException 当 changes 为 null 时
      */
     public List<Change> toLeafChanges(final List<ObjectChange> changes) {
         Objects.requireNonNull(changes, "changes");
@@ -71,18 +63,15 @@ final class ChangeViewProjection {
     }
 
     /**
-     * Projects one node occurrence of the complete view and returns the representation its parent
-     * needs. A node with a non empty path reserves the place of its flat entry before its children
-     * are projected and back fills that place with the assembled entry afterwards; a node with an
-     * empty path reserves nothing, while its children are still projected, because the complete view
-     * skips empty paths in the flat list and keeps them in the container children.
+     * 投影完整视图中一个节点的出现，并返回其父节点所需的表示。路径非空的节点在其子节点被投影前
+     * 预留扁平条目的位置，随后用组装好的条目回填该位置；路径为空的节点不预留任何东西，但其子节点
+     * 仍会被投影，因为完整视图在扁平列表中跳过空路径，把它们保留在容器子节点中。
      *
-     * @param node                         the change node occurrence to project
-     * @param parentPath                   the full path of the containing node, empty for the root
-     * @param inheritedCollectionFieldName the nearest collection field name of the containing node,
-     *                                     null outside a collection
-     * @param flatOutput                   the flat output the entry of this node is back filled into
-     * @return the relative representation of this node occurrence for the containing node
+     * @param node                         待投影的变更节点出现
+     * @param parentPath                   包含节点的完整路径，根节点为空串
+     * @param inheritedCollectionFieldName 包含节点的最近集合字段名，不在集合内时为 null
+     * @param flatOutput                   本节点条目回填到的扁平输出
+     * @return 本节点出现相对于包含节点的表示
      */
     private Change project(final ChangeNode node, final String parentPath,
                            final String inheritedCollectionFieldName, final List<Change> flatOutput) {
@@ -114,16 +103,13 @@ final class ChangeViewProjection {
     }
 
     /**
-     * Collects the leaf view of one node occurrence: containers are traversed to collect their leaf
-     * descendants, leaves are projected with the actual parent path and the nearest collection field
-     * name. Empty path leaves are collected as well; the leaf view keeps them, the complete view
-     * skips them.
+     * 收集一个节点出现的叶子视图：容器被遍历以收集其叶子后代，叶子以实际父路径与最近的集合字段名
+     * 投影。空路径叶子也会被收集；叶子视图保留它们，完整视图跳过它们。
      *
-     * @param node                         the change node occurrence to collect from
-     * @param parentPath                   the full path of the containing node, empty for the root
-     * @param inheritedCollectionFieldName the nearest collection field name of the containing node,
-     *                                     null outside a collection
-     * @param leafOutput                   the leaf output of the current projection
+     * @param node                         待收集的变更节点出现
+     * @param parentPath                   包含节点的完整路径，根节点为空串
+     * @param inheritedCollectionFieldName 包含节点的最近集合字段名，不在集合内时为 null
+     * @param leafOutput                   当前投影的叶子输出
      */
     private void collectLeaves(final ChangeNode node, final String parentPath,
                                final String inheritedCollectionFieldName, final List<Change> leafOutput) {
@@ -143,20 +129,17 @@ final class ChangeViewProjection {
     }
 
     /**
-     * Builds one {@link Change} from a node occurrence: this is the single construction core both
-     * entries share, so the metadata of the five change types is resolved in one place.
+     * 从节点出现构建一个 {@link Change}：这是两个入口共享的唯一构造核心，五种变更类型的元数据
+     * 因此只在一处解析。
      *
-     * @param node                         the change node occurrence to convert
-     * @param path                         the path carried by the produced change, the relative path in
-     *                                     the container children, the full path in both flat views
-     * @param fullPath                     the full path of the occurrence
-     * @param parentPath                   the full path of the containing node, empty for the root
-     * @param inheritedCollectionFieldName the nearest collection field name of the containing node,
-     *                                     null outside a collection
-     * @param children                     the relative representations of the children of a container
-     *                                     node, null for a leaf node
-     * @return the change holding the metadata, the payload and the children of the occurrence
-     * @throws IllegalStateException if the node is not one of the five change node types
+     * @param node                         待转换的变更节点出现
+     * @param path                         产出的变更所携带的路径，容器子节点中为相对路径，两个扁平视图中为完整路径
+     * @param fullPath                     该出现的完整路径
+     * @param parentPath                   包含节点的完整路径，根节点为空串
+     * @param inheritedCollectionFieldName 包含节点的最近集合字段名，不在集合内时为 null
+     * @param children                     容器节点子节点的相对表示，叶子节点为 null
+     * @return 持有该出现的元数据、载荷与子节点的变更
+     * @throws IllegalStateException 当节点不属于五种变更节点类型时
      */
     private Change buildChange(final ChangeNode node, final String path, final String fullPath,
                                final String parentPath, final String inheritedCollectionFieldName,
@@ -191,11 +174,11 @@ final class ChangeViewProjection {
     }
 
     /**
-     * Resolves the path of a node relative to its containing node.
+     * 解析节点相对于其包含节点的路径。
      *
-     * @param fullPath   the full path of the node
-     * @param parentPath the full path of the containing node, empty for the root
-     * @return the relative path of the node
+     * @param fullPath   节点的完整路径
+     * @param parentPath 包含节点的完整路径，根节点为空串
+     * @return 节点的相对路径
      */
     private static String toRelativePath(final String fullPath, final String parentPath) {
         if (parentPath.isEmpty()) {
@@ -211,11 +194,10 @@ final class ChangeViewProjection {
     }
 
     /**
-     * Resolves the pure field name of a path: the field name without its index, null for a pure
-     * index path.
+     * 解析路径的纯字段名：不含索引的字段名，纯索引路径为 null。
      *
-     * @param path the path to resolve
-     * @return the pure field name, null when the path carries no field name
+     * @param path 待解析的路径
+     * @return 纯字段名，路径不携带字段名时为 null
      */
     private static String extractFieldName(final String path) {
         if (path == null || path.isEmpty() || path.startsWith("[")) {
@@ -241,15 +223,13 @@ final class ChangeViewProjection {
     }
 
     /**
-     * Resolves the nearest collection field name of a node: a relative path starting with an index
-     * resolves it from the path of the containing node, every other path inherits the context of its
-     * containing node.
+     * 解析节点的最近集合字段名：以下标开头的相对路径从包含节点的路径解析，其余路径继承其包含节点
+     * 的上下文。
      *
-     * @param relativePath                 the path of the node relative to its containing node
-     * @param parentPath                   the full path of the containing node, empty for the root
-     * @param inheritedCollectionFieldName the nearest collection field name of the containing node,
-     *                                     null outside a collection
-     * @return the nearest collection field name, null outside a collection
+     * @param relativePath                 节点相对于其包含节点的路径
+     * @param parentPath                   包含节点的完整路径，根节点为空串
+     * @param inheritedCollectionFieldName 包含节点的最近集合字段名，不在集合内时为 null
+     * @return 最近的集合字段名，不在集合内时为 null
      */
     private static String resolveCollectionFieldName(final String relativePath, final String parentPath,
                                                      final String inheritedCollectionFieldName) {
