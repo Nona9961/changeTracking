@@ -20,9 +20,10 @@ import java.util.Objects;
  * Both entries share the metadata resolution and the five {@link Change} construction rules of
  * {@link #buildChange(ChangeNode, String, String, String, String, List)} and return read only lists.
  * This class is stateless: it holds no mutable session field, no conversion result cache and no
- * state across calls, so a repeated acquisition rebuilds the views on demand. Two output positions
- * may hold the same {@link Change} instance when their path, metadata and children are equal; the
- * uniqueness of instances is not part of the contract.
+ * state across calls, so a repeated acquisition rebuilds the views on demand. Sub results are shared
+ * by construction only: a child representation is handed back to its parent as returned, without any
+ * equality based deduplication; whether two output positions hold the same {@link Change} instance is
+ * not part of the contract.
  * <p>
  * The class stays package private: it is an implementation detail of {@link ChangeSet}, not part
  * of the published model surface of this package.
