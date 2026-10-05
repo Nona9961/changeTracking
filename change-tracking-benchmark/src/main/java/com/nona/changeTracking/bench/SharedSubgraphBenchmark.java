@@ -25,11 +25,11 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Shared subgraph reuse benchmark of the comparison strategy (T03, US03).
+ * Shared subgraph reuse benchmark of the comparison strategy.
  * <p>
  * <b>Scan axis.</b> The graph topology is the scanned load and everything else is frozen: the plain
- * tree (no sharing, no cycle — the regression shape of AC03.6), the shared subgraph (two references
- * to the same child per level — the shape AC03.1/AC03.2 measures), the cyclic graph (termination
+ * tree (no sharing, no cycle — the regression shape), the shared subgraph (two references
+ * to the same child per level — the measured sharing shape), the cyclic graph (termination
  * shape) and the mixed graph (sharing and a cycle in one object graph). The change level is scanned
  * per topology: zero change versus a single root layer value change, so the reuse path and the
  * necessary single output are measured separately from the zero change path.

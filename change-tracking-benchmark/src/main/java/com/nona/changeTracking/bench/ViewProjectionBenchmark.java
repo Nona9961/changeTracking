@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Change view projection benchmark (T04, US04).
+ * Change view projection benchmark.
  * <p>
  * <b>Scan axis.</b> The change level is scanned with everything else frozen: no change against the
  * tracking baseline, and the single deepest leaf change of the frozen deep chain. Both levels are

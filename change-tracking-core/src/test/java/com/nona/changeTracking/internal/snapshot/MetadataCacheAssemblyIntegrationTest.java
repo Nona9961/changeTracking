@@ -185,7 +185,7 @@ class MetadataCacheAssemblyIntegrationTest {
     }
 
     @Nested
-    @DisplayName("配置隔离（AC02.3）")
+    @DisplayName("配置隔离")
     class ConfigurationIsolation {
 
         @Test

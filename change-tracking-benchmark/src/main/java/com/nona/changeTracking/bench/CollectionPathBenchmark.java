@@ -26,13 +26,13 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Collection path benchmark of the comparison strategy (T02, US01/US05).
+ * Collection path benchmark of the comparison strategy.
  * <p>
  * <b>Scan axis.</b> The collection change shape is scanned with everything else frozen: no change,
  * value replacement, addition and removal, and reorder. The state registers the business identifier
  * of the sample family on its capability, so matching uses the business identifier and the change
  * paths format that identifier text — this is the load whose matching and identifier formatting cost
- * the ordered match index and the on-demand path of US01 and US05 measure together.
+ * the ordered match index and the on-demand path measure together.
  * <p>
  * <b>Precondition and measured operation.</b> The iteration fixture holds the sample, the tracker of
  * the identifier configuration and the baseline registration, plus the scanned change level applied

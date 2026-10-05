@@ -15,7 +15,7 @@ import java.util.ServiceLoader;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 视图投影的装配面集成测试（T04）：用真实 SPI 装配的默认 provider、真实 capability、真实快照与比较策略
+ * 视图投影的装配面集成测试：用真实 SPI 装配的默认 provider、真实 capability、真实快照与比较策略
  * 以及真实 {@link ChangeTracker} 链路，验证单元测试（手工构造变更树）覆盖不到的投影接入面。
  * <p>
  * 覆盖：默认装配链路产出的变更集在两个视图上的输出契约（含两入口上下文差异）、经公开扩展点注册业务标识

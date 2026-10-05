@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *   <li>标识符提取器 - 用于集合项匹配的业务标识</li>
  * </ul>
  * <p>
- * <b>类型处理信息复用（ADR-002）</b>：字段结构、字段访问准备状态与配置相关的类型规则不再按实例
+ * <b>类型处理信息复用</b>：字段结构、字段访问准备状态与配置相关的类型规则不再按实例
  * 重复分析。配置无关的元数据经共享的 {@link ReflectionMetadataCache} 按类复用（隐藏字段保持读取
  * 与处理）；值类型分类、值数组分类与标识规则的解析结果经本策略持有的
  * {@link ConfiguredTypeRulesCache} 按类复用并按实例隔离。两套缓存都不保存字段值、标识值或业务实例，
@@ -48,8 +48,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnapshot> {
 
     /**
-     * 配置绑定的类型规则缓存：值类型分类、值数组分类与标识规则的解析结果按本策略实例隔离复用
-     * （ADR-002）。配置无关的字段结构与字段访问准备状态由共享的 {@link ReflectionMetadataCache} 复用。
+     * 配置绑定的类型规则缓存：值类型分类、值数组分类与标识规则的解析结果按本策略实例隔离复用。
+     * 配置无关的字段结构与字段访问准备状态由共享的 {@link ReflectionMetadataCache} 复用。
      */
     private final ConfiguredTypeRulesCache rulesCache;
 
@@ -169,7 +169,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
     }
 
     /**
-     * 处理数组（A2/D10/D14）。
+     * 处理数组（D10/D14）。
      * <p>
      * 数组按元素类型分两种语义：
      * <ul>

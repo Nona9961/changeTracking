@@ -431,7 +431,7 @@ class ChangeViewProjectionUnitTest {
     @DisplayName("深链构造量与实例共享")
     class DeepChainConstruction {
 
-        /** AC04.1 的冻结深链深度。 */
+        /** 冻结深链深度。 */
         private static final int DEEP_CHAIN_DEPTH = 32;
 
         @Test

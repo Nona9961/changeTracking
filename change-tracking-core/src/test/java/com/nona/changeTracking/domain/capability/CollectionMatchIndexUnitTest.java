@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * {@link CollectionMatchIndex} 单元测试：有序标识匹配、重复标识、null 项、位置标识、标识来源与边界（US01）。
+ * {@link CollectionMatchIndex} 单元测试：有序标识匹配、重复标识、null 项、位置标识、标识来源与边界。
  */
 @DisplayName("CollectionMatchIndex 有序标识匹配单元测试")
 class CollectionMatchIndexUnitTest {

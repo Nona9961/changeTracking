@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
  * <p>
  * <b>Why a fixture instead of the strategy.</b> The first use protocol of the type processing caches
  * measures the first target operation of a fork, so its preparation must not warm the caches it
- * measures: the SRS therefore builds the baseline of the corresponding load from a named fixture
+ * measures: the frozen protocol therefore builds the baseline of the corresponding load from a named fixture
  * instead of calling {@code track}, {@code createSnapshot} or either cache. This fixture is that
  * construction point: it reads the sample fields directly through plain reflection and builds the
  * existing node types, so the prepared fork still finds cold caches.
@@ -53,12 +53,13 @@ import java.util.regex.Pattern;
  * <p>
  * The preparation of this fixture is not a whole library and JVM cold start: it warms the shared node
  * types and the sample family, so the recorded state is the target cache being cold, exactly as the
- * SRS describes it.
+ * frozen protocol prescribes.
  */
 public final class ColdBaselineFixture {
 
     /**
-     * 默认值类型包名，与未配置默认能力的快照策略保持一致；本 fixture 不调用该策略，因此在本类内重述。
+     * Default value type packages, identical to the unconfigured default capability snapshot strategy;
+     * this fixture never calls that strategy, so the set is restated here.
      */
     private static final Set<String> DEFAULT_VALUE_PACKAGES = Set.of(
             "java.time",
@@ -66,7 +67,8 @@ public final class ColdBaselineFixture {
             "java.net");
 
     /**
-     * 默认值类型类，与未配置默认能力的快照策略保持一致；本 fixture 不调用该策略，因此在本类内重述。
+     * Default value type classes, identical to the unconfigured default capability snapshot strategy;
+     * this fixture never calls that strategy, so the set is restated here.
      */
     private static final Set<Class<?>> DEFAULT_VALUE_CLASSES = Set.of(
             UUID.class,
@@ -77,7 +79,8 @@ public final class ColdBaselineFixture {
             Path.class);
 
     /**
-     * 原始类型的包装类，与未配置默认能力的快照策略保持一致。
+     * Wrapper classes of the primitive types, identical to the unconfigured default capability snapshot
+     * strategy.
      */
     private static final Set<Class<?>> WRAPPER_TYPES = Set.of(
             Boolean.class,

@@ -26,8 +26,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Alternating use of two capabilities with different configurations: every measured invocation runs
- * the change detection cycle of the other configuration, so the measurement covers the load the SRS
- * names 多配置交替使用 rather than the cost of a single configuration.
+ * the change detection cycle of the other configuration, so the measurement covers the alternating
+ * use of two configurations rather than the cost of a single configuration.
  * <p>
  * <b>The two configurations.</b> The first capability is the unconfigured default capability assembled
  * through the api facade, the second one is assembled through the public extension point with one

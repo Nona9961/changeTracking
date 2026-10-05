@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * 单次比较的会话状态（ADR-003、US05）。
+ * 单次比较的会话状态。
  * <p>
  * 承载两类状态，均随一次 {@link ValueNodeComparisonStrategy#compare} 调用创建、调用结束释放，
  * 不进入策略实例字段、静态缓存或线程局部变量：
@@ -15,8 +15,8 @@ import java.util.Objects;
  *       上下文负责路径状态的进入、恢复及<b>按需</b>生成，仅在需要输出变更时拼接完整路径。
  *       路径栈按最大深度扩容并复用槽位，压入不为每个被检查字段新建路径段对象或可选值包装；
  *       标识不因入栈而字符串化，仅在当前活动项需要输出时准备文本并供其后续输出复用，
- *       退出时清理原标识与文本引用（US05）。</li>
- *   <li><b>节点对状态（ADR-003，单表三态）</b>：路径段栈之外只保留<b>一份</b>
+ *       退出时清理原标识与文本引用。</li>
+ *   <li><b>节点对状态（单表三态）</b>：路径段栈之外只保留<b>一份</b>
  *       {@link NodePairStates 节点对状态表}，按新旧节点引用身份组合记录。同一份表同时回答两个
  *       问题——「这个节点对是否正在比较」（{@link NodePairStates#IN_PROGRESS}，用于循环终止）
  *       与「是否已完整比较并确认没有变化」（{@link NodePairStates#COMPLETED_UNCHANGED}，用于复用
@@ -27,7 +27,7 @@ import java.util.Objects;
  * 本类不承担业务比较规则：匹配在 {@link CollectionMatchIndex}，分类与输出在
  * {@link ValueNodeComparisonStrategy}。
  * <p>
- * <b>非空守卫口径（T03）</b>：本类是包内私有实现，节点对相关方法（进入查询、状态更新、退出）
+ * <b>非空守卫口径</b>：本类是包内私有实现，节点对相关方法（进入查询、状态更新、退出）
  * <b>不写重复的非空守卫</b>——调用方（{@link ValueNodeComparisonStrategy#compare} 的递归遍历）
  * 在分派前已用 {@code instanceof ObjectNode/CollectionNode} 判定两侧节点，传 null 不可达。
  * 守卫只保留在边界入口（本类构造器与 {@link #pushField(String)} 的字段名边界），
@@ -36,7 +36,7 @@ import java.util.Objects;
 final class ComparisonContext {
 
     /**
-     * 不需要出现序后缀的标记值（US05）：{@code 0} 表示唯一项不加后缀，正数为既有出现序。
+     * 不需要出现序后缀的标记值：{@code 0} 表示唯一项不加后缀，正数为既有出现序。
      */
     static final int NO_OCCURRENCE = 0;
 
@@ -56,7 +56,7 @@ final class ComparisonContext {
     private int depth;
 
     /**
-     * 节点对状态表：单表三态，同时承担循环终止与安全无变更复用判定（ADR-003）。
+     * 节点对状态表：单表三态，同时承担循环终止与安全无变更复用判定。
      */
     private final NodePairStates nodePairStates;
 
@@ -318,11 +318,11 @@ final class ComparisonContext {
     }
 
     /**
-     * 节点对状态表（ADR-003 单表三态）：按 (old,new) 引用身份组合开放寻址存储，
+     * 节点对状态表（单表三态）：按 (old,new) 引用身份组合开放寻址存储，
      * 用<b>一份</b>表同时回答「正在比较」与「已完成且无变更」两个问题。
      * <p>
      * 查询与登记都<b>不构造临时节点对对象、不另建第二份集合</b>：普通树、共享图与循环图共用同一
-     * 比较热路径，会话记录成本必须与节点数同阶且常数足够小（AC03.6）。表在本轮 {@code compare}
+     * 比较热路径，会话记录成本必须与节点数同阶且常数足够小。表在本轮 {@code compare}
      * 内驻留，随 {@link ComparisonContext} 回收。
      * <p>
      * 槽位三态，空槽表示未记录：

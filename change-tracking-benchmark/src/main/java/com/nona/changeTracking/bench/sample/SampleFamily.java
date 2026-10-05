@@ -40,7 +40,7 @@ public final class SampleFamily {
     /**
      * Depth of the frozen shared, cyclic and mixed graph samples: this many branch levels plus one
      * terminal leaf, i.e. 17 independent objects per side and 2^16 reachable paths to the leaf —
-     * the shape US03 / AC03.2 reproduces.
+     * the measured sharing shape reproduces.
      */
     public static final int GRAPH_DEPTH = 16;
 
@@ -69,7 +69,7 @@ public final class SampleFamily {
      * same</b> child, so the reachable paths to the leaf multiply by two per level while the
      * independent objects grow linearly. Every branch and the terminal leaf carry their own layer
      * value; independent objects are {@code depth + 1}, reference edges are {@code 2 * depth} and
-     * reachable leaf paths are {@code 2 ^ depth} — the shape US03 / AC03.1 measures.
+     * reachable leaf paths are {@code 2 ^ depth} — the measured growth shape.
      *
      * @param depth number of branch levels, at least 1
      * @return the root node of a shared, acyclic graph

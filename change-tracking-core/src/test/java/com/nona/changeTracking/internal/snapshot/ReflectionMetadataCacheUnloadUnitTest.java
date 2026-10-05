@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * {@link ReflectionMetadataCache} 的类卸载诊断：用隔离类加载器加载探针类，快照其实例后释放全部强引用，
  * 观察探针实例与类加载器是否在有限次回收尝试内变为不可达。
  * <p>
- * 诊断口径（ADR-002）：共享缓存继承 {@link ClassValue}，条目挂在目标 {@link Class} 上，不建立强键全局
+ * 诊断口径：共享缓存继承 {@link ClassValue}，条目挂在目标 {@link Class} 上，不建立强键全局
  * {@code Map}，因此目标类及其加载器满足卸载条件时可以回收；单次 {@code System.gc()} 未回收不判为泄漏，
  * 本用例以有限次回收尝试（含分配压力）作为回收结果的观察窗口，并把实例释放与类加载器释放分开观察：
  * 缓存不保存业务实例是硬性契约（实例必须可回收），类与加载器回收同时受 JDK 类元数据缓存影响，

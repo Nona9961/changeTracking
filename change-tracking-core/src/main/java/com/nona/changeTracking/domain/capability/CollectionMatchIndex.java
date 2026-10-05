@@ -14,7 +14,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * 有序标识匹配索引（US01、ADR-001）：一个集合比较生命周期内，把两侧 {@link CollectionNode}
+ * 有序标识匹配索引：一个集合比较生命周期内，把两侧 {@link CollectionNode}
  * 的项按匹配标识组织为有序匹配项组。
  * <p>
  * 匹配键保持既有规则：{@link ObjectNode#identifier()}、{@link PrimitiveNode#value()}、

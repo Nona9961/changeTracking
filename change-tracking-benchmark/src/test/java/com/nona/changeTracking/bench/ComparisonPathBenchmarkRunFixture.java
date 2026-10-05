@@ -1,21 +1,18 @@
 package com.nona.changeTracking.bench;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
 /**
- * 比较与路径优化两个基准载体的装配面共享 fixture：复用 T01 交付的 {@link BenchmarkRunFixture} 的 shade
- * 构建与外部命令执行设施，只补上本 task 两个载体的锚定全限定名选择器、结果目录与运行命令。
+ * 比较与路径优化两个基准载体的装配面共享 fixture：复用 {@link BenchmarkRunFixture} 的 shade
+ * 构建与外部命令执行设施，只补上两个载体的锚定全限定名选择器、结果目录与运行命令。
  * <p>
  * 两个载体（{@link SparseChangePathBenchmark}、{@link CollectionPathBenchmark}）在一条 JMH 命令中真实运行：
  * shade 后按各自类级冻结注解协议（{@code AverageTime}、{@code us/op}、3×1s 预热、5×1s 测量、{@code @Fork(1)}）
  * 执行，{@code -prof gc} 附带 {@code gc.alloc.rate.norm}。
  * <p>
  * 选择器锚定到类的全限定名前缀而非短类名交替：JMH 按正则搜索全限定基准名，短模式会命中其它类的子串
- * （T01 绿阶段已观察到 {@code CacheStateBenchmark|ConfigurationAlternationBenchmark} 命中
+ * （已观察到 {@code CacheStateBenchmark|ConfigurationAlternationBenchmark} 命中
  * {@code FirstUseCacheStateBenchmark} 的问题）。
  * <p>
  * 第二次运行与第一次同协议，仅供 {@code CompareResultsMain} 按内容派生的条目 key 做配对校验。
@@ -42,14 +39,11 @@ final class ComparisonPathBenchmarkRunFixture {
     static final Path PAIRING_RESULT_FILE = PAIRING_RESULT_DIRECTORY.resolve("jmh-result.json");
 
     /**
-     * 锚定全限定名前缀的选择器：只命中本 task 的两个载体类，不命中任何子串相同的其它基准。
+     * 锚定全限定名前缀的选择器：只命中两个载体类，不命中任何子串相同的其它基准。
      */
     private static final String BENCHMARK_SELECTOR =
             "com\\.nona\\.changeTracking\\.bench\\.SparseChangePathBenchmark\\."
                     + "|com\\.nona\\.changeTracking\\.bench\\.CollectionPathBenchmark\\.";
-
-    /** 一次 JMH 运行的超时时间（秒）。 */
-    private static final long RUN_TIMEOUT_SECONDS = 1_800;
 
     /** 保护惰性运行结果的锁。 */
     private static final Object LOCK = new Object();
@@ -75,8 +69,10 @@ final class ComparisonPathBenchmarkRunFixture {
         synchronized (LOCK) {
             BenchmarkRunFixture.shadedJar();
             if (runResult == null) {
-                createDirectory(RESULT_DIRECTORY);
-                runResult = BenchmarkRunFixture.run(command(RESULT_FILE), MODULE_DIRECTORY, RUN_TIMEOUT_SECONDS);
+                BenchmarkRunFixture.createDirectory(RESULT_DIRECTORY);
+                runResult = BenchmarkRunFixture.run(
+                        BenchmarkRunFixture.command(BENCHMARK_SELECTOR, List.of(), RESULT_FILE),
+                        MODULE_DIRECTORY, BenchmarkRunFixture.RUN_TIMEOUT_SECONDS);
             }
             return runResult;
         }
@@ -91,36 +87,12 @@ final class ComparisonPathBenchmarkRunFixture {
         synchronized (LOCK) {
             BenchmarkRunFixture.shadedJar();
             if (pairingRunResult == null) {
-                createDirectory(PAIRING_RESULT_DIRECTORY);
-                pairingRunResult = BenchmarkRunFixture.run(command(PAIRING_RESULT_FILE), MODULE_DIRECTORY,
-                        RUN_TIMEOUT_SECONDS);
+                BenchmarkRunFixture.createDirectory(PAIRING_RESULT_DIRECTORY);
+                pairingRunResult = BenchmarkRunFixture.run(
+                        BenchmarkRunFixture.command(BENCHMARK_SELECTOR, List.of(), PAIRING_RESULT_FILE),
+                        MODULE_DIRECTORY, BenchmarkRunFixture.RUN_TIMEOUT_SECONDS);
             }
             return pairingRunResult;
-        }
-    }
-
-    /**
-     * 组装一次 JMH 命令：冻结协议由被测类的类级注解承载，命令只声明结果格式与 GC 采样。
-     *
-     * @param resultFile 本次运行的原生结果文件
-     * @return 命令与参数
-     */
-    private static List<String> command(final Path resultFile) {
-        return List.of("java", "-jar", BenchmarkRunFixture.BENCHMARK_JAR.toString(), BENCHMARK_SELECTOR,
-                "-rf", "json", "-prof", "gc", "-rff", resultFile.toString());
-    }
-
-    /**
-     * 创建一次运行的结果目录。
-     *
-     * @param directory 目标目录
-     * @throws UncheckedIOException 如果目录无法创建
-     */
-    private static void createDirectory(final Path directory) {
-        try {
-            Files.createDirectories(directory);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to create the benchmark result directory " + directory, e);
         }
     }
 }

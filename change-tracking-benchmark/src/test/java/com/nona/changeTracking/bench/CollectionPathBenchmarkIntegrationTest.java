@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 条目 key 完整配对。
  * <p>
  * 该类由 surefire 默认排除（{@code **}{@code /}{@code *IntegrationTest}），仅在 {@code -Pfull} 全量执行时
- * 运行；shade 构建与 JMH 命令由 {@link ComparisonPathBenchmarkRunFixture}（复用 T01 的
+ * 运行；shade 构建与 JMH 命令由 {@link ComparisonPathBenchmarkRunFixture}（复用
  * {@link BenchmarkRunFixture} 设施）在两个载体测试类之间共享一次。
  */
 @DisplayName("CollectionPathBenchmark 装配面集成测试")

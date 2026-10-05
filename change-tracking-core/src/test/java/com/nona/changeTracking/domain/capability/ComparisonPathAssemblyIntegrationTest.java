@@ -20,12 +20,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 比较与路径优化的装配面集成测试（T02）：用真实 SPI 装配的默认 provider、真实 capability 与真实
+ * 比较与路径优化的装配面集成测试：用真实 SPI 装配的默认 provider、真实 capability 与真实
  * {@link ChangeTracker} 链路，验证单元测试用替身覆盖不到的面。
  * <p>
  * 覆盖：ServiceLoader 发现默认 provider 后的完整比较链路路径、经公开扩展点注册业务标识后集合项路径
  * 使用业务标识文本、基线捕获与恢复互操作，以及注册 {@code toString} 计数的不变值类型后零变更遍历
- * 不格式化标识文本（AC05.1 机制核验）。
+ * 不格式化标识文本。
  */
 @DisplayName("比较与路径优化装配面集成测试")
 class ComparisonPathAssemblyIntegrationTest {
@@ -94,7 +94,7 @@ class ComparisonPathAssemblyIntegrationTest {
     }
 
     @Nested
-    @DisplayName("零变更遍历不格式化标识（AC05.1）")
+    @DisplayName("零变更遍历不格式化标识")
     class ZeroChangeNoFormat {
 
         @Test
@@ -159,7 +159,7 @@ class ComparisonPathAssemblyIntegrationTest {
 
     /**
      * 集成测试的不可变值类型探针：{@code equals}/{@code hashCode} 基于 code，
-     * {@code toString} 计入调用次数（AC05.1 机制核验）。
+     * {@code toString} 计入调用次数。
      */
     static final class CountingValue {
 

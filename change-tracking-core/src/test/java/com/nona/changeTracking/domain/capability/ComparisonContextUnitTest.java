@@ -17,12 +17,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * {@link ComparisonContext} 单元测试：路径段栈的按需生成、槽位复用、退出恢复与活动节点对状态。
  * <p>
- * 覆盖 US05 的路径语义（字段段、集合项段、出现序、null 标识、标识文本按需准备且复用、退出清理）
+ * 覆盖路径语义（字段段、集合项段、出现序、null 标识、标识文本按需准备且复用、退出清理）
  * 与循环终止的活动节点对状态（按引用身份、可重入、退出有效）。
  * <p>
- * 非空守卫口径（T03）：节点对相关方法为包内私有且调用方已保证非空，不再写重复守卫，
- * 因此不对 {@code enterNodePair(null,·)} 断言 NPE；依据与留痕见
- * {@code review/red-designer-t03-revision-2026-10-02.md}「跨 task 断言的处置」。
+ * 非空守卫口径：节点对相关方法为包内私有且调用方已保证非空（递归遍历分派前已判定两侧节点），
+ * 不再写重复守卫，因此不对 {@code enterNodePair(null,·)} 断言 NPE。
  */
 @DisplayName("ComparisonContext 会话状态单元测试")
 class ComparisonContextUnitTest {
@@ -39,7 +38,7 @@ class ComparisonContextUnitTest {
     }
 
     @Nested
-    @DisplayName("路径按需生成（US05）")
+    @DisplayName("路径按需生成")
     class PathGeneration {
 
         @Test
@@ -259,7 +258,7 @@ class ComparisonContextUnitTest {
     }
 
     /**
-     * 可计数 {@code toString} 调用的不可变值类型：用于验证标识文本按需准备与复用（AC05.1）。
+     * 可计数 {@code toString} 调用的不可变值类型：用于验证标识文本按需准备与复用。
      */
     static final class CountingIdentity {
 

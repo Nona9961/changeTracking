@@ -3,7 +3,7 @@ package com.nona.changeTracking.domain.capability;
 import java.util.Objects;
 
 /**
- * 计数 {@code equals} 调用的不可变值样本（T03 / AC03.5）。
+ * 计数 {@code equals} 调用的不可变值样本。
  * <p>
  * 样本类型按 {@code code} 判定相等，每次 {@code equals} 调用先把调用次数写入外置的
  * {@link EqualsCallCounter}。比较用例让旧、新快照侧各自持有<b>独立且相等</b>的实例

@@ -26,26 +26,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * {@link ValueNodeComparisonStrategy} 的共享子图安全复用单元测试（T03 / US03）。
+ * {@link ValueNodeComparisonStrategy} 的共享子图安全复用单元测试。
  * <p>
  * 用手工构造的 {@link ValueNode} 树精确表达共享与循环：每层两个字段引用<b>同一</b>子节点实例得到
  * 共享子图，节点字段回指自身得到循环。旧、新快照侧分别构造，计数叶子为<b>独立且相等</b>的
  * {@link EqualsCountingValue} 实例，因此叶子语义比较的次数可由 {@link EqualsCallCounter} 观察。
  * <p>
- * 覆盖 AC03.1（随独立节点对与边数增长而非可达路径数）、AC03.2（深度 16 复现样本的 65,536 次
- * 修改前对照与复用后一次实际比较）、AC03.3（共享子图有变更时各路径保留、循环与共享混合终止、
- * 截断结论不复用）、AC03.5（测试侧计数载体）与 AC03.6 的语义无退化面。每例自建前置状态。
+ * 覆盖规模增长（随独立节点对与边数增长而非可达路径数）、深度 16 复现样本的 65,536 次
+ * 修改前对照与复用后一次实际比较、共享子图有变更时各路径保留、循环与共享混合终止、
+ * 截断结论不复用、测试侧计数载体与普通树语义无退化面。每例自建前置状态。
  */
 @DisplayName("共享子图安全复用单元测试")
 class ValueNodeComparisonStrategySharedSubgraphUnitTest {
 
     /**
-     * AC03.2 复现样本的深度：每侧 17 个独立对象，可达叶子路径 2^16 条。
+     * 深度 16 复现样本的深度：每侧 17 个独立对象，可达叶子路径 2^16 条。
      */
     private static final int REPRODUCTION_DEPTH = 16;
 
     /**
-     * AC03.2 复现样本在修改前算法下的叶子比较次数（2^16）。
+     * 复现样本在修改前算法下的叶子比较次数（2^16）。
      */
     private static final long REPRODUCTION_EXPANDED_COMPARISONS = 65_536L;
 
@@ -101,7 +101,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
     }
 
     @Nested
-    @DisplayName("AC03.2 深度 16 复现样本")
+    @DisplayName("深度 16 复现样本")
     class ReproductionSample {
 
         @Test
@@ -148,7 +148,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
     }
 
     @Nested
-    @DisplayName("AC03.1 规模样本")
+    @DisplayName("规模样本")
     class ScaleSample {
 
         @Test
@@ -200,7 +200,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
     }
 
     @Nested
-    @DisplayName("AC03.3 含集合的共享子图")
+    @DisplayName("含集合的共享子图")
     class CollectionSharing {
 
         @Test
@@ -234,7 +234,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
     }
 
     @Nested
-    @DisplayName("AC03.3 有变更的共享子图")
+    @DisplayName("有变更的共享子图")
     class ChangedSubgraph {
 
         @Test
@@ -287,7 +287,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
     }
 
     @Nested
-    @DisplayName("AC03.3 循环截断与结论安全条件")
+    @DisplayName("循环截断与结论安全条件")
     class CycleSafety {
 
         @Test
@@ -342,7 +342,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
     }
 
     @Nested
-    @DisplayName("AC03.6 无共享普通树的语义面")
+    @DisplayName("无共享普通树的语义面")
     class PlainTree {
 
         @Test

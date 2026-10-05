@@ -12,7 +12,7 @@ import java.util.Objects;
  *   <li>{@link #getLeafChanges()} - 仅包含叶子变更的扁平视图</li>
  * </ul>
  * <p>
- * 两个视图由唯一的转换核心 {@link ChangeViewProjection} 投影（A9、ADR-004）：本类只持有
+ * 两个视图由唯一的转换核心 {@link ChangeViewProjection} 投影（A9）：本类只持有
  * 无状态的共享实例并委托，不保留第二份转换算法。投影不缓存转换结果，重复获取按需重新构建。
  * 后序子结果按构造关系共享（子节点引用直接交回父容器组装），不做基于路径、元数据或 children
  * 的等价性判断；不同输出位置是否持有同一 {@link Change} 实例不在契约内。
@@ -22,7 +22,7 @@ import java.util.Objects;
 public record ChangeSet(List<ObjectChange> changes) {
 
     /**
-     * 两个视图共用的无状态转换核心（ADR-004）。
+     * 两个视图共用的无状态转换核心。
      */
     private static final ChangeViewProjection PROJECTION = new ChangeViewProjection();
 

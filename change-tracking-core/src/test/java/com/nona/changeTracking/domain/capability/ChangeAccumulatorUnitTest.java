@@ -10,11 +10,10 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link ChangeAccumulator} 单元测试：空态、按发现顺序收集与空列表契约（US01）。
+ * {@link ChangeAccumulator} 单元测试：空态、按发现顺序收集与空列表契约。
  * <p>
- * 非空守卫口径（T03）：{@code add} 为包内私有且调用点已保证非空，不再写重复守卫，
- * 因此不对 {@code add(null)} 断言 NPE；依据与留痕见
- * {@code review/red-designer-t03-revision-2026-10-02.md}「跨 task 断言的处置」。
+ * 非空守卫口径：{@code add} 为包内私有且调用点已保证非空（每个调用点传入新建的变更节点），
+ * 不再写重复守卫，因此不对 {@code add(null)} 断言 NPE。
  */
 @DisplayName("ChangeAccumulator 按需变更收集单元测试")
 class ChangeAccumulatorUnitTest {

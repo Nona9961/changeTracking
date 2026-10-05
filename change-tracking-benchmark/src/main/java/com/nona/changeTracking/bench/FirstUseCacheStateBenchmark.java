@@ -36,9 +36,9 @@ import java.util.concurrent.TimeUnit;
 /**
  * Cold first use of the type processing caches: the first snapshot through the target strategy and
  * the first complete calculation after a restored baseline, each measured with the single shot
- * protocol the SRS freezes for that state.
+ * protocol frozen for that state.
  * <p>
- * <b>Protocol</b> (SRS 性能验收方法, 首次类型使用): independent forks, single thread, zero warmup,
+ * <b>Protocol</b> (first use of a type): independent forks, single thread, zero warmup,
  * one measurement iteration with batch size one, several forks sampled. The class therefore carries
  * {@code @BenchmarkMode(SingleShotTime)}, {@code @Warmup(iterations = 0)},
  * {@code @Measurement(iterations = 1, batchSize = 1)}, {@code @Fork(}{@value #FORKS}{@code )} and

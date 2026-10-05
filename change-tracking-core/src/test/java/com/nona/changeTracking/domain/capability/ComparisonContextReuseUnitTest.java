@@ -14,9 +14,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link ComparisonContext} 的 T03 单表三态节点对状态单元测试（ADR-003 修订）。
+ * {@link ComparisonContext} 的单表三态节点对状态单元测试。
  * <p>
- * 覆盖 US03 / AC03.3 的上下文侧语义：进入时<b>一次查询</b>同一份节点对状态，同时回答「这个节点对
+ * 覆盖上下文侧语义：进入时<b>一次查询</b>同一份节点对状态，同时回答「这个节点对
  * 是否正在比较」（循环终止）与「是否已完整比较且确认没有变化」（复用跳过）；退出时把本次结论
  * （无变更且期间未发生循环截断 → 可复用，否则不可复用）写回同一状态。三态分别为
  * 「正在比较（{@code IN_PROGRESS}）」「已完成且无变更（{@code COMPLETED_UNCHANGED}）」
@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 已登记无变更结论的节点对被一次查询命中即复用。每例自建前置状态（{@link #setUp()} 新建上下文），
  * 不依赖前序用例的产物。
  * <p>
- * 非空守卫口径（T03）：节点对相关方法为包内私有且调用方已保证两侧非空，不写重复守卫，
+ * 非空守卫口径：节点对相关方法为包内私有且调用方已保证两侧非空，不写重复守卫，
  * 因此本测试不以 null 断言 NPE；边界守卫（构造入口与 {@code pushField} 字段名边界）的断言
  * 归 {@code ComparisonContextUnitTest}。
  */
@@ -183,7 +183,7 @@ class ComparisonContextReuseUnitTest {
     }
 
     @Nested
-    @DisplayName("循环截断计数（AC03.3）")
+    @DisplayName("循环截断计数")
     class CycleTruncationCounting {
 
         @Test

@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * The single conversion core of the two change views (ADR-004, US04 / A9).
+ * The single conversion core of the two change views (A9).
  * <p>
  * The complete view ({@link #toAllChanges(List)}) assembles the containers bottom up: entering a
  * node with a non empty path reserves the place of its entry in the flat output, the local

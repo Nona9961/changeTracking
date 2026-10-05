@@ -21,7 +21,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 共享子图复用的装配面集成测试（T03 / US03）：用真实 SPI 装配的默认 provider、真实 capability、
+ * 共享子图复用的装配面集成测试：用真实 SPI 装配的默认 provider、真实 capability、
  * 真实默认快照策略构建的快照与真实 {@link ChangeTracker} 链路，验证单元测试用
  * 手工节点树覆盖不到的面——业务对象图的共享引用在真实快照中保留、旧新快照侧为独立且相等的值实例、
  * 复用与基线捕获/恢复的互操作。
@@ -41,7 +41,7 @@ class SharedSubgraphAssemblyIntegrationTest {
             "com.nona.changeTracking.internal.capability.DefaultTrackingCapabilityProvider";
 
     /**
-     * AC03.2 复现样本的分支层数：每侧 17 个独立对象的共享链。
+     * 复现样本的分支层数：每侧 17 个独立对象的共享链。
      */
     private static final int REPRODUCTION_DEPTH = 16;
 
@@ -61,7 +61,7 @@ class SharedSubgraphAssemblyIntegrationTest {
     }
 
     @Nested
-    @DisplayName("AC03.2 深度 16 复现样本的真实链路")
+    @DisplayName("深度 16 复现样本的真实链路")
     class ReproductionChain {
 
         @Test
@@ -97,7 +97,7 @@ class SharedSubgraphAssemblyIntegrationTest {
     }
 
     @Nested
-    @DisplayName("AC03.3 有变更的共享子图")
+    @DisplayName("有变更的共享子图")
     class ChangedSubgraph {
 
         @Test

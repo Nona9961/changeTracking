@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * 一个类的反射元数据（ADR-002）：只读提供该类的有序非静态字段及其字段访问准备状态。
+ * 一个类的反射元数据：只读提供该类的有序非静态字段及其字段访问准备状态。
  * <p>
  * 字段顺序沿用既有遍历：子类到父类，各类内保持 {@code getDeclaredFields()} 的返回顺序；静态字段
  * 在收集时排除；字段隐藏（子类与父类同名字段）不在此处合并，两个字段都保留并按顺序出现，由快照

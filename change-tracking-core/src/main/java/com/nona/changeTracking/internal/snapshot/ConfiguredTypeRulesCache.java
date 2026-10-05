@@ -16,7 +16,7 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /**
- * 配置绑定的类型规则缓存（ADR-002）：按快照策略实例隔离，复用值类型分类、值数组分类与标识规则解析结果。
+ * 配置绑定的类型规则缓存：按快照策略实例隔离，复用值类型分类、值数组分类与标识规则解析结果。
  * <p>
  * <b>与 {@link ReflectionMetadataCache} 的分界</b>：本缓存只保存与
  * {@link TrackingConfiguration} 相关、且与具体业务实例无关的规则解析结果；不保存字段结构、

@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 按需变更收集器（US01）：一个容器比较生命周期内按发现顺序收集子变更。
+ * 按需变更收集器：一个容器比较生命周期内按发现顺序收集子变更。
  * <p>
  * 空态不分配元素存储：仅当首次收集到实际变化时才创建元素列表；空态经 {@link #toList()}
  * 提供<b>非空</b>的空列表，供 {@link com.nona.changeTracking.domain.model.changeset.ContainerChangeNode}
@@ -29,7 +29,7 @@ final class ChangeAccumulator {
     /**
      * 收集一个实际变化（节点比较的零或一项结果直接传入）。
      * <p>
-     * 非空守卫口径（T03）：{@link com.nona.changeTracking.domain.capability.ValueNodeComparisonStrategy}
+     * 非空守卫口径：{@link com.nona.changeTracking.domain.capability.ValueNodeComparisonStrategy}
      * 的每个调用点传入的都是 {@code new …ChangeNode(...)}，本包内私有方法不再重复非空检查。
      *
      * @param change 变更节点（调用方已保证非空）。

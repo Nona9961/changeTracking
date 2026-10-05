@@ -82,8 +82,8 @@ final class BenchmarkRunFixture {
      * Steady state benchmark selector: the three warm cache states and the alternating configuration
      * carrier in one command, as the design freezes for the steady state face.
      * <p>
-     * The selector is anchored to the fully qualified class prefix instead of the short class name
-     * alternation of the red design report: JMH matches its benchmark selector as a regular expression
+     * The selector is anchored to the fully qualified class prefix instead of a short class name
+     * alternation: JMH matches its benchmark selector as a regular expression
      * search over the fully qualified benchmark name, so the short pattern
      * {@code CacheStateBenchmark|ConfigurationAlternationBenchmark} also matches the substring
      * {@code CacheStateBenchmark} inside {@code FirstUseCacheStateBenchmark} and would run the cold
@@ -97,11 +97,24 @@ final class BenchmarkRunFixture {
     /** Number of forks the cold protocol samples, the value of {@code FirstUseCacheStateBenchmark.FORKS}. */
     static final int COLD_FORKS = 5;
 
+    /**
+     * Shortened steady state protocol options: one fork and shorter warmup and measurement windows
+     * than the frozen class level annotations, to keep the integration test short. The shortening
+     * weakens none of the asserted criteria, because the entry set is declared by the
+     * {@code @Benchmark} methods and the positivity of the time and allocation metrics follows from
+     * the measured operation itself.
+     */
+    private static final List<String> STEADY_PROTOCOL_OPTIONS =
+            List.of("-f", "1", "-wi", "2", "-i", "3", "-w", "200ms", "-r", "200ms");
+
     /** Timeout of the shading build in seconds. */
     private static final long PACKAGE_TIMEOUT_SECONDS = 900;
 
-    /** Timeout of one JMH run in seconds; the cold run forks ten JVMs. */
-    private static final long RUN_TIMEOUT_SECONDS = 1_800;
+    /**
+     * Timeout of one JMH run in seconds, shared with the other run fixtures of this package; the cold
+     * run forks ten JVMs.
+     */
+    static final long RUN_TIMEOUT_SECONDS = 1_800;
 
     /** Lock guarding the lazy initialization of the shared command outcomes. */
     private static final Object LOCK = new Object();
@@ -149,10 +162,8 @@ final class BenchmarkRunFixture {
             shadedJar();
             if (coldRunResult == null) {
                 createDirectory(COLD_RESULT_DIRECTORY);
-                final List<String> command = new ArrayList<>(List.of("java", "-jar", BENCHMARK_JAR.toString(),
-                        COLD_BENCHMARK_SELECTOR, "-f", Integer.toString(COLD_FORKS), "-rf", "json",
-                        "-prof", "gc", "-rff", COLD_RESULT_FILE.toString()));
-                coldRunResult = run(command, MODULE_DIRECTORY, RUN_TIMEOUT_SECONDS);
+                coldRunResult = run(command(COLD_BENCHMARK_SELECTOR, List.of("-f", Integer.toString(COLD_FORKS)),
+                        COLD_RESULT_FILE), MODULE_DIRECTORY, RUN_TIMEOUT_SECONDS);
             }
             return coldRunResult;
         }
@@ -168,10 +179,8 @@ final class BenchmarkRunFixture {
             shadedJar();
             if (steadyRunResult == null) {
                 createDirectory(STEADY_RESULT_DIRECTORY);
-                final List<String> command = new ArrayList<>(List.of("java", "-jar", BENCHMARK_JAR.toString(),
-                        STEADY_BENCHMARK_SELECTOR, "-f", "1", "-wi", "2", "-i", "3", "-w", "200ms", "-r", "200ms",
-                        "-rf", "json", "-prof", "gc", "-rff", STEADY_RESULT_FILE.toString()));
-                steadyRunResult = run(command, MODULE_DIRECTORY, RUN_TIMEOUT_SECONDS);
+                steadyRunResult = run(command(STEADY_BENCHMARK_SELECTOR, STEADY_PROTOCOL_OPTIONS, STEADY_RESULT_FILE),
+                        MODULE_DIRECTORY, RUN_TIMEOUT_SECONDS);
             }
             return steadyRunResult;
         }
@@ -187,10 +196,9 @@ final class BenchmarkRunFixture {
             shadedJar();
             if (steadyPairingRunResult == null) {
                 createDirectory(STEADY_PAIRING_RESULT_DIRECTORY);
-                final List<String> command = new ArrayList<>(List.of("java", "-jar", BENCHMARK_JAR.toString(),
-                        STEADY_BENCHMARK_SELECTOR, "-f", "1", "-wi", "2", "-i", "3", "-w", "200ms", "-r", "200ms",
-                        "-rf", "json", "-prof", "gc", "-rff", STEADY_PAIRING_RESULT_FILE.toString()));
-                steadyPairingRunResult = run(command, MODULE_DIRECTORY, RUN_TIMEOUT_SECONDS);
+                steadyPairingRunResult = run(
+                        command(STEADY_BENCHMARK_SELECTOR, STEADY_PROTOCOL_OPTIONS, STEADY_PAIRING_RESULT_FILE),
+                        MODULE_DIRECTORY, RUN_TIMEOUT_SECONDS);
             }
             return steadyPairingRunResult;
         }
@@ -202,12 +210,30 @@ final class BenchmarkRunFixture {
      * @param directory the directory to create
      * @throws UncheckedIOException if the directory cannot be created
      */
-    private static void createDirectory(final Path directory) {
+    static void createDirectory(final Path directory) {
         try {
             Files.createDirectories(directory);
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to create the benchmark result directory " + directory, e);
         }
+    }
+
+    /**
+     * Builds the command of one JMH run of the shaded jar: the selector, the protocol options of the
+     * run and the native result file. The result format and the GC profiler are common to every run,
+     * the protocol itself is carried by the class level annotations unless the options state it.
+     *
+     * @param selector        benchmark selector, a regular expression over fully qualified names
+     * @param protocolOptions protocol options inserted after the selector, empty when the class level
+     *                        annotations carry the whole protocol
+     * @param resultFile      native result file of the run
+     * @return the command and its arguments
+     */
+    static List<String> command(final String selector, final List<String> protocolOptions, final Path resultFile) {
+        final List<String> command = new ArrayList<>(List.of("java", "-jar", BENCHMARK_JAR.toString(), selector));
+        command.addAll(protocolOptions);
+        command.addAll(List.of("-rf", "json", "-prof", "gc", "-rff", resultFile.toString()));
+        return command;
     }
 
     /**

@@ -22,11 +22,11 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Sparse change path benchmark of the comparison strategy (T02, US01/US05).
+ * Sparse change path benchmark of the comparison strategy.
  * <p>
  * <b>Scan axes.</b> The path cost of the comparison pays off most in the sparse change load, so this
  * class scans the change level with everything else frozen: one scan state measures the default
- * shape (zero change versus a single scalar field change, AC01.1) and one measures the frozen deep
+ * shape (zero change versus a single scalar field change) and one measures the frozen deep
  * chain (zero change versus a single deepest leaf change, the path length load). Both levels are
  * applied through the frozen mutation entry point of the sample family, so no benchmark builds a
  * sample or mutates a field of its own.

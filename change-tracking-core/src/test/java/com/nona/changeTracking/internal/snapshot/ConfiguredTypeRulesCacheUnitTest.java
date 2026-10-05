@@ -83,6 +83,7 @@ class ConfiguredTypeRulesCacheUnitTest {
      */
     static class IdentifiedBase implements Identified {
 
+        /** {@inheritDoc} */
         @Override
         public Long id() {
             return 1L;
@@ -106,6 +107,7 @@ class ConfiguredTypeRulesCacheUnitTest {
      */
     static class ChildIdentifiedImpl implements ChildIdentified {
 
+        /** {@inheritDoc} */
         @Override
         public Long id() {
             return 2L;
@@ -144,6 +146,7 @@ class ConfiguredTypeRulesCacheUnitTest {
      */
     static class DiamondImpl implements LeftLeaf, RightLeaf {
 
+        /** {@inheritDoc} */
         @Override
         public Long id() {
             return 3L;

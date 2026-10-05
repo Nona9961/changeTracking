@@ -28,14 +28,14 @@ import java.util.Objects;
  *   <li>{@code diffChildren} - 低层方法，负责遍历与收集</li>
  * </ul>
  * <p>
- * <b>原地优化（ADR-001、US01/US05）</b>：一次 {@code compare} 创建独立的
+ * <b>原地优化</b>：一次 {@code compare} 创建独立的
  * {@link ComparisonContext} 与 {@link ChangeAccumulator}。路径不再以字符串参数逐层拼接，
- * 而由上下文承载路径段栈并按需生成（US05）；对象字段不再建立字段名并集，集合项经
- * {@link CollectionMatchIndex} 有序匹配（US01）；子变更按发现顺序收入
+ * 而由上下文承载路径段栈并按需生成；对象字段不再建立字段名并集，集合项经
+ * {@link CollectionMatchIndex} 有序匹配；子变更按发现顺序收入
  * {@link ChangeAccumulator}，零或一项结果直接交给所属容器。既有匹配规则、输出顺序、
  * 变更类型、载荷与循环终止语义保持不变。
  * <p>
- * <b>安全无变更复用（ADR-003、T03）</b>：容器节点对在递归前对单表三态节点对状态做<b>一次查询</b>，
+ * <b>安全无变更复用</b>：容器节点对在递归前对单表三态节点对状态做<b>一次查询</b>，
  * 返回 false 即直接返回——该 false 同时表达「循环截断」与「已完成且无变更的复用命中」；返回 true
  * 才递归子节点，并在退出时把「无变更且期间未发生循环截断」写为可复用状态。有变化、依赖截断或
  * 异常退出的节点对不可复用，仍沿各条路径生成必要输出；根节点保留原来的直接展开方式，不登记根节点对。
@@ -105,7 +105,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      *   <li>N↔N / 同实例 → 无变更</li>
      * </ul>
      * <p>
-     * 容器同类型（O↔O / C↔C）分支按 ADR-003 对单表三态节点对状态做<b>一次查询</b>：
+     * 容器同类型（O↔O / C↔C）分支对单表三态节点对状态做<b>一次查询</b>：
      * {@link ComparisonContext#enterNodePair} 返回 false 即直接返回——该 false 同时涵盖循环截断
      * （原规则）与「已完成且无变更」的复用命中（不生成路径、不生成变更）；返回 true 时递归子节点，
      * 并在退出时把本次结论（无变更且期间未发生循环截断）写回同一状态。有变化时仍按当前路径输出
@@ -168,7 +168,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
                     accumulator.add(new ContainerChangeNode(context.currentPath(), inner.toList()));
                 }
             } finally {
-                // 异常退出保持 unchanged=false，按 ADR-003 置为不可复用
+                // 异常退出保持 unchanged=false，置为不可复用
                 context.exitNodePair(oldNode, newNode, unchanged);
             }
             return;
@@ -279,7 +279,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
     }
 
     /**
-     * 计算出现序后缀值（US05）。
+     * 计算出现序后缀值。
      * <p>
      * 仅当同一标识出现多次时才需要后缀；唯一项返回 {@link ComparisonContext#NO_OCCURRENCE}（不加后缀）。
      *

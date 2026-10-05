@@ -175,7 +175,7 @@ class SharedSubgraphBenchmarkUnitTest {
 
                 assertThat(scan.sample()).as("%s level %s sample", stateType.getSimpleName(), levelValue).isNotNull();
                 assertThat(scan.graph()).as("%s level %s graph", stateType.getSimpleName(), levelValue).isNotNull();
-                // 根节点不登记活动节点对（T02 冻结语义，diffRoot 不登记根对）：环图闭合回到根时
+                // 根节点不登记活动节点对（diffRoot 不登记根对）：环图闭合回到根时
                 // 该对重新进入并复报根层 layerValue 变更，因此环图档位 1 经两条可达路径各报一条；
                 // 其余三拓扑档位 1 仍为 1 条。
                 final int expectedChanges = stateType == SharedSubgraphBenchmark.CyclicGraphScanState.class

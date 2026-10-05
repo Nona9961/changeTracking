@@ -23,7 +23,7 @@ import java.util.Objects;
  * protocol, written as one JSON line per row.
  * <p>
  * <b>Why a separate artifact.</b> The cold states are reported as raw samples and stay out of the
- * steady state judgement: the SRS requires the cold time and the target allocation of the first use
+ * steady state judgement: the cold time and the target allocation of the first use
  * protocol to be recorded in their own table, several forks sampled, and explicitly forbids feeding
  * an incomplete cold sample into the steady state comparator. This carrier therefore writes its own
  * document shape ({@value #FILE_NAME}) that the JMH result reader and hence

@@ -99,11 +99,13 @@ class ReflectionMetadataCacheUnitTest {
 
         String ownField = "own";
 
+        /** {@inheritDoc} */
         @Override
         public String get(final int index) {
             return null;
         }
 
+        /** {@inheritDoc} */
         @Override
         public int size() {
             return 0;

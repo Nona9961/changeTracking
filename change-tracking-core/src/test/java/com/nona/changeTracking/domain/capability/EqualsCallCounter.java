@@ -4,7 +4,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 外置的 {@code equals} 调用计数器（T03 / AC03.5）。
+ * 外置的 {@code equals} 调用计数器。
  * <p>
  * 计数载体属于测试侧：比较策略本身不提供任何计量接口，叶子语义比较的次数由计数样本把每次
  * {@code equals} 调用写入本对象来观察。计数器由测试用例持有并按用例重建，比较开始前清零，

@@ -116,6 +116,7 @@ class ValueNodeSnapshotStrategyCacheUnitTest {
      */
     static class IdentifiedItem implements Identified {
 
+        /** {@inheritDoc} */
         @Override
         public Long id() {
             return 42L;

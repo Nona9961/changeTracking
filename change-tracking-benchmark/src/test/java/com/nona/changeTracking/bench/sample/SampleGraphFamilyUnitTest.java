@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for the frozen graph sample shapes of {@link SampleFamily} (T03, US03): the shared graph
+ * Unit tests for the frozen graph sample shapes of {@link SampleFamily}: the shared graph
  * keeps two references to the same child per level, the plain tree shares nothing, the cyclic graph
  * closes on its head and the mixed graph carries both, together with the depth, independent object and
  * reference edge counts the benchmark carriers report.

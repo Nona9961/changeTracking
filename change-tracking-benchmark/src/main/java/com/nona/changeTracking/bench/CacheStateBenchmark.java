@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  * Steady state measurement of the three warm type processing cache states: reuse on the same
  * capability, a new tracker reusing that capability, and a new tracker with a new capability.
  * <p>
- * <b>States</b> (SRS 性能验收方法): the steady state protocol warms the capability first and then
+ * <b>States</b> (performance acceptance method): the steady state protocol warms the capability first and then
  * measures the reuse paths, so every measured method of this class starts from at least one warm
  * cache level:
  * <ul>
@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit;
  *   <li><b>New tracker, new capability</b> - the measured operation creates a capability and a
  *       tracker; the class level metadata is warm (the assembly warmed it with a separate instance of
  *       the same configuration) while the configuration level cache of the new capability is cold,
- *       which is the state the SRS names "类级热，新实例配置级冷".</li>
+ *       which is the class level warm, new instance configuration level cold state.</li>
  * </ul>
  * <p>
  * <b>Preconditions.</b> The snapshot method consumes its precondition ({@code track} keeps the sample

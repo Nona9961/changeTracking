@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 且两次同协议运行能被 {@code CompareResultsMain} 按同一条目 key 完整配对。
  * <p>
  * 该类由 surefire 默认排除（{@code **}{@code /}{@code *IntegrationTest}），仅在 {@code -Pfull} 全量执行时
- * 运行；shade 构建与 JMH 命令由 {@link SharedSubgraphBenchmarkRunFixture}（复用 T01 的
+ * 运行；shade 构建与 JMH 命令由 {@link SharedSubgraphBenchmarkRunFixture}（复用
  * {@link BenchmarkRunFixture} 设施）提供。
  */
 @DisplayName("SharedSubgraphBenchmark 装配面集成测试")

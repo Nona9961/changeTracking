@@ -1,7 +1,7 @@
 package com.nona.changeTracking.internal.snapshot;
 
 /**
- * 共享反射元数据缓存（ADR-002）：按类复用有序非静态字段及其字段访问准备状态。
+ * 共享反射元数据缓存：按类复用有序非静态字段及其字段访问准备状态。
  * <p>
  * 元数据与 {@code TrackingConfiguration} 无关，因此以进程内共享实例 {@link #SHARED} 提供，
  * 同一类的后续实例、不同 capability 与不同 tracker 复用同一份元数据；配置相关的值类型分类、

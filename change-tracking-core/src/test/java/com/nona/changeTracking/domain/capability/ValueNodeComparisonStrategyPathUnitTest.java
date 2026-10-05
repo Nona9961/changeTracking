@@ -32,11 +32,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * {@link ValueNodeComparisonStrategy} 路径语义单元测试（US01、US05）。
+ * {@link ValueNodeComparisonStrategy} 路径语义单元测试。
  * <p>
  * 通过公开 {@code compare} 验证：重复标识的出现序后缀、输出顺序、标识来源、路径文本格式、
- * 退出路径恢复、零变更遍历不格式化标识（AC05.1）以及既有循环终止语义；并通过 {@link ChangeSet}
- * 两种视图核对路径与上下文元数据（AC05.3）。
+ * 退出路径恢复、零变更遍历不格式化标识以及既有循环终止语义；并通过 {@link ChangeSet}
+ * 两种视图核对路径与上下文元数据。
  */
 @DisplayName("ValueNodeComparisonStrategy 路径语义单元测试")
 class ValueNodeComparisonStrategyPathUnitTest {
@@ -184,7 +184,7 @@ class ValueNodeComparisonStrategyPathUnitTest {
     }
 
     @Nested
-    @DisplayName("零变更遍历不格式化标识（AC05.1）")
+    @DisplayName("零变更遍历不格式化标识")
     class NoFormatOnZeroChange {
 
         @Test
@@ -341,7 +341,7 @@ class ValueNodeComparisonStrategyPathUnitTest {
     }
 
     @Nested
-    @DisplayName("两种视图的路径与上下文元数据（AC05.3）")
+    @DisplayName("两种视图的路径与上下文元数据")
     class FlatViewMetadata {
 
         @Test
@@ -459,7 +459,7 @@ class ValueNodeComparisonStrategyPathUnitTest {
     }
 
     /**
-     * 相等语义基于 value、文本表示计入计数的不可变值类型：用于验证按需格式化（AC05.1）。
+     * 相等语义基于 value、文本表示计入计数的不可变值类型：用于验证按需格式化。
      */
     static final class CountingId {
 
