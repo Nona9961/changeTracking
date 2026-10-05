@@ -420,6 +420,8 @@ class ChangeViewProjectionUnitTest {
 
             assertThat(leaves).hasSize(2);
             assertThat(leaves).extracting(Change::fullPath).containsExactly("x.y", "x.y");
+            // 值口径（record 相等）只说明两次出现的载荷与元数据一致；实例是否共享不在契约内，
+            // 断言不依赖也不排除实例共享。
             assertThat(leaves.get(0)).isEqualTo(leaves.get(1));
             assertThat(leaves.get(0).collectionFieldName()).isEqualTo(leaves.get(1).collectionFieldName());
         }
@@ -436,11 +438,16 @@ class ChangeViewProjectionUnitTest {
         @DisplayName("深链（深度 32）完整视图的 Change 构造数量应为线性，不出现平方增长")
         void toAllChanges_deepChain_shouldConstructLinearly() {
             final List<Change> allChanges = projection.toAllChanges(inputOf(nestedChain(DEEP_CHAIN_DEPTH)));
+            final java.util.Set<Change> distinctInstances =
+                    java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            distinctInstances.addAll(allChanges);
 
             // 逻辑节点数 = 32 个容器 + 1 个叶子；每个出现的逻辑节点只做常数次转换，
-            // 因此扁平条目 = 逻辑节点数，扁平条目的不同实例数 = 扁平条目数。
+            // 因此扁平条目 = 逻辑节点数，且按身份口径的不同实例数也等于扁平条目数。
+            // 口径说明：此处用身份集合而非 HashSet（值口径）——同一节点出现在多个位置时
+            // 值口径会按记录值去重，与身份口径分歧。
             assertThat(allChanges).hasSize(DEEP_CHAIN_DEPTH + 1);
-            assertThat(new java.util.HashSet<>(allChanges)).hasSize(DEEP_CHAIN_DEPTH + 1);
+            assertThat(distinctInstances).hasSize(DEEP_CHAIN_DEPTH + 1);
         }
 
         @Test

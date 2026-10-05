@@ -88,6 +88,15 @@ class ViewProjectionAssemblyIntegrationTest {
             assertThat(leafChanges).noneMatch(change -> change instanceof ContainerChange);
             assertThat(leafChanges).allMatch(change -> change instanceof ItemAddedChange);
             assertThat(leafChanges).hasSize(1);
+            // 完整视图的容器保留嵌套子视图：容器 children 非空，且子条目的完整路径仍指向集合项
+            final ContainerChange container = allChanges.stream()
+                    .filter(ContainerChange.class::isInstance)
+                    .map(ContainerChange.class::cast)
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(container.children()).isNotEmpty();
+            assertThat(container.children()).extracting(Change::fullPath)
+                    .allMatch(fullPath -> fullPath.startsWith("items["));
         }
 
         @Test
