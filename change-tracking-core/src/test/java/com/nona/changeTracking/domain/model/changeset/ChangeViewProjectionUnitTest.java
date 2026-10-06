@@ -59,6 +59,34 @@ class ChangeViewProjectionUnitTest {
     }
 
     /**
+     * 构造集合项内的对象链：一个集合、depth 个对象容器和一个字段叶子。
+     *
+     * @param depth 集合项及其后代的对象容器层数，至少 1
+     * @return 带空路径根容器的变更树
+     */
+    private static ChangeNode nestedCollectionChain(final int depth) {
+        ChangeNode node = new FieldChangeNode("items[1]" + ".next".repeat(depth - 1) + ".leaf", "old", "new");
+        for (int level = depth - 1; level >= 0; level--) {
+            node = new ContainerChangeNode("items[1]" + ".next".repeat(level), List.of(node));
+        }
+        return new ContainerChangeNode("", List.of(new ContainerChangeNode("items", List.of(node))));
+    }
+
+    /**
+     * 取得单分支容器链末端的字段变更。
+     *
+     * @param change 字段变更或只含一个子节点的容器链
+     * @return 链末端的字段变更
+     */
+    private static ValueChange terminalField(final Change change) {
+        Change current = change;
+        while (current instanceof ContainerChange container) {
+            current = container.children().getFirst();
+        }
+        return (ValueChange) current;
+    }
+
+    /**
      * 统计一次视图输出中可达的 Change 实例（含 children 递归）与不同实例数。
      *
      * @param changes 视图输出
@@ -217,6 +245,44 @@ class ChangeViewProjectionUnitTest {
                 new ContainerChangeNode("items", List.of(
                         new ItemAddedNode("items[100]", new PrimitiveNode("SKU-X")),
                         new FieldChangeNode("items[200].name", "旧名", "新名")))));
+
+        /** 验证嵌套集合及其扁平入口各自保留既有上下文语义。 */
+        @Test
+        @DisplayName("嵌套集合重新确定最近集合，扁平容器 children 按各自入口解析上下文")
+        void toAllChanges_nestedCollections_shouldResolveContextForEachRepresentation() {
+            final ChangeNode tree = new ContainerChangeNode("", List.of(
+                    new ContainerChangeNode("items", List.of(
+                            new ContainerChangeNode("items[1]", List.of(
+                                    new ContainerChangeNode("items[1].groups", List.of(
+                                            new ContainerChangeNode("items[1].groups[2]", List.of(
+                                                    new ContainerChangeNode("items[1].groups[2].profile", List.of(
+                                                            new FieldChangeNode("items[1].groups[2].profile.value",
+                                                                    "old", "new")))))))))))));
+
+            final List<Change> allChanges = projection.toAllChanges(inputOf(tree));
+
+            assertThat(allChanges).extracting(Change::path).containsExactly(
+                    "items", "items[1]", "items[1].groups", "items[1].groups[2]",
+                    "items[1].groups[2].profile", "items[1].groups[2].profile.value");
+            for (int index = 0; index < 3; index++) {
+                final ValueChange field = terminalField(allChanges.get(index));
+                assertThat(field.path()).isEqualTo("value");
+                assertThat(field.collectionFieldName()).isEqualTo("groups");
+                assertThat(field.isParentCollection()).isFalse();
+            }
+            assertThat(terminalField(allChanges.get(3)).collectionFieldName()).isNull();
+            assertThat(terminalField(allChanges.get(4)).collectionFieldName()).isNull();
+            final ContainerChange groups = (ContainerChange) allChanges.get(2);
+            assertThat(groups.children().getFirst().path()).isEqualTo("[2]");
+            assertThat(groups.children().getFirst().collectionFieldName()).isEqualTo("groups");
+            assertThat(groups.children().getFirst().isParentCollection()).isTrue();
+            assertThat(projection.toLeafChanges(inputOf(tree))).singleElement().satisfies(leaf -> {
+                assertThat(leaf.path()).isEqualTo("items[1].groups[2].profile.value");
+                assertThat(leaf.fieldName()).isEqualTo("value");
+                assertThat(leaf.collectionFieldName()).isEqualTo("groups");
+                assertThat(leaf.isParentCollection()).isFalse();
+            });
+        }
 
         @Test
         @DisplayName("完整视图扁平入口应从空上下文解析：集合项 fieldName=items、collectionFieldName=null")
@@ -434,6 +500,27 @@ class ChangeViewProjectionUnitTest {
         /** 冻结深链深度。 */
         private static final int DEEP_CHAIN_DEPTH = 32;
 
+        /** 验证集合内深链的输出构造量为线性，且共享构造保持字段语义。 */
+        @Test
+        @DisplayName("集合项内深链的可达 Change 实例数随逻辑节点数线性增长")
+        void toAllChanges_collectionChain_shouldConstructLinearly() {
+            for (final int depth : new int[]{8, 16, 32, 64}) {
+                final List<Change> allChanges = projection.toAllChanges(inputOf(nestedCollectionChain(depth)));
+                final int logicalNodeCount = depth + 3;
+
+                assertThat(allChanges).hasSize(depth + 2);
+                assertThat(reachabilityOf(allChanges).distinct())
+                        .as("集合对象链深度 %s，每个逻辑节点至多三种表示", depth)
+                        .isLessThanOrEqualTo(3 * logicalNodeCount);
+                final ValueChange inheritedField = terminalField(allChanges.getFirst());
+                assertThat(inheritedField.path()).isEqualTo("leaf");
+                assertThat(inheritedField.collectionFieldName()).isEqualTo("items");
+                assertThat(inheritedField.oldValue()).isEqualTo("old");
+                assertThat(inheritedField.newValue()).isEqualTo("new");
+                assertThat(terminalField(allChanges.get(1)).collectionFieldName()).isNull();
+            }
+        }
+
         @Test
         @DisplayName("深链（深度 32）完整视图的 Change 构造数量应为线性，不出现平方增长")
         void toAllChanges_deepChain_shouldConstructLinearly() {
@@ -462,25 +549,14 @@ class ChangeViewProjectionUnitTest {
         @Test
         @DisplayName("深度相邻值（8/32/128）的完整视图实例数应线性增长，不出现平方增长")
         void toAllChanges_neighbouringDepths_shouldGrowLinearly() {
-            final int depth8 = distinctOf(8);
-            final int depth32 = distinctOf(32);
-            final int depth128 = distinctOf(128);
+            for (final int depth : new int[]{8, 32, 128}) {
+                final List<Change> allChanges = projection.toAllChanges(inputOf(nestedChain(depth)));
 
-            assertThat(depth32 - depth8).isEqualTo((32 - 8) * 2);
-            assertThat(depth128 - depth32).isEqualTo((128 - 32) * 2);
-            assertThat(depth8).isEqualTo(2 * (8 + 1) - 1);
-            assertThat(depth32).isEqualTo(2 * (32 + 1) - 1);
-            assertThat(depth128).isEqualTo(2 * (128 + 1) - 1);
-        }
-
-        /**
-         * 深链完整视图的不同 Change 实例数。
-         *
-         * @param depth 容器层数
-         * @return 不同实例数
-         */
-        private int distinctOf(final int depth) {
-            return reachabilityOf(projection.toAllChanges(inputOf(nestedChain(depth)))).distinct();
+                assertThat(allChanges).hasSize(depth + 1);
+                assertThat(reachabilityOf(allChanges).distinct())
+                        .as("普通对象链深度 %s，每个逻辑节点至多三种表示", depth)
+                        .isLessThanOrEqualTo(3 * (depth + 2));
+            }
         }
     }
 
