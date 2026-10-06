@@ -242,6 +242,8 @@ final class ConfiguredTypeRulesCache {
         /**
          * 计算该类的标识规则：类链 × 每层接口链（接口与父接口，防环）查找，{@code Object.class}
          * 不作为查找层；未找到时返回 {@link IdentifierRule#IDENTITY_FALLBACK}，使未找到的结果同样被复用。
+         * <p>
+         * 接口链防环集合只在当前层确有直接接口时才创建——无接口的层不付该项分配。
          *
          * @param type 目标类
          * @return 解析出的标识规则，永不为 null
@@ -254,9 +256,12 @@ final class ConfiguredTypeRulesCache {
                 if (exact != null) {
                     return new IdentifierRule(exact);
                 }
-                final IdentifierRule fromInterfaces = findInInterfaceChain(current, new HashSet<>());
-                if (fromInterfaces != null) {
-                    return fromInterfaces;
+                final Class<?>[] interfaces = current.getInterfaces();
+                if (interfaces.length > 0) {
+                    final IdentifierRule fromInterfaces = findInInterfaceChain(interfaces, new HashSet<>());
+                    if (fromInterfaces != null) {
+                        return fromInterfaces;
+                    }
                 }
                 current = current.getSuperclass();
             }
@@ -264,15 +269,14 @@ final class ConfiguredTypeRulesCache {
         }
 
         /**
-         * 递归查找接口链（接口 + 父接口）中注册的提取器；{@link Class#getInterfaces()} 只返回直接接口，
-         * 菱形接口链采用访问集防环。
+         * 递归查找接口链（接口 + 父接口）中注册的提取器；菱形接口链采用访问集防环。
          *
-         * @param type    当前层要展开接口链的类型
-         * @param visited 已访问接口集合（防环）
+         * @param interfaces 当前层要展开的直接接口数组
+         * @param visited    已访问接口集合（防环）
          * @return 命中的规则，未命中返回 null
          */
-        private IdentifierRule findInInterfaceChain(final Class<?> type, final Set<Class<?>> visited) {
-            for (final Class<?> iface : type.getInterfaces()) {
+        private IdentifierRule findInInterfaceChain(final Class<?>[] interfaces, final Set<Class<?>> visited) {
+            for (final Class<?> iface : interfaces) {
                 if (!visited.add(iface)) {
                     continue;
                 }
@@ -280,7 +284,7 @@ final class ConfiguredTypeRulesCache {
                 if (exact != null) {
                     return new IdentifierRule(exact);
                 }
-                final IdentifierRule fromParents = findInInterfaceChain(iface, visited);
+                final IdentifierRule fromParents = findInInterfaceChain(iface.getInterfaces(), visited);
                 if (fromParents != null) {
                     return fromParents;
                 }
