@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * TrackingConfiguration 不可变契约测试（WU-A3 新契约）。
+ * TrackingConfiguration 不可变契约测试（不可变契约）。
  * <p>
  * 契约：
  * <ul>
