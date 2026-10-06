@@ -63,9 +63,18 @@ final class ChangeViewProjection {
     }
 
     /**
-     * 投影完整视图中一个节点的出现，并返回其父节点所需的表示。路径非空的节点在其子节点被投影前
-     * 预留扁平条目的位置，随后用组装好的条目回填该位置；路径为空的节点不预留任何东西，但其子节点
-     * 仍会被投影，因为完整视图在扁平列表中跳过空路径，把它们保留在容器子节点中。
+     * 投影完整视图中一个节点的出现，并返回其父节点所需的表示。
+     * <p>
+     * 同一节点在完整视图中有两种表示，上下文口径不同，必须分别构建：
+     * <ul>
+     *   <li><b>相对表示</b>（返回给父容器的 children）：路径为相对路径，传给子节点的集合上下文是
+     *       本节点解析出的最近集合字段名，因此集合项容器下的字段变更仍能定位到所属集合；</li>
+     *   <li><b>扁平表示</b>（回填进扁平列表的条目）：路径为完整路径，集合上下文从空上下文解析，
+     *       其 children 同样在该重置口径下构建。</li>
+     * </ul>
+     * 路径非空的节点在其子节点被投影前预留扁平条目的位置，随后用组装好的条目回填该位置；路径为空的
+     * 节点不预留任何东西，但其子节点仍会被投影，因为完整视图在扁平列表中跳过空路径，把它们保留在
+     * 容器子节点中。
      *
      * @param node                         待投影的变更节点出现
      * @param parentPath                   包含节点的完整路径，根节点为空串
@@ -83,11 +92,13 @@ final class ChangeViewProjection {
             flatOutput.add(null);
         }
 
+        final String relativeContext =
+                resolveCollectionFieldName(relativePath, parentPath, inheritedCollectionFieldName);
         final List<Change> children;
         if (node instanceof ContainerChangeNode container) {
             final List<Change> childRepresentations = new ArrayList<>(container.children().size());
             for (final ChangeNode child : container.children()) {
-                childRepresentations.add(project(child, fullPath, inheritedCollectionFieldName, flatOutput));
+                childRepresentations.add(project(child, fullPath, relativeContext, flatOutput));
             }
             children = Collections.unmodifiableList(childRepresentations);
         } else {
@@ -97,9 +108,54 @@ final class ChangeViewProjection {
         final Change relative = buildChange(node, relativePath, fullPath, parentPath,
                 inheritedCollectionFieldName, children);
         if (entersFlat) {
-            flatOutput.set(reserved, buildChange(node, fullPath, fullPath, "", null, children));
+            final String flatEntryContext = resolveCollectionFieldName(fullPath, "", null);
+            final List<Change> flatChildren;
+            if (!(node instanceof ContainerChangeNode container)) {
+                flatChildren = null;
+            } else if (Objects.equals(flatEntryContext, relativeContext)) {
+                flatChildren = children;
+            } else {
+                flatChildren = flatChildren(container, fullPath, flatEntryContext);
+            }
+            flatOutput.set(reserved, buildChange(node, fullPath, fullPath, "", null, flatChildren));
         }
         return relative;
+    }
+
+    /**
+     * 构建扁平条目自己的 children：与相对表示同形（相对路径），但集合上下文的起点是该扁平条目
+     * 作为扁平入口解析出的值——集合项容器作为扁平条目时，其 children 不再继承它在相对表示中的
+     * 上下文。只在两种口径的起点不同时调用（相同则直接复用相对表示的 children，保持深链构造量线性）。
+     *
+     * @param container  待展开子节点的容器节点出现
+     * @param parentPath 该容器节点的完整路径
+     * @param inherited  该扁平条目自身的最近集合字段名
+     * @return 只读的相对表示子节点列表
+     */
+    private List<Change> flatChildren(final ContainerChangeNode container, final String parentPath,
+                                      final String inherited) {
+        final List<Change> children = new ArrayList<>(container.children().size());
+        for (final ChangeNode child : container.children()) {
+            children.add(flatRepresentation(child, parentPath, inherited));
+        }
+        return Collections.unmodifiableList(children);
+    }
+
+    /**
+     * 构建扁平条目 children 中的一条子节点：路径为相对路径，集合上下文从该扁平条目的起点继承。
+     *
+     * @param node       待构建的变更节点出现
+     * @param parentPath 包含节点的完整路径
+     * @param inherited  包含节点在扁平条目口径下的最近集合字段名
+     * @return 该节点在扁平条目 children 中的表示
+     */
+    private Change flatRepresentation(final ChangeNode node, final String parentPath, final String inherited) {
+        final String fullPath = node.path();
+        final String relativePath = toRelativePath(fullPath, parentPath);
+        final String inheritedByChildren = resolveCollectionFieldName(relativePath, parentPath, inherited);
+        final List<Change> children = node instanceof ContainerChangeNode container
+                ? flatChildren(container, fullPath, inheritedByChildren) : null;
+        return buildChange(node, relativePath, fullPath, parentPath, inherited, children);
     }
 
     /**

@@ -181,6 +181,39 @@ class ViewProjectionAssemblyIntegrationTest {
             assertThat(leafEntry.collectionFieldName()).isEqualTo("items");
             assertThat(leafEntry.isParentCollection()).isTrue();
         }
+
+        @Test
+        @DisplayName("完整视图容器 children 中集合项容器的字段变更应继承 items 上下文")
+        void registeredIdentifier_containerChildFieldShouldInheritCollectionContext() {
+            provider.withIdentifier(LineItem.class, item -> item.id);
+            final ChangeTracker tracker = new ChangeTracker(provider.create());
+            final Order order = new Order();
+            order.items.add(new LineItem(7L, "SKU-7"));
+            tracker.track(order);
+            order.items.get(0).sku = "SKU-7-changed";
+
+            final ChangeSet changeSet = tracker.calculateChanges();
+
+            // 真实比较产出的树：items 容器 → 集合项容器 [7] → 字段 sku
+            final Change itemsContainer = changeSet.getAllChanges().stream()
+                    .filter(change -> change.path().equals("items"))
+                    .findFirst()
+                    .orElseThrow();
+            final Change itemContainer = ((ContainerChange) itemsContainer).children().stream()
+                    .filter(change -> change.path().equals("[7]"))
+                    .findFirst()
+                    .orElseThrow();
+            final Change skuWithinContainer = ((ContainerChange) itemContainer).children().stream()
+                    .filter(change -> change.path().equals("sku"))
+                    .findFirst()
+                    .orElseThrow();
+
+            assertThat(itemContainer.collectionFieldName()).isEqualTo("items");
+            assertThat(itemContainer.isParentCollection()).isTrue();
+            assertThat(skuWithinContainer.fieldName()).isEqualTo("sku");
+            assertThat(skuWithinContainer.collectionFieldName()).isEqualTo("items");
+            assertThat(skuWithinContainer.isParentCollection()).isFalse();
+        }
     }
 
     /**
