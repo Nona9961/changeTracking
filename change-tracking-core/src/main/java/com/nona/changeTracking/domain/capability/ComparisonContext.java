@@ -416,6 +416,9 @@ final class ComparisonContext {
          * 命中 {@link #IN_PROGRESS} 时不改动状态；命中 {@link #COMPLETED_UNCHANGED} 时不改动状态；
          * 命中 {@link #COMPLETED_CHANGED} 或未记录（空槽）时置为 {@link #IN_PROGRESS} 并记录本次
          * 进入时的截断计数。查询不构造临时节点对对象。
+         * <p>
+         * 扩容只在确认需要插入新条目时发生：命中已记录条目的两种情形（复用命中与重新比较）都只读改
+         * 原槽位，不触发数组分配与重散列。
          *
          * @param oldNode                      旧侧节点（调用方已保证非空）。
          * @param newNode                      新侧节点（调用方已保证非空）。
@@ -424,9 +427,6 @@ final class ComparisonContext {
          *         {@link #COMPLETED_UNCHANGED} / {@link #COMPLETED_CHANGED}。
          */
         byte enter(final ValueNode oldNode, final ValueNode newNode, final int cycleTruncationCountAtEntry) {
-            if (this.size >= this.threshold) {
-                resize();
-            }
             int index = hash(oldNode, newNode) & (this.oldNodes.length - 1);
             while (this.oldNodes[index] != null) {
                 if (this.oldNodes[index] == oldNode && this.newNodes[index] == newNode) {
@@ -439,6 +439,13 @@ final class ComparisonContext {
                     return COMPLETED_CHANGED;
                 }
                 index = (index + 1) & (this.oldNodes.length - 1);
+            }
+            if (this.size >= this.threshold) {
+                resize();
+                index = hash(oldNode, newNode) & (this.oldNodes.length - 1);
+                while (this.oldNodes[index] != null) {
+                    index = (index + 1) & (this.oldNodes.length - 1);
+                }
             }
             this.oldNodes[index] = oldNode;
             this.newNodes[index] = newNode;

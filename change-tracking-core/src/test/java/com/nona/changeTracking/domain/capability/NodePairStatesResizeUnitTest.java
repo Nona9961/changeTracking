@@ -3,11 +3,13 @@ package com.nona.changeTracking.domain.capability;
 import com.nona.changeTracking.domain.model.snapshot.ObjectNode;
 import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
 import com.nona.changeTracking.domain.model.snapshot.ValueNode;
+import com.sun.management.ThreadMXBean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.lang.management.ManagementFactory;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -59,6 +61,24 @@ class NodePairStatesResizeUnitTest {
             }
             assertThat(context.cycleTruncationCount())
                     .as("复用命中不产生循环截断")
+                    .isZero();
+        }
+
+        @Test
+        @DisplayName("命中已完成且无变化的节点对不应扩容：调用不产生分配")
+        void enterNodePair_hitCompletedUnchanged_shouldNotResize() {
+            final ValueNode[][] pairs = distinctPairs(8);
+            recordUnchanged(pairs);
+
+            final ThreadMXBean bean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+            final long threadId = Thread.currentThread().getId();
+            final long allocatedBefore = bean.getThreadAllocatedBytes(threadId);
+            final boolean entered = context.enterNodePair(pairs[0][0], pairs[0][1]);
+            final long allocatedAfter = bean.getThreadAllocatedBytes(threadId);
+
+            assertThat(entered).as("复用命中应直接返回 false").isFalse();
+            assertThat(allocatedAfter - allocatedBefore)
+                    .as("命中已记录条目只应读取状态，不应扩容分配")
                     .isZero();
         }
 
