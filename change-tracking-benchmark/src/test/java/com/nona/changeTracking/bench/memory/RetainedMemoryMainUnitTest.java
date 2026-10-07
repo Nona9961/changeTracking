@@ -50,9 +50,22 @@ class RetainedMemoryMainUnitTest {
     }
 
     @Test
-    @DisplayName("解析请求应持有场景列表")
-    void request_shouldHoldTheScenarioList() {
-        assertThat(new RetainedMemoryMain.Request(List.of(RetainedMemoryScenario.FULL_VIEW)).scenarios())
-                .containsExactly(RetainedMemoryScenario.FULL_VIEW);
+    @DisplayName("Request 应拒绝 null 场景列表")
+    void request_withNullScenarioList_shouldBeRejected() {
+        assertThatThrownBy(() -> new RetainedMemoryMain.Request(null))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("解析请求应与等价直接构造的请求等值，并保持请求顺序")
+    void request_shouldEqualTheDirectlyBuiltRequestInRequestOrder() {
+        final RetainedMemoryMain.Request parsed = RetainedMemoryMain.parse(
+                new String[]{"--scenario", "fullView", "--scenario", "calculateOnly"});
+        final RetainedMemoryMain.Request directlyBuilt = new RetainedMemoryMain.Request(
+                List.of(RetainedMemoryScenario.FULL_VIEW, RetainedMemoryScenario.CALCULATE_ONLY));
+
+        assertThat(parsed).isEqualTo(directlyBuilt);
+        assertThat(parsed.scenarios())
+                .containsExactly(RetainedMemoryScenario.FULL_VIEW, RetainedMemoryScenario.CALCULATE_ONLY);
     }
 }

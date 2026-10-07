@@ -13,7 +13,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Every graph is built inside its own test, so no case depends on the state another case left behind.
  * The expected figures are the estimator values for the reachable objects; sharing, cycles, null
  * slots and a repeated root have to be counted once each, so the cases lock the identity based walk
- * rather than a naive recursion.
+ * rather than a naive recursion. The aggregation cases lock the order of tied class totals, and the
+ * class literal case locks that a {@code Class} leaf is counted without being expanded.
  */
 @DisplayName("RetainedGraph 保留可达集测量单元测试")
 class RetainedGraphUnitTest {
@@ -60,6 +61,16 @@ class RetainedGraphUnitTest {
 
         /** String payload. */
         String label;
+    }
+
+    /**
+     * Carrier holding a class literal field: 16 bytes shallow. Its {@code Class} value takes part in
+     * the measurement as a leaf.
+     */
+    static final class Typed {
+
+        /** Class literal payload. */
+        Class<?> type;
     }
 
     @Test
@@ -176,13 +187,62 @@ class RetainedGraphUnitTest {
     @Test
     @DisplayName("字符串尺寸应以后备字节数组长度为准，而非字符个数")
     void measure_withMultiByteString_shouldSizeByBackingByteLength() {
-        final RetainedFootprint twoChars = RetainedGraph.measure("\u4e2d\u6587");
-        final RetainedFootprint fourAsciiChars = RetainedGraph.measure("abcd");
+        // Both payloads have five characters, but the Latin1 payload is backed by byte[5] (24 aligned)
+        // while the UTF-16 payload is backed by byte[10] (32 aligned), so the pair distinguishes the
+        // backing byte length from String.length(): sizing by the character count would report 48B for
+        // both payloads.
+        final RetainedFootprint fiveLatin1Chars = RetainedGraph.measure("abcde");
+        final RetainedFootprint fiveUtf16Chars = RetainedGraph.measure("\u4e2d\u6587\u5b57ab");
 
-        assertThat(twoChars.objectCount()).isEqualTo(2);
-        assertThat(fourAsciiChars.objectCount()).isEqualTo(2);
-        assertThat(twoChars.retainedBytes()).isEqualTo(48L);
-        assertThat(fourAsciiChars.retainedBytes()).isEqualTo(48L);
+        assertThat(fiveLatin1Chars.objectCount()).isEqualTo(2);
+        assertThat(fiveUtf16Chars.objectCount()).isEqualTo(2);
+        assertThat(fiveLatin1Chars.retainedBytes()).isEqualTo(48L);
+        assertThat(fiveUtf16Chars.retainedBytes()).isEqualTo(56L);
+    }
+
+    @Test
+    @DisplayName("Class 字段应作为叶子计入尺寸但不展开")
+    void measure_withClassLeaf_shouldCountItsSizeWithoutTraversingIt() {
+        final Typed typed = new Typed();
+        typed.type = Leaf.class;
+
+        final RetainedFootprint footprint = RetainedGraph.measure(typed);
+
+        // The class literal is counted alone: 16 bytes for the carrier plus the Class estimate of
+        // 12 header + 13 reference fields + one int field (68), aligned to 72 bytes. Three of those
+        // reference fields are non null for a class literal (for example its name), so an expanded
+        // leaf would raise both totals.
+        assertThat(footprint.objectCount()).isEqualTo(2);
+        assertThat(footprint.retainedBytes()).isEqualTo(88L);
+        assertThat(footprint.classFootprints()).extracting(ClassFootprint::className)
+                .containsExactly(Class.class.getName(), Typed.class.getName());
+        assertThat(footprint.classFootprints()).extracting(ClassFootprint::objectCount)
+                .containsExactly(1, 1);
+        assertThat(footprint.classFootprints()).extracting(ClassFootprint::bytes)
+                .containsExactly(72L, 16L);
+    }
+
+    @Test
+    @DisplayName("类聚合字节数并列时应按对象个数降序、再按类名升序排列")
+    void measure_withTiedClassTotals_shouldOrderByDescendingCountThenClassName() {
+        // Leaf: 16 bytes each, three objects -> 48; Branch: 24 bytes each, two objects -> 48.
+        final RetainedFootprint tiedCounts = RetainedGraph.measure(
+                new Leaf(), new Leaf(), new Leaf(), new Branch(), new Branch());
+        final RetainedFootprint tiedNames = RetainedGraph.measure(new Branch(), new CycleNode());
+
+        assertThat(tiedCounts.retainedBytes()).isEqualTo(96L);
+        assertThat(tiedCounts.objectCount()).isEqualTo(5);
+        assertThat(tiedCounts.classFootprints()).extracting(ClassFootprint::className)
+                .containsExactly(Leaf.class.getName(), Branch.class.getName());
+        assertThat(tiedCounts.classFootprints()).extracting(ClassFootprint::objectCount)
+                .containsExactly(3, 2);
+        assertThat(tiedCounts.classFootprints()).extracting(ClassFootprint::bytes)
+                .containsExactly(48L, 48L);
+
+        // Branch: 24 bytes, one object; CycleNode: 24 bytes, one object -> the binary class name
+        // decides, so the smaller name leads.
+        assertThat(tiedNames.classFootprints()).extracting(ClassFootprint::className)
+                .containsExactly(Branch.class.getName(), CycleNode.class.getName());
     }
 
     @Test

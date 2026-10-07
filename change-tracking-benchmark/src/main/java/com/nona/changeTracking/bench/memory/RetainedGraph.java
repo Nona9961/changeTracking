@@ -21,7 +21,13 @@ import java.util.Objects;
  * object. Identity is tracked in an identity map, so a shared subgraph is counted once and a cycle
  * terminates instead of recursing forever; a null field, a null array element and a repeated root
  * contribute nothing. Class objects and class loaders are counted as leaves and never traversed, so
- * the measurement stays inside the held result instead of walking the class metadata universe.
+ * the measurement stays inside the held result instead of walking the class metadata universe. The
+ * leaf cut is a defensive approximation: the size added for such a leaf is the {@link ObjectLayout}
+ * estimate over its declared fields, while the real size of a {@code Class} or {@code ClassLoader}
+ * instance is computed by the VM from class metadata (for example the vtable and itable of a
+ * {@code Class}) and is therefore not the sum of its declared Java fields. Because those leaves are
+ * never expanded, the approximation stays bounded to the two leaf kinds and the graph below them is
+ * never spilled into the measured result.
  * <p>
  * The walker reads reference field values through reflection, so the measured JVM has to open the
  * packages of the JDK types the result graph reaches. The real result graph of the framework holds

@@ -17,35 +17,30 @@ import java.util.Objects;
 public enum RetainedMemoryScenario {
 
     /** Holds the calculated change set alone. */
-    CALCULATE_ONLY("calculateOnly", "仅计算"),
+    CALCULATE_ONLY("calculateOnly"),
 
     /** Holds the calculated change set and one leaf view acquisition. */
-    LEAF_ONLY("leafOnly", "仅叶子"),
+    LEAF_ONLY("leafOnly"),
 
     /** Holds the calculated change set and one complete view acquisition. */
-    FULL_VIEW("fullView", "完整视图"),
+    FULL_VIEW("fullView"),
 
     /** Holds the calculated change set and two complete view acquisitions. */
-    REPEATED_ACQUIRE("repeatedAcquire", "重复获取"),
+    REPEATED_ACQUIRE("repeatedAcquire"),
 
     /** Holds the calculated change set and both the complete and the leaf view acquisition. */
-    CALCULATE_AND_LEAF("calculateAndLeaf", "计算加叶子");
+    CALCULATE_AND_LEAF("calculateAndLeaf");
 
     /** Stable token of the scenario on the command line and in the report. */
     private final String commandLineName;
 
-    /** Human readable name of the scenario used in the report header. */
-    private final String displayName;
-
     /**
-     * Creates one scenario with its stable command line token and its human readable name.
+     * Creates one scenario with its stable command line token.
      *
      * @param commandLineName the stable command line token of the scenario
-     * @param displayName     the human readable name of the scenario
      */
-    RetainedMemoryScenario(final String commandLineName, final String displayName) {
+    RetainedMemoryScenario(final String commandLineName) {
         this.commandLineName = commandLineName;
-        this.displayName = displayName;
     }
 
     /**
@@ -55,15 +50,6 @@ public enum RetainedMemoryScenario {
      */
     public String commandLineName() {
         return this.commandLineName;
-    }
-
-    /**
-     * Returns the human readable name of this scenario.
-     *
-     * @return the display name
-     */
-    public String displayName() {
-        return this.displayName;
     }
 
     /**

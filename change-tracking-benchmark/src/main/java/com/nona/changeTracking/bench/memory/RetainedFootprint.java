@@ -37,22 +37,4 @@ public record RetainedFootprint(long retainedBytes, int objectCount, List<ClassF
         Objects.requireNonNull(classFootprints, "classFootprints");
         classFootprints = List.copyOf(classFootprints);
     }
-
-    /**
-     * Returns at most the given number of the leading class footprints, that is the dominant retained
-     * objects of this footprint, in the order this record keeps them.
-     *
-     * @param limit the maximum number of class footprints to return, at least 0
-     * @return the leading class footprints, the full list when the limit exceeds its size
-     * @throws IllegalArgumentException if the limit is negative
-     */
-    public List<ClassFootprint> dominantClasses(final int limit) {
-        if (limit < 0) {
-            throw new IllegalArgumentException("limit must not be negative, but was " + limit);
-        }
-        if (limit >= classFootprints.size()) {
-            return classFootprints;
-        }
-        return classFootprints.subList(0, limit);
-    }
 }

@@ -3,8 +3,6 @@ package com.nona.changeTracking.bench.memory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -67,8 +65,5 @@ class RetainedMemoryScenarioUnitTest {
         assertThat(RetainedMemoryScenario.ResultView.CALCULATED_SET.token()).isEqualTo("calculatedSet");
         assertThat(RetainedMemoryScenario.ResultView.FULL_VIEW.token()).isEqualTo("fullView");
         assertThat(RetainedMemoryScenario.ResultView.LEAF_VIEW.token()).isEqualTo("leafView");
-        final List<RetainedMemoryScenario.ResultView> tokens = List.of(
-                RetainedMemoryScenario.ResultView.values());
-        assertThat(tokens).hasSize(3);
     }
 }

@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for {@link RetainedFootprint} and its {@link ClassFootprint} entries: the value
- * contract, the defensive copy, the read only class list and the dominant class selection.
+ * contract, the defensive copy and the read only class list.
  */
 @DisplayName("RetainedFootprint 保留脚印值对象单元测试")
 class RetainedFootprintUnitTest {
@@ -62,21 +62,5 @@ class RetainedFootprintUnitTest {
         assertThat(footprint.classFootprints()).hasSize(1);
         assertThatThrownBy(() -> footprint.classFootprints().add(new ClassFootprint("java.lang.Long", 1, 24L)))
                 .isInstanceOf(UnsupportedOperationException.class);
-    }
-
-    @Test
-    @DisplayName("dominantClasses 应按下界、超界与负值分别返回")
-    void dominantClasses_shouldRespectTheLimit() {
-        final RetainedFootprint footprint = new RetainedFootprint(88L, 3, List.of(
-                new ClassFootprint("java.lang.String", 2, 48L),
-                new ClassFootprint("java.lang.Integer", 1, 24L),
-                new ClassFootprint("java.lang.Long", 1, 16L)));
-
-        assertThat(footprint.dominantClasses(2)).hasSize(2);
-        assertThat(footprint.dominantClasses(2).get(0).className()).isEqualTo("java.lang.String");
-        assertThat(footprint.dominantClasses(0)).isEmpty();
-        assertThat(footprint.dominantClasses(10)).hasSize(3);
-        assertThatThrownBy(() -> footprint.dominantClasses(-1))
-                .isInstanceOf(IllegalArgumentException.class);
     }
 }
