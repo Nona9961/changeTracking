@@ -83,6 +83,8 @@ class ChangeTrackerResultContractUnitTest {
 
             assertThat(changeSet.changes()).hasSize(2);
             assertThat(changeSet.changes()).extracting(ObjectChange::target).containsExactlyInAnyOrder(first, second);
+            assertStatusChangePayload(changeSet, first, "PAID");
+            assertStatusChangePayload(changeSet, second, "CANCELLED");
         }
 
         @Test
@@ -111,6 +113,24 @@ class ChangeTrackerResultContractUnitTest {
             assertThat(second.getLeafChanges()).hasSize(1);
             assertThat(second.getLeafChanges().get(0).fullPath()).isEqualTo("status");
         }
+
+        /**
+         * 断言指定目标的结果只含一处 status 字段变化，且其新值为期望业务值（按目标身份取结果，与顺序无关）。
+         *
+         * @param changeSet        多目标变更集
+         * @param target           目标对象
+         * @param expectedNewValue 期望的新值
+         */
+        private static void assertStatusChangePayload(final ChangeSet changeSet, final Object target,
+                                                      final Object expectedNewValue) {
+            final ObjectChange objectChange = changeSet.changes().stream()
+                    .filter(change -> change.target() == target)
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("no ObjectChange is bound to the expected target"));
+            assertThat(objectChange.changes()).hasSize(1);
+            assertThat(objectChange.changes().get(0)).isInstanceOfSatisfying(ValueChange.class,
+                    value -> assertThat(value.newValue()).isEqualTo(expectedNewValue));
+        }
     }
 
     @Nested
@@ -132,6 +152,21 @@ class ChangeTrackerResultContractUnitTest {
         void failingStrategy_shouldPropagateTheOriginalException() {
             final IllegalStateException failure = new IllegalStateException("strategy failure");
             final ChangeTracker tracker = trackerWith(ScriptedTrackingSupport.ScriptedComparisonStrategy.failing(failure));
+            tracker.track(new SimpleEntity());
+            tracker.track(new SimpleEntity());
+
+            assertThatThrownBy(tracker::calculateChanges).isSameAs(failure);
+        }
+
+        @Test
+        @DisplayName("多目标中前序目标已成功：整次计算仍以原异常失败，不返回部分成功结果")
+        void partialSuccess_shouldNotBeReturned() {
+            final IllegalStateException failure = new IllegalStateException("second target failed");
+            final ValueChange status = new ValueChange(ChangeLocation.field(ChangeLocation.root(), "status"),
+                    "CREATED", "PAID");
+            final ChangeTracker tracker = new ChangeTracker(new ScriptedTrackingSupport.ValueNodeSnapshotCapability(
+                    new ValueNodeSnapshotStrategy(TrackingConfiguration.empty()),
+                    new ScriptedTrackingSupport.FailingAfterSuccessValueNodeComparisonStrategy(List.of(status), failure)));
             tracker.track(new SimpleEntity());
             tracker.track(new SimpleEntity());
 

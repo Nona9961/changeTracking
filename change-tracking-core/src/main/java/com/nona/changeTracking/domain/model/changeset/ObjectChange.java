@@ -19,6 +19,10 @@ public record ObjectChange(Object target, List<Change> changes) {
 
     /**
      * 紧凑构造器：拒绝空目标与空结果列表，拒绝非法顶层结果（空路径分组），并防御性复制结果列表。
+     * <p>
+     * 空路径分组的拒绝是结果组织边界上的防御：{@link ContainerChange} 的构建入口已保证分组位于其
+     * 包含位置之下（空路径分组非法），正常装配下该分支不可达；保留它是为了在结果列表被直接构造时
+     * 仍然守住「根路径只承载真实根值变化」的结果契约。
      *
      * @param target  被追踪的、发生变更的对象实例
      * @param changes 目标根下的变更列表，非空

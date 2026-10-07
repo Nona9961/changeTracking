@@ -257,6 +257,62 @@ final class ScriptedTrackingSupport {
     }
 
     /**
+     * 基于默认快照类型的序列化比较策略：首次比较返回预设结果，之后抛出预设异常。
+     * <p>
+     * 用于验证多目标计算中「前序目标已成功」也不返回部分结果——首次即失败的脚本策略无法区分
+     * 「整次计算失败」与「已成功的部分被丢弃」。
+     */
+    static final class FailingAfterSuccessValueNodeComparisonStrategy implements ComparisonStrategy<ValueNodeSnapshot> {
+
+        /**
+         * 首次比较返回的结果。
+         */
+        private final List<Change> firstResult;
+
+        /**
+         * 后续比较抛出的预设异常。
+         */
+        private final RuntimeException failure;
+
+        /**
+         * 已执行的比较次数。
+         */
+        private int calls;
+
+        /**
+         * 创建序列化比较策略。
+         *
+         * @param firstResult 首次比较返回的结果
+         * @param failure     后续比较抛出的预设异常
+         */
+        FailingAfterSuccessValueNodeComparisonStrategy(final List<Change> firstResult, final RuntimeException failure) {
+            this.firstResult = List.copyOf(firstResult);
+            this.failure = Objects.requireNonNull(failure, "failure");
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public Class<ValueNodeSnapshot> getSupportedSnapshotType() {
+            return ValueNodeSnapshot.class;
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * 首次比较返回预设结果（该目标已成功），之后抛出预设异常实例（后续目标失败）。
+         */
+        @Override
+        public List<Change> compare(final ValueNodeSnapshot oldSnapshot, final ValueNodeSnapshot newSnapshot) {
+            if (this.calls++ == 0) {
+                return this.firstResult;
+            }
+            throw this.failure;
+        }
+    }
+
+    /**
      * 基于默认快照类型的脚本化比较策略：比较时抛出预设异常。
      */
     static final class FailingValueNodeComparisonStrategy implements ComparisonStrategy<ValueNodeSnapshot> {

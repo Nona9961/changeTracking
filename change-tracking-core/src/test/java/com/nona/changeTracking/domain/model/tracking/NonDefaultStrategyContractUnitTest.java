@@ -1,6 +1,7 @@
 package com.nona.changeTracking.domain.model.tracking;
 
 import com.nona.changeTracking.domain.capability.TrackingCapability;
+import com.nona.changeTracking.domain.capability.ValueNodeComparisonStrategy;
 import com.nona.changeTracking.domain.model.changeset.ChangeLocation;
 import com.nona.changeTracking.domain.model.changeset.ChangeSet;
 import com.nona.changeTracking.domain.model.changeset.ContainerChange;
@@ -142,6 +143,7 @@ class NonDefaultStrategyContractUnitTest {
             final TrackingCapability<ValueNodeSnapshot> capability = new DefaultTrackingCapability(TrackingConfiguration.empty());
 
             assertThat(capability.getComparisonStrategy()).isNotNull();
+            assertThat(capability.getComparisonStrategy()).isInstanceOf(ValueNodeComparisonStrategy.class);
             assertThat(capability.getComparisonStrategy().getSupportedSnapshotType()).isEqualTo(ValueNodeSnapshot.class);
         }
     }

@@ -305,25 +305,19 @@ class ChangeLocationUnitTest {
         @Test
         @DisplayName("定位对象不持有业务对象、结果节点或比较会话状态：实例字段只承载路径事实")
         void location_shouldNotRetainBusinessObjectsOrResultNodes() {
-            final List<Class<?>> forbidden = List.of(
-                    Object.class,
-                    Change.class,
-                    com.nona.changeTracking.domain.model.snapshot.ValueNode.class,
-                    com.nona.changeTracking.domain.model.snapshot.Snapshot.class);
+            final List<Class<?>> allowedFieldTypes = List.of(String.class, boolean.class);
 
-            final List<Class<?>> offenders = new ArrayList<>();
+            final List<Field> unexpectedFields = new ArrayList<>();
             for (final Field declared : ChangeLocation.class.getDeclaredFields()) {
                 if (Modifier.isStatic(declared.getModifiers())) {
                     continue;
                 }
-                for (final Class<?> candidate : forbidden) {
-                    if (candidate.equals(declared.getType())) {
-                        offenders.add(declared.getType());
-                    }
+                if (!allowedFieldTypes.contains(declared.getType())) {
+                    unexpectedFields.add(declared);
                 }
             }
 
-            assertThat(offenders).isEmpty();
+            assertThat(unexpectedFields).isEmpty();
         }
 
         @Test

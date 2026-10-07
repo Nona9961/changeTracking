@@ -117,8 +117,13 @@ class ChangeSetViewUnitTest {
             assertThat(locationOf(all, "items[100]")).usingRecursiveComparison()
                     .isEqualTo(locationOf(leaves, "items[100]"));
             final Change itemContainerChange = byFullPath(all, "items[200]");
-            assertThat(itemContainerChange.location()).usingRecursiveComparison()
-                    .isEqualTo(tree.item7Group().location());
+            final ChangeLocation itemContainerLocation = itemContainerChange.location();
+            assertThat(itemContainerLocation.fullPath()).isEqualTo("items[200]");
+            assertThat(itemContainerLocation.relativePath()).isEqualTo("[200]");
+            assertThat(itemContainerLocation.fieldName()).isNull();
+            assertThat(itemContainerLocation.collectionFieldName()).isEqualTo("items");
+            assertThat(itemContainerLocation.isParentCollection()).isTrue();
+
             assertThat(itemContainerChange.relativePath()).isEqualTo("[200]");
             assertThat(itemContainerChange.collectionFieldName()).isEqualTo("items");
             assertThat(itemContainerChange.isParentCollection()).isTrue();
