@@ -98,7 +98,7 @@ class ChangeSetModelUnitTest {
     }
 
     @Nested
-    @DisplayName("A9 转换去重：多级嵌套树视图契约测试")
+    @DisplayName("唯一转换核心去重：多级嵌套树视图契约测试")
     class NestedTreeViewContractTest {
 
         // 模拟真实 diffNode 输出格式的多级嵌套变更树：

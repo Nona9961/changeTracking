@@ -19,9 +19,14 @@ changeTracking 以框架无关（不绑定 ORM）的方式解决这个问题：�
 - **双视图变更集**：树形视图保留完整结构，扁平视图可直接转换为数据库操作
 - **循环引用安全**：快照构建与差异比较在循环对象图上不栈溢出
 - **SPI 可扩展**：快照策略、比较策略、标识符提取器均可插拔，`ServiceLoader` 自动发现
-- **基线安全**：快照持有不可变拷贝，`track()` 之后修改业务对象不污染基线；反射使用无需 JVM 参数
+- **基线安全**：快照持有不可变拷贝，`track()` 之后修改业务对象不污染基线；类路径（非模块路径）下反射使用无需额外 JVM 参数
 
 ## 快速使用
+
+### 环境要求
+
+- Java 25
+- Maven 3.6+
 
 ### Maven 依赖
 
@@ -79,11 +84,6 @@ provider.withIdentifier(Order.class, Order::getId)
         .withValuePackage("com.example.vo");  // 整个包的值类型
 ```
 
-## 系统要求
-
-- Java 25
-- Maven 3.6+
-
 ## 许可证
 
-MIT License
+本项目基于 [MIT License](LICENSE) 开源。

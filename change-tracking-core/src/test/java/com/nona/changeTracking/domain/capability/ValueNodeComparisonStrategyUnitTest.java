@@ -531,7 +531,7 @@ class ValueNodeComparisonStrategyUnitTest {
     }
 
     @Nested
-    @DisplayName("字段排序稳定性测试（P5：声明序输出）")
+    @DisplayName("字段排序稳定性测试（声明序输出）")
     class FieldOrderTests {
 
         @Test
@@ -581,7 +581,7 @@ class ValueNodeComparisonStrategyUnitTest {
     }
 
     @Nested
-    @DisplayName("数组变更测试（D14：数组=值语义，顺序敏感）")
+    @DisplayName("数组变更测试（数组=值语义，顺序敏感）")
     class ArrayChangeTests {
 
         @Test

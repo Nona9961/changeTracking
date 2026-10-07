@@ -227,6 +227,71 @@ class SampleMutatorUnitTest {
                 .isInstanceOf(NullPointerException.class);
     }
 
+    @Test
+    @DisplayName("changeDeepestLeafField 应只改变最深叶子的 street，其他字段与集合保持不变")
+    void changeDeepestLeafField_shouldChangeOnlyTheDeepestLeaf() {
+        final Object sample = SampleFamily.create(SampleShape.of(SampleShape.DEFAULT_FIELD_COUNT, 3, 10));
+        final Map<String, Object> fieldsBefore = scalarSnapshot(sample);
+        final List<?> itemsBefore = itemsOf(sample);
+        final List<Object> chainBefore = addressChain(sample);
+
+        SampleMutator.changeDeepestLeafField(sample);
+
+        final List<Object> chainAfter = addressChain(sample);
+        assertThat(chainAfter).hasSize(chainBefore.size());
+        assertThat(((SampleAddress) chainAfter.get(2)).street())
+                .isNotEqualTo(((SampleAddress) chainBefore.get(2)).street());
+        assertThat(((SampleAddress) chainAfter.get(0)).city())
+                .isEqualTo(((SampleAddress) chainBefore.get(0)).city());
+        assertThat(((SampleAddress) chainAfter.get(0)).street())
+                .isEqualTo(((SampleAddress) chainBefore.get(0)).street());
+        assertThat(scalarSnapshot(sample)).isEqualTo(fieldsBefore);
+        assertThat(itemsOf(sample)).isSameAs(itemsBefore);
+    }
+
+    @Test
+    @DisplayName("changeDeepestLeafField 在窄样本、深度 1 与冻结深链（深度 32）上同样生效")
+    void changeDeepestLeafField_shouldCoverNarrowDepthOneAndTheFrozenDeepChain() {
+        final Object narrow = SampleFamily.create(SampleShape.of(SampleShape.SUPPORTED_FIELD_COUNT_LOW, 1, 0));
+        final Object single = SampleFamily.create(SampleShape.of(SampleShape.DEFAULT_FIELD_COUNT, 1, 0));
+        final Object deep = SampleFamily.create(SampleShape.deepChain());
+
+        SampleMutator.changeDeepestLeafField(narrow);
+        SampleMutator.changeDeepestLeafField(single);
+        SampleMutator.changeDeepestLeafField(deep);
+
+        assertThat(((SampleAddress) addressChain(narrow).get(0)).street()).contains("-changed");
+        assertThat(addressChain(single)).hasSize(1);
+        assertThat(((SampleAddress) addressChain(single).get(0)).street()).contains("-changed");
+        final List<Object> deepChain = addressChain(deep);
+        assertThat(deepChain).hasSize(SampleShape.DEEP_NESTING_DEPTH);
+        assertThat(((SampleAddress) deepChain.get(SampleShape.DEEP_NESTING_DEPTH - 1)).street()).contains("-changed");
+    }
+
+    @Test
+    @DisplayName("changeDeepestLeafField 的重复调用应继续产生不同的叶子值")
+    void changeDeepestLeafField_calledTwice_shouldChangeTheLeafAgain() {
+        final Object sample = SampleFamily.create(SampleShape.of(SampleShape.DEFAULT_FIELD_COUNT, 2, 0));
+
+        SampleMutator.changeDeepestLeafField(sample);
+        final String firstStreet = ((SampleAddress) addressChain(sample).get(1)).street();
+        SampleMutator.changeDeepestLeafField(sample);
+
+        assertThat(((SampleAddress) addressChain(sample).get(1)).street()).isNotEqualTo(firstStreet);
+    }
+
+    @Test
+    @DisplayName("changeDeepestLeafField 应拒绝 null 样本与非样本类型且不产生副作用")
+    void changeDeepestLeafField_withInvalidInput_shouldReject() {
+        final List<String> notASample = new ArrayList<>(List.of("a"));
+
+        assertThatThrownBy(() -> SampleMutator.changeDeepestLeafField(null))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> SampleMutator.changeDeepestLeafField(notASample))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(notASample).containsExactly("a");
+    }
+
     private static Object readField(final Object target, final String fieldName) {
         try {
             final Field field = target.getClass().getDeclaredField(fieldName);
@@ -273,5 +338,24 @@ class SampleMutatorUnitTest {
             identifiers.add(idOf(item));
         }
         return identifiers;
+    }
+
+    /**
+     * Walks the address chain of a sample into its elements.
+     *
+     * @param sample a sample root created by {@link SampleFamily#create(SampleShape)}
+     * @return the chain elements in order
+     */
+    private static List<Object> addressChain(final Object sample) {
+        final List<Object> chain = new ArrayList<>();
+        Object current = readField(sample, "address");
+        while (current instanceof SampleAddressLink link) {
+            chain.add(current);
+            current = link.next();
+        }
+        if (current != null) {
+            chain.add(current);
+        }
+        return chain;
     }
 }

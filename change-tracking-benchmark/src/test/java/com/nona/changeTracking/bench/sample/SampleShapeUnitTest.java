@@ -50,6 +50,35 @@ class SampleShapeUnitTest {
     }
 
     @Test
+    @DisplayName("deepChain 应返回冻结的深链形状：字段数 20、深度 32、集合 100")
+    void deepChain_shouldReturnTheFrozenDeepChainShape() {
+        final SampleShape deepChain = SampleShape.deepChain();
+
+        assertThat(deepChain).isEqualTo(new SampleShape(SampleShape.DEFAULT_FIELD_COUNT,
+                SampleShape.DEEP_NESTING_DEPTH, SampleShape.DEFAULT_COLLECTION_SIZE));
+        assertThat(deepChain.nestingDepth()).isEqualTo(SampleShape.DEEP_NESTING_DEPTH);
+        assertThat(deepChain.collectionSize()).isEqualTo(SampleShape.DEFAULT_COLLECTION_SIZE);
+    }
+
+    @Test
+    @DisplayName("深链档位应固定为 32，并仍受既有三维校验接受")
+    void deepChainLevel_shouldBeFrozenAndAcceptedByTheExistingValidation() {
+        assertThat(SampleShape.DEEP_NESTING_DEPTH).isEqualTo(32);
+        assertThat(SampleShape.deepChain().nestingDepth()).isEqualTo(32);
+        assertThat(SampleShape.of(SampleShape.DEFAULT_FIELD_COUNT, SampleShape.DEEP_NESTING_DEPTH, 1_000))
+                .isEqualTo(new SampleShape(20, 32, 1_000));
+    }
+
+    @Test
+    @DisplayName("两次 deepChain 调用应返回等值形状，且不改变字段数校验")
+    void deepChain_shouldNotChangeTheFieldCountValidation() {
+        assertThat(SampleShape.deepChain()).isEqualTo(SampleShape.deepChain());
+        assertThatThrownBy(() -> SampleShape.of(6, SampleShape.DEEP_NESTING_DEPTH, 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("fieldCount");
+    }
+
+    @Test
     @DisplayName("不支持的字段数（4 / 6 / 21）应在构造时被拒绝")
     void constructor_withUnsupportedFieldCount_shouldReject() {
         assertThatThrownBy(() -> new SampleShape(4, 1, 10))

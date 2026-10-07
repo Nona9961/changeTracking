@@ -136,7 +136,7 @@ class ValueNodeSnapshotStrategyUnitTest {
         }
 
         @Test
-        @DisplayName("真实快照路径：ObjectNode 字段迭代序 = 声明序（P5 链路，比较层输出依赖）")
+        @DisplayName("真实快照路径：ObjectNode 字段迭代序 = 声明序（比较层输出依赖）")
         void fieldIteration_shouldFollowDeclarationOrder() {
             final User user = new User();
             final ValueNodeSnapshot snapshot = strategy.createSnapshot(user);
@@ -343,7 +343,7 @@ class ValueNodeSnapshotStrategyUnitTest {
     }
 
     @Nested
-    @DisplayName("Atomic 值类型处理（D17：可变对象不得持引用，快照取值拷贝）")
+    @DisplayName("Atomic 值类型处理（可变对象不得持引用，快照取值拷贝）")
     class AtomicValueTypeRemovalTests {
 
         @Test
@@ -668,7 +668,7 @@ class ValueNodeSnapshotStrategyUnitTest {
     }
 
     @Nested
-    @DisplayName("数组快照处理（D14：值类型数组 → ArrayNode 值语义；复杂对象数组 → CollectionNode 递归）")
+    @DisplayName("数组快照处理（值类型数组 → ArrayNode 值语义；复杂对象数组 → CollectionNode 递归）")
     class ArraySnapshotTests {
 
         static class EntityWithByteArray {
@@ -811,7 +811,7 @@ class ValueNodeSnapshotStrategyUnitTest {
     }
 
     @Nested
-    @DisplayName("快照节点不可变契约测试（D11：final class + 只读 API，外部写 = 编译级不可能）")
+    @DisplayName("快照节点不可变契约测试（final class + 只读 API，外部写 = 编译级不可能）")
     class NodeImmutabilityTests {
 
         @Test

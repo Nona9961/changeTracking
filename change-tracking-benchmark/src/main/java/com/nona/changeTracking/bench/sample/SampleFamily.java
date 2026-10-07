@@ -38,6 +38,101 @@ public final class SampleFamily {
     }
 
     /**
+     * Depth of the frozen shared, cyclic and mixed graph samples: this many branch levels plus one
+     * terminal leaf, i.e. 17 independent objects per side and 2^16 reachable paths to the leaf —
+     * the measured sharing shape reproduces.
+     */
+    public static final int GRAPH_DEPTH = 16;
+
+    /**
+     * Creates the plain tree graph sample of the given depth: every branch holds two references to
+     * <b>distinct</b> children (one further branch level plus one leaf of its own), so no reference
+     * is shared and no cycle exists. The shape is the regression load of the reuse work: independent
+     * objects are {@code 2 * depth + 1} and reference edges are {@code 2 * depth}.
+     *
+     * @param depth number of branch levels, at least 1
+     * @return the root node of a plain, unshared tree
+     * @throws IllegalArgumentException if depth is below 1
+     */
+    public static SampleGraphNode createPlainGraph(final int depth) {
+        requirePositiveGraphDepth(depth);
+        SampleGraphNode branch = new SampleGraphBranch("L" + (depth - 1),
+                new SampleGraphLeaf("leaf-tail"), new SampleGraphLeaf("leaf-" + (depth - 1)));
+        for (int level = depth - 2; level >= 0; level--) {
+            branch = new SampleGraphBranch("L" + level, branch, new SampleGraphLeaf("leaf-" + level));
+        }
+        return branch;
+    }
+
+    /**
+     * Creates the shared graph sample of the given depth: every branch holds <b>two references to the
+     * same</b> child, so the reachable paths to the leaf multiply by two per level while the
+     * independent objects grow linearly. Every branch and the terminal leaf carry their own layer
+     * value; independent objects are {@code depth + 1}, reference edges are {@code 2 * depth} and
+     * reachable leaf paths are {@code 2 ^ depth} — the measured growth shape.
+     *
+     * @param depth number of branch levels, at least 1
+     * @return the root node of a shared, acyclic graph
+     * @throws IllegalArgumentException if depth is below 1
+     */
+    public static SampleGraphNode createSharedGraph(final int depth) {
+        requirePositiveGraphDepth(depth);
+        SampleGraphNode child = new SampleGraphLeaf("leaf");
+        for (int level = depth - 1; level >= 0; level--) {
+            child = new SampleGraphBranch("L" + level, child, child);
+        }
+        return child;
+    }
+
+    /**
+     * Creates the cyclic graph sample of the given depth: this many cycle elements reference each
+     * other and the last one closes the cycle on the head. Every element carries its own layer value;
+     * independent objects and reference edges are both {@code depth}.
+     *
+     * @param depth number of cycle elements, at least 1
+     * @return the head of a closed cycle
+     * @throws IllegalArgumentException if depth is below 1
+     */
+    public static SampleGraphNode createCyclicGraph(final int depth) {
+        requirePositiveGraphDepth(depth);
+        final SampleGraphCycleNode head = new SampleGraphCycleNode("C0");
+        SampleGraphCycleNode current = head;
+        for (int index = 1; index < depth; index++) {
+            final SampleGraphCycleNode next = new SampleGraphCycleNode("C" + index);
+            current.next = next;
+            current = next;
+        }
+        current.next = head;
+        return head;
+    }
+
+    /**
+     * Creates the mixed graph sample of the given depth: one root branch whose first reference is a
+     * {@link #createSharedGraph(int)} head and whose second reference is a
+     * {@link #createCyclicGraph(int)} head, so sharing and a cycle appear in the same object graph.
+     *
+     * @param depth depth of both the shared part and the cycle, at least 1
+     * @return the root node of a graph carrying sharing and a cycle
+     * @throws IllegalArgumentException if depth is below 1
+     */
+    public static SampleGraphNode createMixedGraph(final int depth) {
+        requirePositiveGraphDepth(depth);
+        return new SampleGraphBranch("mixed", createSharedGraph(depth), createCyclicGraph(depth));
+    }
+
+    /**
+     * Verifies that a graph depth can address at least one branch level.
+     *
+     * @param depth requested graph depth
+     * @throws IllegalArgumentException if depth is below 1
+     */
+    private static void requirePositiveGraphDepth(final int depth) {
+        if (depth < 1) {
+            throw new IllegalArgumentException("Graph depth must be at least 1, got: " + depth);
+        }
+    }
+
+    /**
      * Returns the identity extractors needed to track the sample collection by business identity.
      *
      * @return identifier extractors keyed by sample type, ready for the tracking configuration
@@ -59,6 +154,29 @@ public final class SampleFamily {
         item.quantity = 1 + (int) (id % 9);
         item.unitPriceCents = 100L + id;
         return item;
+    }
+
+    /**
+     * Returns a copy of the given address chain whose deepest element carries the given street.
+     * <p>
+     * The chain is built by the sample family, so the deep leaf change of {@link SampleMutator}
+     * does not construct sample parts of its own: the caller supplies the new street value, the
+     * construction of the rebuilt chain stays here. Chain elements are immutable, so the deepest
+     * element is replaced while every other element keeps its value; a snapshot compares by value,
+     * therefore exactly one leaf differs from the original chain.
+     *
+     * @param chain      the address chain head to rebuild, never null
+     * @param leafStreet street value of the rebuilt deepest element, never null
+     * @return a chain of the same depth whose deepest element carries the given street
+     * @throws NullPointerException if chain or leafStreet is null
+     */
+    static SampleAddress chainWithLeafStreet(final SampleAddress chain, final String leafStreet) {
+        Objects.requireNonNull(chain, "chain");
+        Objects.requireNonNull(leafStreet, "leafStreet");
+        if (chain instanceof SampleAddressLink link) {
+            return new SampleAddressLink(link.city(), link.street(), chainWithLeafStreet(link.next(), leafStreet));
+        }
+        return new SampleAddressLeaf(chain.city(), leafStreet);
     }
 
     /**

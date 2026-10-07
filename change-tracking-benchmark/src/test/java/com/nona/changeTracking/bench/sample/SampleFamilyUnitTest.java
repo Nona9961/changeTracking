@@ -154,6 +154,59 @@ class SampleFamilyUnitTest {
                 .isInstanceOf(NullPointerException.class);
     }
 
+    @Test
+    @DisplayName("chainWithLeafStreet 应只替换最深叶子的 street，链深度与上游值保持不变")
+    void chainWithLeafStreet_shouldReplaceOnlyTheDeepestLeaf() {
+        final Object sample = SampleFamily.create(SampleShape.of(SampleShape.DEFAULT_FIELD_COUNT, 3, 0));
+        final List<Object> original = addressChain(sample);
+
+        final SampleAddress rebuilt = SampleFamily.chainWithLeafStreet((SampleAddress) original.get(0), "street-deep");
+
+        final List<Object> rebuiltChain = chainElements(rebuilt);
+        assertThat(rebuiltChain).hasSize(original.size());
+        assertThat(((SampleAddress) rebuiltChain.get(2)).street()).isEqualTo("street-deep");
+        assertThat(((SampleAddress) rebuiltChain.get(0)).city())
+                .isEqualTo(((SampleAddress) original.get(0)).city());
+        assertThat(((SampleAddress) rebuiltChain.get(0)).street())
+                .isEqualTo(((SampleAddress) original.get(0)).street());
+        assertThat(((SampleAddress) rebuiltChain.get(1)).city())
+                .isEqualTo(((SampleAddress) original.get(1)).city());
+        assertThat(((SampleAddress) original.get(2)).street()).isNotEqualTo("street-deep");
+    }
+
+    @Test
+    @DisplayName("chainWithLeafStreet 在深度 1 与冻结深链（深度 32）上同样成立")
+    void chainWithLeafStreet_shouldCoverDepthOneAndTheFrozenDeepChain() {
+        final SampleAddress single = (SampleAddress) readField(
+                SampleFamily.create(SampleShape.of(SampleShape.DEFAULT_FIELD_COUNT, 1, 0)), "address");
+        final SampleAddress deep = (SampleAddress) readField(
+                SampleFamily.create(SampleShape.deepChain()), "address");
+
+        final SampleAddress rebuiltSingle = SampleFamily.chainWithLeafStreet(single, "changed");
+        final SampleAddress rebuiltDeep = SampleFamily.chainWithLeafStreet(deep, "changed");
+
+        assertThat(chainElements(rebuiltSingle)).hasSize(1);
+        assertThat(((SampleAddressLeaf) rebuiltSingle).street()).isEqualTo("changed");
+        final List<Object> deepChain = chainElements(rebuiltDeep);
+        assertThat(deepChain).hasSize(SampleShape.DEEP_NESTING_DEPTH);
+        assertThat(((SampleAddress) deepChain.get(SampleShape.DEEP_NESTING_DEPTH - 1)).street())
+                .isEqualTo("changed");
+        assertThat(((SampleAddress) deepChain.get(0)).city())
+                .isEqualTo(((SampleAddress) chainElements(deep).get(0)).city());
+    }
+
+    @Test
+    @DisplayName("chainWithLeafStreet 应拒绝 null 链与 null street")
+    void chainWithLeafStreet_shouldRejectNullArguments() {
+        final SampleAddress chain = (SampleAddress) readField(
+                SampleFamily.create(SampleShape.of(SampleShape.DEFAULT_FIELD_COUNT, 1, 0)), "address");
+
+        assertThatThrownBy(() -> SampleFamily.chainWithLeafStreet(null, "changed"))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> SampleFamily.chainWithLeafStreet(chain, null))
+                .isInstanceOf(NullPointerException.class);
+    }
+
     private static Object readField(final Object target, final String fieldName) {
         try {
             final Field field = target.getClass().getDeclaredField(fieldName);
@@ -200,6 +253,25 @@ class SampleFamilyUnitTest {
             } else {
                 current = null;
             }
+        }
+        return chain;
+    }
+
+    /**
+     * Walks an address chain head into its elements.
+     *
+     * @param head the chain head
+     * @return the chain elements in order
+     */
+    private static List<Object> chainElements(final SampleAddress head) {
+        final List<Object> chain = new ArrayList<>();
+        SampleAddress current = head;
+        while (current instanceof SampleAddressLink link) {
+            chain.add(current);
+            current = link.next();
+        }
+        if (current != null) {
+            chain.add(current);
         }
         return chain;
     }

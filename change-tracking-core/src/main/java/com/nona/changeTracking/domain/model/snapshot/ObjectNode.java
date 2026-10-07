@@ -11,7 +11,7 @@ import java.util.function.BiConsumer;
  * 包含对象的所有字段及其对应的 {@link ValueNode} 值。
  * 字段名作为 Map 的键，字段值递归表示为 ValueNode。
  * <p>
- * 不可变契约（D11）：
+ * 不可变契约：
  * <ul>
  *   <li>本类为 final class，内部字段 map 不对外暴露任何集合引用——外部无法获取引用，
  *       写操作在编译级不可能</li>

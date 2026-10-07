@@ -6,8 +6,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Applies the mutation operations of the load sample family: property changes and the
- * three collection shapes (value replacement, add or remove, reorder).
+ * Applies the mutation operations of the load sample family: property changes, the deep leaf change
+ * of the nested address chain and the three collection shapes (value replacement, add or remove,
+ * reorder).
  * <p>
  * Mutation is expressed as domain operations on the sample root, not as raw reflection
  * from the benchmark classes, so every benchmark task mutates samples the same way.
@@ -16,6 +17,9 @@ public final class SampleMutator {
 
     /** Suffix appended to string payloads so a mutated value always differs from the original. */
     private static final String CHANGED_SUFFIX = "-changed";
+
+    /** Name of the structural address field carried by every sample root. */
+    private static final String ADDRESS_FIELD_NAME = "address";
 
     /**
      * Private constructor: this class is a static mutation entry point.
@@ -53,6 +57,90 @@ public final class SampleMutator {
                 write(field, sample, changedValue(read(field, sample)));
             }
         }
+    }
+
+    /**
+     * Changes the street of the deepest element of the nested address chain (single deep leaf change).
+     * <p>
+     * The address chain of the sample family is immutable, so the deepest element is replaced through
+     * {@link SampleFamily#chainWithLeafStreet(SampleAddress, String)} and the rebuilt chain keeps the
+     * values of every other element. The change leaves exactly one differing leaf at the deepest
+     * nesting level of the sample: that is the load the deep chain benchmarks of the change detection
+     * and view projection paths measure, and the depth is taken from the shape the sample was built
+     * with, so the same operation serves the default depth and the frozen deep chain.
+     *
+     * @param sample a sample root created by {@link SampleFamily#create(SampleShape)}
+     * @throws NullPointerException     if sample is null
+     * @throws IllegalArgumentException if the sample type is unsupported or carries no address chain
+     */
+    public static void changeDeepestLeafField(final Object sample) {
+        Objects.requireNonNull(sample, "sample");
+        requireSupported(sample);
+        final Field addressField = addressFieldOf(sample);
+        final Object current = read(addressField, sample);
+        if (!(current instanceof SampleAddress chain)) {
+            throw new IllegalArgumentException(
+                    "Sample carries no address chain: " + sample.getClass().getName());
+        }
+        write(addressField, sample, SampleFamily.chainWithLeafStreet(chain, deepestStreetOf(chain) + CHANGED_SUFFIX));
+    }
+
+    /**
+     * Changes the layer value of the root of a graph sample: the single change level of the shared,
+     * plain, cyclic and mixed graph benchmarks.
+     * <p>
+     * The graph samples of the family are mutable in place, so exactly one layer value of exactly one
+     * node differs from the tracking baseline afterwards; every other node pair stays unchanged, which
+     * is the precondition the subgraph reuse is measured on. The root of every graph sample is a
+     * {@link SampleGraphNode} carrying a layer value.
+     *
+     * @param sample a graph sample root created by {@link SampleFamily}
+     * @throws NullPointerException     if sample is null
+     * @throws IllegalArgumentException if the sample type is not a graph sample node
+     */
+    public static void changeGraphRootValue(final Object sample) {
+        Objects.requireNonNull(sample, "sample");
+        if (!(sample instanceof SampleGraphNode node)) {
+            throw new IllegalArgumentException("Unsupported graph sample type: " + sample.getClass().getName());
+        }
+        if (node instanceof SampleGraphLeaf leaf) {
+            leaf.layerValue = leaf.layerValue + CHANGED_SUFFIX;
+        } else if (node instanceof SampleGraphBranch branch) {
+            branch.layerValue = branch.layerValue + CHANGED_SUFFIX;
+        } else if (node instanceof SampleGraphCycleNode cycle) {
+            cycle.layerValue = cycle.layerValue + CHANGED_SUFFIX;
+        }
+    }
+
+    /**
+     * Resolves the structural address field of a supported sample root.
+     *
+     * @param sample a sample root created by {@link SampleFamily#create(SampleShape)}
+     * @return the declared address field of the sample root
+     * @throws IllegalArgumentException if the sample type is unsupported or carries no address field
+     */
+    private static Field addressFieldOf(final Object sample) {
+        requireSupported(sample);
+        try {
+            return sample.getClass().getDeclaredField(ADDRESS_FIELD_NAME);
+        } catch (final NoSuchFieldException e) {
+            throw new IllegalArgumentException("Sample carries no address field: "
+                    + sample.getClass().getName(), e);
+        }
+    }
+
+    /**
+     * Returns the street of the deepest element of an address chain.
+     *
+     * @param chain the address chain head, never null
+     * @return the street of the terminal element
+     */
+    private static String deepestStreetOf(final SampleAddress chain) {
+        SampleAddress current = chain;
+        while (current instanceof SampleAddressLink link) {
+            current = link.next();
+        }
+        return current.street();
     }
 
     /**

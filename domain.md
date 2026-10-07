@@ -24,12 +24,13 @@ changeTracking 是一个**独立的对象属性级变更检测框架**：对任�
 | 领域概念 | 是什么 | 代码位置 |
 |---------|--------|---------|
 | 注册器 / 追踪器 | 追踪的入口：注册对象、推进快照、取回变更集 | `domain/model/tracking` → `ChangeTracker` |
-| 快照 | 对象树在某个时刻的状态镜像（只读），是变更计算的基础 | `domain/model/snapshot` → `Snapshot`、`ObjectNode`、`ValueNode`、`ArrayNode`、`CollectionNode`、`PrimitiveNode`、`NullNode` |
-| 变更集 | 两个快照之间差异的结构化结果，树形 + 扁平双视图 | `domain/model/changeset` → `ChangeSet`、`ChangeNode`、`FieldChangeNode`、`ContainerChangeNode`、`ItemAddedNode`、`ItemRemovedNode` |
+| 快照 | 对象树在某个时刻的状态镜像（只读），是变更计算的基础 | `domain/model/snapshot` → `Snapshot`、`ValueNodeSnapshot`、`ObjectNode`、`ValueNode`、`ArrayNode`、`CollectionNode`、`PrimitiveNode`、`NullNode` |
+| 变更集 | 两个快照之间差异的结构化结果，树形 + 扁平双视图 | `domain/model/changeset` → `ChangeSet`、`ObjectChange`、`ChangeNode`、`FieldChangeNode`、`ObjectFieldChangeNode`、`ContainerChangeNode`、`ItemAddedNode`、`ItemRemovedNode` |
 | 变更 | 单个属性或集合元素的变化描述 | `domain/model/changeset` → `Change`、`ValueChange`、`ObjectFieldChange`、`ContainerChange`、`ItemAddedChange`、`ItemRemovedChange` |
 | 追踪配置 | 一次追踪的参数：标识符提取、比较策略 | `domain/capability` → `TrackingCapability`、`TrackingConfiguration`、`ComparisonStrategy` |
-| SPI 扩展点 | 自定义快照策略 / 比较策略 / 标识符提取器 / 能力提供者 | `spi` 包 → `SnapshotStrategy`、`ComparisonStrategy`、`TrackingCapabilityProvider`、`CreationContext` |
-| 默认实现 | 反射快照、类型驱动的比较、基于方法名的标识符提取 | `internal` 包 → `ValueNodeSnapshotStrategy`、`ValueNodeComparisonStrategy`、`ReflectionUtils` |
+| SPI 扩展点 | 自定义快照策略 / 比较策略 / 标识符提取器 / 能力提供者 | `spi` 包 → `SnapshotStrategy`、`TrackingCapabilityProvider`、`CreationContext`；比较策略枚举在 `domain/capability` → `ComparisonStrategy` |
+| 默认实现 | 反射快照、类型驱动的比较、注册提取器（未注册或返回 null 时 identity 回退）的标识规则 | `internal/snapshot` → `ValueNodeSnapshotStrategy`；`domain/capability` → `ValueNodeComparisonStrategy`；`internal/util` → `ReflectionUtils` |
+| 默认装配 | 把默认快照策略与比较策略配对为一个能力单元，并经 `ServiceLoader` 注册默认 provider | `internal/capability` → `DefaultTrackingCapability`、`DefaultTrackingCapabilityProvider` |
 | 对外入口 | 框架的公共 API（工厂） | `change-tracking-api` 模块 → `ChangeTrackerFactory` |
 
 ## 边界

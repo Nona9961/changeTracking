@@ -30,6 +30,13 @@ public record SampleShape(int fieldCount, int nestingDepth, int collectionSize) 
     public static final int DEFAULT_COLLECTION_SIZE = 100;
 
     /**
+     * Nesting depth of the frozen deep chain used by the path length benchmarks: the documented scan
+     * range of the nesting depth dimension is 1 to 5, while the deep chain level fixed here is the
+     * level the comparison path and the view projection benchmarks measure their deep chains on.
+     */
+    public static final int DEEP_NESTING_DEPTH = 32;
+
+    /**
      * Validates every dimension invariant, so no creation path can produce a shape carrying an
      * unsupported dimension; dimensions are checked in the fixed order field count, nesting depth,
      * collection size.
@@ -75,5 +82,19 @@ public record SampleShape(int fieldCount, int nestingDepth, int collectionSize) 
      */
     public static SampleShape defaults() {
         return new SampleShape(DEFAULT_FIELD_COUNT, DEFAULT_NESTING_DEPTH, DEFAULT_COLLECTION_SIZE);
+    }
+
+    /**
+     * Returns the frozen deep chain shape: {@value #DEFAULT_FIELD_COUNT} scalar fields, depth
+     * {@value #DEEP_NESTING_DEPTH} and {@value #DEFAULT_COLLECTION_SIZE} items.
+     * <p>
+     * The deep chain is the frozen form the path length benchmarks of the comparison and view
+     * projection paths consume; it lives here, next to the other frozen levels, so both consumers
+     * measure the same chain instead of composing their own.
+     *
+     * @return the frozen deep chain shape
+     */
+    public static SampleShape deepChain() {
+        return SampleShape.of(DEFAULT_FIELD_COUNT, DEEP_NESTING_DEPTH, DEFAULT_COLLECTION_SIZE);
     }
 }

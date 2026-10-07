@@ -2,6 +2,8 @@ package com.nona.changeTracking.bench;
 
 import com.nona.changeTracking.bench.env.EnvironmentRecord;
 import com.nona.changeTracking.bench.env.EnvironmentRecordCollector;
+import com.nona.changeTracking.bench.env.EnvironmentRecordWriter;
+import com.nona.changeTracking.bench.result.ColdSampleTable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -258,8 +260,14 @@ class BenchmarkModuleIntegrationTest {
 
     /**
      * 采集结果目录的文件名与修改时间快照，用于判断默认测试是否触碰了基准产物。
+     * <p>
+     * 两个由冷态首次使用单测在默认套件内驱动 trial 装配与测量体时写入的载体不进入快照：冷态原始采样表
+     * （{@link ColdSampleTable#FILE_NAME}，测量体按 fork 追加）与环境记录（{@link EnvironmentRecordWriter#FILE_NAME}，
+     * trial 装配写入）。它们由单测进程内产生，不是 JMH 基准执行产物（默认套件确实不执行任何基准）；而该单测
+     * 必须与 {@code FirstUseCacheStateBenchmark.RESULT_DIRECTORY} 同目录才能读到真实运行写入的行，不能把它
+     * 改到隔离目录。因此本快照只保留 JMH 原生结果文件这一基准产物：默认测试确实未执行基准时它不被产出或改写。
      *
-     * @return 文件名到 {@code 修改时间:大小} 的映射；目录不存在时为空映射
+     * @return 文件名到 {@code 修改时间:大小} 的映射；不存在的基准产物与目录不存在时为空映射
      */
     private static Map<String, String> resultSnapshot() {
         if (!Files.isDirectory(RESULT_DIRECTORY)) {
@@ -267,6 +275,7 @@ class BenchmarkModuleIntegrationTest {
         }
         try (Stream<Path> paths = Files.walk(RESULT_DIRECTORY)) {
             return paths.filter(Files::isRegularFile)
+                    .filter(path -> !isColdUnitTestCarrier(path))
                     .collect(Collectors.toMap(
                             path -> RESULT_DIRECTORY.relativize(path).toString(),
                             path -> {
@@ -279,6 +288,18 @@ class BenchmarkModuleIntegrationTest {
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Tells whether the file is one of the two carriers the cold first use unit test writes while it
+     * drives the trial assembly and the measured bodies inside the default test run.
+     *
+     * @param path the file inside the result directory
+     * @return true for the raw sampling table and the environment record
+     */
+    private static boolean isColdUnitTestCarrier(final Path path) {
+        final String fileName = path.getFileName().toString();
+        return ColdSampleTable.FILE_NAME.equals(fileName) || EnvironmentRecordWriter.FILE_NAME.equals(fileName);
     }
 
     /**
