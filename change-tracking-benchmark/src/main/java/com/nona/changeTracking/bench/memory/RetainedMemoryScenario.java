@@ -1,9 +1,7 @@
 package com.nona.changeTracking.bench.memory;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The five result retention scenarios of the retained memory measurement, mirroring the five carriers
@@ -32,9 +30,6 @@ public enum RetainedMemoryScenario {
 
     /** Holds the calculated change set and both the complete and the leaf view acquisition. */
     CALCULATE_AND_LEAF("calculateAndLeaf", "计算加叶子");
-
-    /** Logger of the scenario enumeration. */
-    private static final Logger log = LoggerFactory.getLogger(RetainedMemoryScenario.class);
 
     /** Stable token of the scenario on the command line and in the report. */
     private final String commandLineName;
@@ -79,8 +74,14 @@ public enum RetainedMemoryScenario {
      * @return the held results of this scenario, never empty
      */
     public List<ResultView> heldResultViews() {
-        log.error("[red] RetainedMemoryScenario.heldResultViews not implemented");
-        throw new UnsupportedOperationException("RetainedMemoryScenario.heldResultViews is not implemented yet");
+        return switch (this) {
+            case CALCULATE_ONLY -> List.of(ResultView.CALCULATED_SET);
+            case LEAF_ONLY -> List.of(ResultView.CALCULATED_SET, ResultView.LEAF_VIEW);
+            case FULL_VIEW -> List.of(ResultView.CALCULATED_SET, ResultView.FULL_VIEW);
+            case REPEATED_ACQUIRE -> List.of(ResultView.CALCULATED_SET, ResultView.FULL_VIEW, ResultView.FULL_VIEW);
+            case CALCULATE_AND_LEAF ->
+                    List.of(ResultView.CALCULATED_SET, ResultView.FULL_VIEW, ResultView.LEAF_VIEW);
+        };
     }
 
     /**
@@ -92,8 +93,13 @@ public enum RetainedMemoryScenario {
      * @throws IllegalArgumentException if no scenario carries the token
      */
     public static RetainedMemoryScenario fromCommandLineName(final String commandLineName) {
-        log.error("[red] RetainedMemoryScenario.fromCommandLineName not implemented");
-        throw new UnsupportedOperationException("RetainedMemoryScenario.fromCommandLineName is not implemented yet");
+        Objects.requireNonNull(commandLineName, "commandLineName");
+        for (final RetainedMemoryScenario scenario : values()) {
+            if (scenario.commandLineName.equals(commandLineName)) {
+                return scenario;
+            }
+        }
+        throw new IllegalArgumentException("Unknown scenario: " + commandLineName);
     }
 
     /**

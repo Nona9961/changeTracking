@@ -1,7 +1,6 @@
 package com.nona.changeTracking.bench.memory;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.Objects;
 
 /**
  * Retained footprint of one object class inside a measured result graph: how many instances of the
@@ -16,9 +15,6 @@ import org.slf4j.LoggerFactory;
  */
 public record ClassFootprint(String className, int objectCount, long bytes) {
 
-    /** Logger of the footprint record. */
-    private static final Logger log = LoggerFactory.getLogger(ClassFootprint.class);
-
     /**
      * Validates the class footprint: the class name must be present and the count and byte figures
      * must be positive respectively not negative.
@@ -29,7 +25,15 @@ public record ClassFootprint(String className, int objectCount, long bytes) {
      * @throws IllegalArgumentException if the class name is blank, the count is below 1 or the bytes are negative
      */
     public ClassFootprint {
-        log.error("[red] ClassFootprint.<init> not implemented");
-        throw new UnsupportedOperationException("ClassFootprint.<init> is not implemented yet");
+        Objects.requireNonNull(className, "className");
+        if (className.isBlank()) {
+            throw new IllegalArgumentException("className must not be blank");
+        }
+        if (objectCount < 1) {
+            throw new IllegalArgumentException("objectCount must be at least 1, but was " + objectCount);
+        }
+        if (bytes < 0) {
+            throw new IllegalArgumentException("bytes must not be negative, but was " + bytes);
+        }
     }
 }

@@ -1,9 +1,7 @@
 package com.nona.changeTracking.bench.memory;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Retained footprint of one held result: the total shallow size and object count of every object the
@@ -20,9 +18,6 @@ import java.util.List;
  */
 public record RetainedFootprint(long retainedBytes, int objectCount, List<ClassFootprint> classFootprints) {
 
-    /** Logger of the footprint record. */
-    private static final Logger log = LoggerFactory.getLogger(RetainedFootprint.class);
-
     /**
      * Validates the footprint, defensively copies the class aggregation and keeps it read only.
      *
@@ -33,8 +28,14 @@ public record RetainedFootprint(long retainedBytes, int objectCount, List<ClassF
      * @throws IllegalArgumentException if a byte or object count is negative
      */
     public RetainedFootprint {
-        log.error("[red] RetainedFootprint.<init> not implemented");
-        throw new UnsupportedOperationException("RetainedFootprint.<init> is not implemented yet");
+        if (retainedBytes < 0) {
+            throw new IllegalArgumentException("retainedBytes must not be negative, but was " + retainedBytes);
+        }
+        if (objectCount < 0) {
+            throw new IllegalArgumentException("objectCount must not be negative, but was " + objectCount);
+        }
+        Objects.requireNonNull(classFootprints, "classFootprints");
+        classFootprints = List.copyOf(classFootprints);
     }
 
     /**
@@ -46,7 +47,12 @@ public record RetainedFootprint(long retainedBytes, int objectCount, List<ClassF
      * @throws IllegalArgumentException if the limit is negative
      */
     public List<ClassFootprint> dominantClasses(final int limit) {
-        log.error("[red] RetainedFootprint.dominantClasses not implemented");
-        throw new UnsupportedOperationException("RetainedFootprint.dominantClasses is not implemented yet");
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit must not be negative, but was " + limit);
+        }
+        if (limit >= classFootprints.size()) {
+            return classFootprints;
+        }
+        return classFootprints.subList(0, limit);
     }
 }

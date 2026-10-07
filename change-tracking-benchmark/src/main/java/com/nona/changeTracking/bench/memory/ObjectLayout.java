@@ -1,11 +1,9 @@
 package com.nona.changeTracking.bench.memory;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.Objects;
 
 /**
  * Shallow size estimator of the HotSpot 64 bit object layout used by the retained memory probe.
@@ -30,9 +28,6 @@ import java.lang.reflect.Modifier;
  * field accessible, so it works without opening any module.
  */
 public final class ObjectLayout {
-
-    /** Logger of the estimator. */
-    private static final Logger log = LoggerFactory.getLogger(ObjectLayout.class);
 
     /** Object header of the measured layout: 8 byte mark word plus a 4 byte compressed class pointer. */
     public static final int OBJECT_HEADER_BYTES = 12;
@@ -61,8 +56,12 @@ public final class ObjectLayout {
      * @throws IllegalArgumentException if the instance is not measurable by this estimator
      */
     public static long shallowSize(final Object instance) {
-        log.error("[red] ObjectLayout.shallowSize not implemented");
-        throw new UnsupportedOperationException("ObjectLayout.shallowSize is not implemented yet");
+        Objects.requireNonNull(instance, "instance");
+        final Class<?> type = instance.getClass();
+        if (type.isArray()) {
+            return shallowSizeOfArray(instance);
+        }
+        return shallowSizeOfClass(type);
     }
 
     /**
@@ -75,8 +74,11 @@ public final class ObjectLayout {
      * @throws IllegalArgumentException if the class is primitive or an array class
      */
     public static long shallowSizeOfClass(final Class<?> type) {
-        log.error("[red] ObjectLayout.shallowSizeOfClass not implemented");
-        throw new UnsupportedOperationException("ObjectLayout.shallowSizeOfClass is not implemented yet");
+        Objects.requireNonNull(type, "type");
+        if (type.isPrimitive() || type.isArray()) {
+            throw new IllegalArgumentException("Not an instance class: " + type.getName());
+        }
+        return align(OBJECT_HEADER_BYTES + instanceFieldBytes(type));
     }
 
     /**
@@ -89,8 +91,12 @@ public final class ObjectLayout {
      * @throws IllegalArgumentException if the value is not an array
      */
     public static long shallowSizeOfArray(final Object array) {
-        log.error("[red] ObjectLayout.shallowSizeOfArray not implemented");
-        throw new UnsupportedOperationException("ObjectLayout.shallowSizeOfArray is not implemented yet");
+        Objects.requireNonNull(array, "array");
+        if (!array.getClass().isArray()) {
+            throw new IllegalArgumentException("Not an array: " + array.getClass().getName());
+        }
+        final Class<?> componentType = array.getClass().getComponentType();
+        return align(ARRAY_HEADER_BYTES + (long) arrayElementBytes(componentType) * Array.getLength(array));
     }
 
     /**
@@ -100,8 +106,15 @@ public final class ObjectLayout {
      * @return the summed instance field bytes
      */
     private static long instanceFieldBytes(final Class<?> type) {
-        log.error("[red] ObjectLayout.instanceFieldBytes not implemented");
-        throw new UnsupportedOperationException("ObjectLayout.instanceFieldBytes is not implemented yet");
+        long bytes = 0;
+        for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
+            for (final Field field : current.getDeclaredFields()) {
+                if (!Modifier.isStatic(field.getModifiers())) {
+                    bytes += fieldBytes(field.getType());
+                }
+            }
+        }
+        return bytes;
     }
 
     /**
@@ -111,8 +124,10 @@ public final class ObjectLayout {
      * @return the field size in bytes
      */
     private static int fieldBytes(final Class<?> fieldType) {
-        log.error("[red] ObjectLayout.fieldBytes not implemented");
-        throw new UnsupportedOperationException("ObjectLayout.fieldBytes is not implemented yet");
+        if (fieldType.isPrimitive()) {
+            return primitiveBytes(fieldType);
+        }
+        return COMPRESSED_REFERENCE_BYTES;
     }
 
     /**
@@ -122,8 +137,29 @@ public final class ObjectLayout {
      * @return the element size in bytes
      */
     private static int arrayElementBytes(final Class<?> componentType) {
-        log.error("[red] ObjectLayout.arrayElementBytes not implemented");
-        throw new UnsupportedOperationException("ObjectLayout.arrayElementBytes is not implemented yet");
+        if (componentType.isPrimitive()) {
+            return primitiveBytes(componentType);
+        }
+        return COMPRESSED_REFERENCE_BYTES;
+    }
+
+    /**
+     * Returns the width of a primitive type in the measured layout.
+     *
+     * @param primitiveType a primitive type
+     * @return the width of the primitive type in bytes
+     */
+    private static int primitiveBytes(final Class<?> primitiveType) {
+        if (primitiveType == boolean.class || primitiveType == byte.class) {
+            return 1;
+        }
+        if (primitiveType == char.class || primitiveType == short.class) {
+            return 2;
+        }
+        if (primitiveType == int.class || primitiveType == float.class) {
+            return 4;
+        }
+        return 8;
     }
 
     /**
@@ -133,7 +169,6 @@ public final class ObjectLayout {
      * @return the aligned byte count
      */
     private static long align(final long bytes) {
-        log.error("[red] ObjectLayout.align not implemented");
-        throw new UnsupportedOperationException("ObjectLayout.align is not implemented yet");
+        return (bytes + OBJECT_ALIGNMENT_BYTES - 1) / OBJECT_ALIGNMENT_BYTES * OBJECT_ALIGNMENT_BYTES;
     }
 }

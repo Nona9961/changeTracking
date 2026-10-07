@@ -3,6 +3,7 @@ package com.nona.changeTracking.bench.memory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -58,8 +59,37 @@ public final class RetainedMemoryMain {
      * @param args the command line arguments
      */
     public static void main(final String[] args) {
-        LOG.error("[red] RetainedMemoryMain.main not implemented");
-        throw new UnsupportedOperationException("RetainedMemoryMain.main is not implemented yet");
+        try {
+            final Request request = parse(args);
+            final String output = renderReports(request);
+            LOG.info("Retained memory measurement completed for {} scenario(s)", request.scenarios().size());
+            System.out.print(output);
+            System.out.flush();
+        } catch (final RuntimeException failure) {
+            System.err.println("Retained memory measurement failed: " + failure.getMessage());
+            LOG.error("Retained memory measurement failed", failure);
+            System.exit(FAILURE_EXIT_CODE);
+        }
+    }
+
+    /**
+     * Measures every requested scenario and renders their reports separated by a blank line.
+     *
+     * @param request the parsed measurement request
+     * @return the rendered report blocks
+     */
+    private static String renderReports(final Request request) {
+        final StringBuilder output = new StringBuilder();
+        for (int index = 0; index < request.scenarios().size(); index++) {
+            if (index > 0) {
+                output.append(System.lineSeparator());
+            }
+            final RetainedMemoryReport report = RetainedMemoryMeasurement.measure(request.scenarios().get(index));
+            for (final String line : report.render()) {
+                output.append(line).append(System.lineSeparator());
+            }
+        }
+        return output.toString();
     }
 
     /**
@@ -75,8 +105,23 @@ public final class RetainedMemoryMain {
      * @throws IllegalArgumentException if an option is unknown or carries no value, or a scenario token is unknown
      */
     static Request parse(final String[] args) {
-        LOG.error("[red] RetainedMemoryMain.parse not implemented");
-        throw new UnsupportedOperationException("RetainedMemoryMain.parse is not implemented yet");
+        Objects.requireNonNull(args, "args");
+        final List<RetainedMemoryScenario> scenarios = new ArrayList<>();
+        for (int index = 0; index < args.length; index++) {
+            final String argument = args[index];
+            if (!SCENARIO_OPTION.equals(argument)) {
+                throw new IllegalArgumentException("Unknown option: " + argument);
+            }
+            if (index + 1 >= args.length) {
+                throw new IllegalArgumentException("Option " + SCENARIO_OPTION + " requires a scenario value");
+            }
+            scenarios.add(RetainedMemoryScenario.fromCommandLineName(args[index + 1]));
+            index++;
+        }
+        if (scenarios.isEmpty()) {
+            return new Request(List.of(RetainedMemoryScenario.values()));
+        }
+        return new Request(List.copyOf(scenarios));
     }
 
     /**

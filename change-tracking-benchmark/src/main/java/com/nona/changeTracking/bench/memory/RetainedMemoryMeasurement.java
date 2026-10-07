@@ -9,6 +9,9 @@ import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
+import java.util.Objects;
+
 /**
  * Runs one retained memory scenario on the frozen sample family and reports the footprint the held
  * result keeps alive.
@@ -58,8 +61,16 @@ public final class RetainedMemoryMeasurement {
      * @throws IllegalStateException if a reference field of the held result cannot be read
      */
     public static RetainedMemoryReport measure(final RetainedMemoryScenario scenario) {
-        log.error("[red] RetainedMemoryMeasurement.measure not implemented");
-        throw new UnsupportedOperationException("RetainedMemoryMeasurement.measure is not implemented yet");
+        Objects.requireNonNull(scenario, "scenario");
+        final ChangeTracker tracker = ChangeTrackerFactory.builder().withDefaults().build();
+        final Object sample = SampleFamily.create(SampleShape.deepChain());
+        tracker.track(sample);
+        SampleMutator.changeDeepestLeafField(sample);
+        final ChangeSet changeSet = tracker.calculateChanges();
+        final RetainedFootprint footprint = RetainedGraph.measure(heldResultRoots(scenario, changeSet));
+        log.info("Measured retained footprint of scenario {} on shape {}: {} bytes in {} objects",
+                scenario.commandLineName(), FROZEN_SHAPE_NAME, footprint.retainedBytes(), footprint.objectCount());
+        return new RetainedMemoryReport(scenario, FROZEN_SHAPE_NAME, footprint);
     }
 
     /**
@@ -72,7 +83,15 @@ public final class RetainedMemoryMeasurement {
      * @return the held result roots, in acquisition order
      */
     private static Object[] heldResultRoots(final RetainedMemoryScenario scenario, final ChangeSet changeSet) {
-        log.error("[red] RetainedMemoryMeasurement.heldResultRoots not implemented");
-        throw new UnsupportedOperationException("RetainedMemoryMeasurement.heldResultRoots is not implemented yet");
+        final List<RetainedMemoryScenario.ResultView> heldViews = scenario.heldResultViews();
+        final Object[] roots = new Object[heldViews.size()];
+        for (int index = 0; index < heldViews.size(); index++) {
+            roots[index] = switch (heldViews.get(index)) {
+                case CALCULATED_SET -> changeSet;
+                case FULL_VIEW -> changeSet.getAllChanges();
+                case LEAF_VIEW -> changeSet.getLeafChanges();
+            };
+        }
+        return roots;
     }
 }
