@@ -31,6 +31,72 @@ final class ChangeViewProjection {
     }
 
     /**
+     * 解析节点相对于其包含节点的路径。
+     *
+     * @param fullPath   节点的完整路径
+     * @param parentPath 包含节点的完整路径，根节点为空串
+     * @return 节点的相对路径
+     */
+    private static String toRelativePath(final String fullPath, final String parentPath) {
+        if (parentPath.isEmpty()) {
+            return fullPath;
+        }
+        if (fullPath.startsWith(parentPath + ".")) {
+            return fullPath.substring(parentPath.length() + 1);
+        }
+        if (fullPath.startsWith(parentPath + "[")) {
+            return fullPath.substring(parentPath.length());
+        }
+        return fullPath;
+    }
+
+    /**
+     * 解析路径的纯字段名：不含索引的字段名，纯索引路径为 null。
+     *
+     * @param path 待解析的路径
+     * @return 纯字段名，路径不携带字段名时为 null
+     */
+    private static String extractFieldName(final String path) {
+        if (path == null || path.isEmpty() || path.startsWith("[")) {
+            return null;
+        }
+        final int lastDotIndex = path.lastIndexOf('.');
+        final String lastSegment;
+        if (lastDotIndex >= 0) {
+            lastSegment = path.substring(lastDotIndex + 1);
+        } else {
+            lastSegment = path;
+        }
+
+        if (lastSegment.startsWith("[")) {
+            return null;
+        }
+
+        final int bracketIndex = lastSegment.indexOf('[');
+        if (bracketIndex > 0) {
+            return lastSegment.substring(0, bracketIndex);
+        }
+        return lastSegment;
+    }
+
+    /**
+     * 解析节点的最近集合字段名：以下标开头的相对路径从包含节点的路径解析，其余路径继承其包含节点
+     * 的上下文。
+     *
+     * @param relativePath                 节点相对于其包含节点的路径
+     * @param parentPath                   包含节点的完整路径，根节点为空串
+     * @param inheritedCollectionFieldName 包含节点的最近集合字段名，不在集合内时为 null
+     * @return 最近的集合字段名，不在集合内时为 null
+     */
+    private static String resolveCollectionFieldName(final String relativePath, final String parentPath,
+                                                     final String inheritedCollectionFieldName) {
+        if (relativePath.startsWith("[")) {
+            return extractFieldName(parentPath);
+        }
+        return inheritedCollectionFieldName;
+    }
+
+    /**
      * 投影完整视图：树的每个容器与每个叶子，按前序展平，容器子节点保持为相对路径的嵌套树。
      *
      * @param changes 待投影的对象变更，非空
@@ -125,15 +191,6 @@ final class ChangeViewProjection {
     }
 
     /**
-     * 一次节点投影交回父容器的两种相对表示，仅在本次递归组装中使用。
-     *
-     * @param inherited               继承实际父集合上下文的相对表示
-     * @param withoutInheritedContext 从空父集合上下文解析的相对表示，索引节点仍确定自身集合
-     */
-    private record NodeViews(Change inherited, Change withoutInheritedContext) {
-    }
-
-    /**
      * 收集一个节点出现的叶子视图：容器被遍历以收集其叶子后代，叶子以实际父路径与最近的集合字段名
      * 投影。空路径叶子也会被收集；叶子视图保留它们，完整视图跳过它们。
      *
@@ -205,68 +262,11 @@ final class ChangeViewProjection {
     }
 
     /**
-     * 解析节点相对于其包含节点的路径。
+     * 一次节点投影交回父容器的两种相对表示，仅在本次递归组装中使用。
      *
-     * @param fullPath   节点的完整路径
-     * @param parentPath 包含节点的完整路径，根节点为空串
-     * @return 节点的相对路径
+     * @param inherited               继承实际父集合上下文的相对表示
+     * @param withoutInheritedContext 从空父集合上下文解析的相对表示，索引节点仍确定自身集合
      */
-    private static String toRelativePath(final String fullPath, final String parentPath) {
-        if (parentPath.isEmpty()) {
-            return fullPath;
-        }
-        if (fullPath.startsWith(parentPath + ".")) {
-            return fullPath.substring(parentPath.length() + 1);
-        }
-        if (fullPath.startsWith(parentPath + "[")) {
-            return fullPath.substring(parentPath.length());
-        }
-        return fullPath;
-    }
-
-    /**
-     * 解析路径的纯字段名：不含索引的字段名，纯索引路径为 null。
-     *
-     * @param path 待解析的路径
-     * @return 纯字段名，路径不携带字段名时为 null
-     */
-    private static String extractFieldName(final String path) {
-        if (path == null || path.isEmpty() || path.startsWith("[")) {
-            return null;
-        }
-        final int lastDotIndex = path.lastIndexOf('.');
-        final String lastSegment;
-        if (lastDotIndex >= 0) {
-            lastSegment = path.substring(lastDotIndex + 1);
-        } else {
-            lastSegment = path;
-        }
-
-        if (lastSegment.startsWith("[")) {
-            return null;
-        }
-
-        final int bracketIndex = lastSegment.indexOf('[');
-        if (bracketIndex > 0) {
-            return lastSegment.substring(0, bracketIndex);
-        }
-        return lastSegment;
-    }
-
-    /**
-     * 解析节点的最近集合字段名：以下标开头的相对路径从包含节点的路径解析，其余路径继承其包含节点
-     * 的上下文。
-     *
-     * @param relativePath                 节点相对于其包含节点的路径
-     * @param parentPath                   包含节点的完整路径，根节点为空串
-     * @param inheritedCollectionFieldName 包含节点的最近集合字段名，不在集合内时为 null
-     * @return 最近的集合字段名，不在集合内时为 null
-     */
-    private static String resolveCollectionFieldName(final String relativePath, final String parentPath,
-                                                     final String inheritedCollectionFieldName) {
-        if (relativePath.startsWith("[")) {
-            return extractFieldName(parentPath);
-        }
-        return inheritedCollectionFieldName;
+    private record NodeViews(Change inherited, Change withoutInheritedContext) {
     }
 }

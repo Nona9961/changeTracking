@@ -46,7 +46,7 @@ public record ChangeSet(List<ObjectChange> changes) {
      * 注意：容器变更的 {@link ContainerChange#children()} 是树形嵌套视图（子变更
      * path 为相对路径）；本方法返回的扁平列表是树的前序遍历展平——每个容器和每个
      * 叶子恰好出现一次，同一变更同时出现在容器 children 与扁平列表中属设计语义
-     * （D9 双视图）。路径为空的节点不进入扁平列表，其子节点仍按前序出现；容器
+     * （树形与扁平双视图）。路径为空的节点不进入扁平列表，其子节点仍按前序出现；容器
      * children 中的空路径节点按原规则保留。
      * <p>
      * 扁平列表的上下文元数据（{@code collectionFieldName}、{@code isParentCollection}）由完整路径

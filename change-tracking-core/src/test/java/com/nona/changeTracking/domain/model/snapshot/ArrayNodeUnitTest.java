@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("ArrayNode 单元测试（D14：数组=值语义，顺序敏感）")
+@DisplayName("ArrayNode 单元测试（数组=值语义，顺序敏感）")
 class ArrayNodeUnitTest {
 
     @Nested

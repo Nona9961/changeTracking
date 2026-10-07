@@ -19,7 +19,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 变更视图投影核心（包内类）单元测试：唯一转换核心的两条入口、五类输出、上下文规则、前序顺序、
  * 空路径规则与只读契约。
  * <p>
- * 直接断言既有的视图输出契约（`change-model.md` 的双视图、D8 分派表与 `ChangeSet` 既有视图断言），
+ * 直接断言既有的视图输出契约（树形与扁平双视图、值变更与对象字段变更的分派边界，以及
+ * {@link ChangeSet} 的既有视图断言），
  * 同时补齐深链构造量、空路径、多位置与两入口上下文差异；每个用例自建前置状态，不依赖其它用例产物。
  */
 @DisplayName("ChangeViewProjection 唯一转换核心单元测试")

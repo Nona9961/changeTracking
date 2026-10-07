@@ -26,7 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertTimeout;
  * 特征测试：断言万级 items 快照/比较在宽松时间预算内完成（防 flaky），
  * 同时验证比较结果正确性（单点变更只报告一处）。
  * <p>
- * 现状无缓存（反射零缓存），此测试为后续优化（P1/P2/P3 已延后）提供性能基准守护。
+ * 类型元数据与配置规则已按类复用（本策略持有共享的 {@link ReflectionMetadataCache} 与
+ * {@link ConfiguredTypeRulesCache}），本测试只守护万级负载的时间上限与单点变更正确性，
+ * 不作为缓存收益的基准对照。
  */
 @DisplayName("ValueNodeSnapshotStrategy 大规模快照与比较性能特征测试")
 class ValueNodeSnapshotStrategyPerformanceUnitTest {

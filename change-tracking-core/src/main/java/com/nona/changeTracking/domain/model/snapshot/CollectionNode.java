@@ -13,7 +13,7 @@ import java.util.function.Consumer;
  * 用于表示 {@link java.util.Collection} 和 {@link java.util.Map}（作为 Entry 集合）的快照。
  * 集合中的每个元素递归表示为 {@link ValueNode}。
  * <p>
- * 不可变契约（D11）：
+ * 不可变契约：
  * <ul>
  *   <li>本类为 final class，内部元素列表不对外暴露任何集合引用——外部无法获取引用，
  *       写操作在编译级不可能</li>

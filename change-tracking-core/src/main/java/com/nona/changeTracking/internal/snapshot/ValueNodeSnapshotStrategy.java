@@ -65,7 +65,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
     }
 
     /**
-     * 深拷贝数组（防御拷贝，D14）。
+     * 深拷贝数组（防御拷贝）。
      * <p>
      * 一维：按组件类型创建同类型数组并浅拷贝（元素已判定为值类型=不可变，浅拷贝安全，
      * 且保持运行时数组类型——消费方 {@code (String[]) } 强转可用）；
@@ -120,7 +120,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
 
         final Class<?> type = obj.getClass();
 
-        // Atomic* 例外（D17）：可变但无法反射脱水（JDK 模块强封装），
+        // Atomic* 例外：可变但无法反射脱水（JDK 模块强封装），
         // 快照时读取当前值做拷贝——PrimitiveNode 持有不可变值，不持有业务引用，
         // track 后修改 Atomic 值不会污染旧快照。
         if (obj instanceof AtomicBoolean atomicBoolean) {
@@ -169,7 +169,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
     }
 
     /**
-     * 处理数组（D10/D14）。
+     * 处理数组。
      * <p>
      * 数组按元素类型分两种语义：
      * <ul>
@@ -277,7 +277,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
         final Object identifier = extractIdentifier(obj);
 
         // LinkedHashMap：保字段声明序（元数据为子类→父类序，putIfAbsent 保留先到者）——
-        // 比较层 diffObjectChildren 以 ObjectNode 字段迭代序为输出基准（P5），
+        // 比较层 diffObjectChildren 以 ObjectNode 字段迭代序为输出基准，
         // HashMap 会丢失声明序，导致输出顺序与字段声明顺序不一致。
         final Map<String, ValueNode> fieldsMap = new LinkedHashMap<>();
         final ObjectNode objectNode = new ObjectNode(fieldsMap, identifier);
@@ -285,7 +285,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
 
         // 直接向 fieldsMap 填充（先登记后填充：空 map 已入 visited，循环引用返回本节点安全）；
         // 字段结构（子类→父类的非静态字段序列）与字段访问准备状态由共享元数据缓存按类复用，
-        // 字段值仍通过已准备的访问按当前对象读取（P6）。
+        // 字段值仍通过已准备的访问按当前对象读取。
         final ReflectionTypeMetadata metadata = ReflectionMetadataCache.SHARED.get(obj.getClass());
         for (int index = 0; index < metadata.size(); index++) {
             final ReflectionTypeMetadata.ReflectionFieldAccess access = metadata.access(index);
