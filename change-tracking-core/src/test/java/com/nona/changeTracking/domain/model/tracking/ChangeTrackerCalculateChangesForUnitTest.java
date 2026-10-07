@@ -129,8 +129,8 @@ class ChangeTrackerCalculateChangesForUnitTest {
             assertThat(forA.changes()).hasSize(1);
             assertThat(forA.changes().get(0).target()).isSameAs(rootA);
             final Map<Object, ObjectChange> globalByTarget = indexByTarget(global);
-            assertThat(forA.changes().get(0).changeTree())
-                    .isEqualTo(globalByTarget.get(rootA).changeTree());
+            assertThat(forA.changes().get(0).changes())
+                    .isEqualTo(globalByTarget.get(rootA).changes());
         }
 
         @Test
@@ -239,8 +239,8 @@ class ChangeTrackerCalculateChangesForUnitTest {
 
             assertThat(perEntity.keySet()).containsExactlyInAnyOrder(rootA, rootC);
             assertThat(perEntity.keySet()).isEqualTo(global.keySet());
-            assertThat(perEntity.get(rootA).changeTree()).isEqualTo(global.get(rootA).changeTree());
-            assertThat(perEntity.get(rootC).changeTree()).isEqualTo(global.get(rootC).changeTree());
+            assertThat(perEntity.get(rootA).changes()).isEqualTo(global.get(rootA).changes());
+            assertThat(perEntity.get(rootC).changes()).isEqualTo(global.get(rootC).changes());
         }
 
         @Test
@@ -255,8 +255,8 @@ class ChangeTrackerCalculateChangesForUnitTest {
             final ChangeSet second = tracker.calculateChangesFor(order);
 
             assertThat(second.changes()).hasSize(1);
-            assertThat(second.changes().get(0).changeTree())
-                    .isEqualTo(first.changes().get(0).changeTree());
+            assertThat(second.changes().get(0).changes())
+                    .isEqualTo(first.changes().get(0).changes());
 
             // 调用 calculateChangesFor 不推进基线：全局计算仍能检出同一变更
             final ChangeSet global = tracker.calculateChanges();

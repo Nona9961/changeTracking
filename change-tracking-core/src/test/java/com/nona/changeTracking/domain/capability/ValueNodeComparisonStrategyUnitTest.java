@@ -32,14 +32,14 @@ class ValueNodeComparisonStrategyUnitTest {
     @DisplayName("简单字段与Null值测试")
     class PrimitiveAndNullTests {
         @Test
-        @DisplayName("比较两个不同的 PrimitiveNode 树应返回 FieldChangeNode")
+        @DisplayName("比较两个不同的 PrimitiveNode 树应返回 ValueChange")
         void compare_differentPrimitiveTrees_shouldReturnValueChange() {
             final ObjectNode oldTree = new ObjectNode(Map.of("name", new PrimitiveNode("Alice")));
             final ObjectNode newTree = new ObjectNode(Map.of("name", new PrimitiveNode("Bob")));
-            final ChangeNode result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
-            final List<ChangeNode> children = ((ContainerChangeNode) result).children();
+            final List<Change> result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
+            final List<Change> children = result;
             assertEquals(1, children.size());
-            final FieldChangeNode change = (FieldChangeNode) children.get(0);
+            final ValueChange change = (ValueChange) children.get(0);
             assertEquals("name", change.path());
             assertEquals("Alice", change.oldValue());
             assertEquals("Bob", change.newValue());
@@ -50,8 +50,8 @@ class ValueNodeComparisonStrategyUnitTest {
         void field_becomesNull_shouldBeReported() {
             final ObjectNode oldTree = new ObjectNode(Map.of("name", new PrimitiveNode("Alice")));
             final ObjectNode newTree = new ObjectNode(Map.of("name", new NullNode()));
-            final ChangeNode result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
+            final ValueChange change = (ValueChange) result.get(0);
             assertEquals("name", change.path());
             assertEquals("Alice", change.oldValue());
             assertNull(change.newValue());
@@ -62,8 +62,8 @@ class ValueNodeComparisonStrategyUnitTest {
         void field_becomesNonNull_shouldBeReported() {
             final ObjectNode oldTree = new ObjectNode(Map.of("name", new NullNode()));
             final ObjectNode newTree = new ObjectNode(Map.of("name", new PrimitiveNode("Alice")));
-            final ChangeNode result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
+            final ValueChange change = (ValueChange) result.get(0);
             assertEquals("name", change.path());
             assertNull(change.oldValue());
             assertEquals("Alice", change.newValue());
@@ -80,13 +80,12 @@ class ValueNodeComparisonStrategyUnitTest {
             final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
             final ObjectNode newAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Market St")));
             final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ContainerChangeNode rootChange = (ContainerChangeNode) result;
-            assertEquals(1, rootChange.children().size());
-            final ContainerChangeNode addressChange = (ContainerChangeNode) rootChange.children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            assertEquals(1, result.size());
+            final ContainerChange addressChange = (ContainerChange) result.get(0);
             assertEquals("address", addressChange.path());
             assertEquals(1, addressChange.children().size());
-            final FieldChangeNode streetChange = (FieldChangeNode) addressChange.children().get(0);
+            final ValueChange streetChange = (ValueChange) addressChange.children().get(0);
             assertEquals("address.street", streetChange.path());
         }
 
@@ -95,8 +94,8 @@ class ValueNodeComparisonStrategyUnitTest {
         void field_addedToObject_shouldBeReported() {
             final ObjectNode oldTree = new ObjectNode(Map.of("name", new PrimitiveNode("Alice")));
             final ObjectNode newTree = new ObjectNode(Map.of("name", new PrimitiveNode("Alice"), "age", new PrimitiveNode(30)));
-            final ChangeNode result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
+            final ValueChange change = (ValueChange) result.get(0);
             assertEquals("age", change.path());
             assertNull(change.oldValue());
             assertEquals(30, change.newValue());
@@ -107,21 +106,21 @@ class ValueNodeComparisonStrategyUnitTest {
         void field_removedFromObject_shouldBeReported() {
             final ObjectNode oldTree = new ObjectNode(Map.of("name", new PrimitiveNode("Alice"), "age", new PrimitiveNode(30)));
             final ObjectNode newTree = new ObjectNode(Map.of("name", new PrimitiveNode("Alice")));
-            final ChangeNode result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
+            final ValueChange change = (ValueChange) result.get(0);
             assertEquals("age", change.path());
             assertEquals(30, change.oldValue());
             assertNull(change.newValue());
         }
 
         @Test
-        @DisplayName("嵌套对象变为 null 应产出 ObjectFieldChangeNode（oldNode=原 ObjectNode、newNode=NullNode）")
+        @DisplayName("嵌套对象变为 null 应产出 ObjectFieldChange（oldNode=原 ObjectNode、newNode=NullNode）")
         void nestedObject_becomesNull_shouldBeReported() {
             final ObjectNode oldAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
             final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
             final ObjectNode newUser = new ObjectNode(Map.of("address", new NullNode()));
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
             assertEquals("address", change.path());
             assertSame(oldAddress, change.oldNode(), "oldNode 应为原始 ObjectNode 实例（快照表示）");
             assertTrue(change.newNode() instanceof NullNode, "newNode 应为 NullNode");
@@ -143,11 +142,11 @@ class ValueNodeComparisonStrategyUnitTest {
             final CollectionNode newList = new CollectionNode(List.of(createItemNode("A", "v1"), createItemNode("B", "v2")));
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
-            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            // 集合变更被包裹在 ContainerChangeNode(path: "items") 中
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            // 集合变更被包裹在 ContainerChange(path: "items") 中
+            final ContainerChange itemsChange = (ContainerChange) result.get(0);
             assertEquals("items", itemsChange.path());
-            final ItemAddedNode addedNode = (ItemAddedNode) itemsChange.children().get(0);
+            final ItemAddedChange addedNode = (ItemAddedChange) itemsChange.children().get(0);
             assertEquals("items[B]", addedNode.path());
         }
 
@@ -158,11 +157,11 @@ class ValueNodeComparisonStrategyUnitTest {
             final CollectionNode newList = new CollectionNode(List.of(createItemNode("A", "v1")));
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
-            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            // 集合变更被包裹在 ContainerChangeNode(path: "items") 中
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            // 集合变更被包裹在 ContainerChange(path: "items") 中
+            final ContainerChange itemsChange = (ContainerChange) result.get(0);
             assertEquals("items", itemsChange.path());
-            final ItemRemovedNode removedNode = (ItemRemovedNode) itemsChange.children().get(0);
+            final ItemRemovedChange removedNode = (ItemRemovedChange) itemsChange.children().get(0);
             assertEquals("items[B]", removedNode.path());
         }
 
@@ -173,15 +172,15 @@ class ValueNodeComparisonStrategyUnitTest {
             final CollectionNode newList = new CollectionNode(List.of(createItemNode("A", "v2")));
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
-            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            // 集合变更被包裹在 ContainerChangeNode(path: "items") 中
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            // 集合变更被包裹在 ContainerChange(path: "items") 中
+            final ContainerChange itemsChange = (ContainerChange) result.get(0);
             assertEquals("items", itemsChange.path());
             // items[A] 是 items 的子节点
-            final ContainerChangeNode itemAChange = (ContainerChangeNode) itemsChange.children().get(0);
+            final ContainerChange itemAChange = (ContainerChange) itemsChange.children().get(0);
             assertEquals("items[A]", itemAChange.path());
             assertEquals(1, itemAChange.children().size());
-            final FieldChangeNode valueChange = (FieldChangeNode) itemAChange.children().get(0);
+            final ValueChange valueChange = (ValueChange) itemAChange.children().get(0);
             assertEquals("items[A].value", valueChange.path());
         }
 
@@ -193,13 +192,13 @@ class ValueNodeComparisonStrategyUnitTest {
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            final ContainerChange itemsChange = (ContainerChange) result.get(0);
             assertEquals("items", itemsChange.path());
 
             // 插入序：old 集合项 B、A 在前，新增项 C 追加在后（非字典序 A、B、C）
             assertEquals(List.of("items[B]", "items[A]", "items[C]"),
-                    itemsChange.children().stream().map(ChangeNode::path).toList());
+                    itemsChange.children().stream().map(Change::path).toList());
         }
 
         @Test
@@ -209,15 +208,15 @@ class ValueNodeComparisonStrategyUnitTest {
             final CollectionNode newList = new CollectionNode(List.of(createItemNode("A", "v1-updated"), createItemNode("C", "v3")));
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
-            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            // 集合变更被包裹在 ContainerChangeNode(path: "items") 中
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            // 集合变更被包裹在 ContainerChange(path: "items") 中
+            final ContainerChange itemsChange = (ContainerChange) result.get(0);
             assertEquals("items", itemsChange.path());
-            final List<ChangeNode> children = itemsChange.children();
+            final List<Change> children = itemsChange.children();
             assertEquals(3, children.size());
-            assertTrue(children.stream().anyMatch(c -> c instanceof ContainerChangeNode && c.path().equals("items[A]")));
-            assertTrue(children.stream().anyMatch(c -> c instanceof ItemRemovedNode && c.path().equals("items[B]")));
-            assertTrue(children.stream().anyMatch(c -> c instanceof ItemAddedNode && c.path().equals("items[C]")));
+            assertTrue(children.stream().anyMatch(c -> c instanceof ContainerChange && c.path().equals("items[A]")));
+            assertTrue(children.stream().anyMatch(c -> c instanceof ItemRemovedChange && c.path().equals("items[B]")));
+            assertTrue(children.stream().anyMatch(c -> c instanceof ItemAddedChange && c.path().equals("items[C]")));
         }
 
         @Test
@@ -228,12 +227,12 @@ class ValueNodeComparisonStrategyUnitTest {
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            final ContainerChange itemsChange = (ContainerChange) result.get(0);
             assertEquals("items", itemsChange.path());
 
             assertEquals(1, itemsChange.children().size());
-            final ItemRemovedNode removedNode = (ItemRemovedNode) itemsChange.children().get(0);
+            final ItemRemovedChange removedNode = (ItemRemovedChange) itemsChange.children().get(0);
             assertEquals("items[A#2]", removedNode.path());
         }
 
@@ -245,12 +244,12 @@ class ValueNodeComparisonStrategyUnitTest {
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            final ContainerChange itemsChange = (ContainerChange) result.get(0);
             assertEquals("items", itemsChange.path());
 
             assertEquals(1, itemsChange.children().size());
-            final ItemRemovedNode removedNode = (ItemRemovedNode) itemsChange.children().get(0);
+            final ItemRemovedChange removedNode = (ItemRemovedChange) itemsChange.children().get(0);
             assertEquals("items[A#2]", removedNode.path());
         }
 
@@ -262,12 +261,12 @@ class ValueNodeComparisonStrategyUnitTest {
             final ObjectNode oldRoot = new ObjectNode(Map.of("items", oldList));
             final ObjectNode newRoot = new ObjectNode(Map.of("items", newList));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            final ContainerChangeNode itemsChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            final ContainerChange itemsChange = (ContainerChange) result.get(0);
             assertEquals("items", itemsChange.path());
 
             assertEquals(1, itemsChange.children().size());
-            final ItemRemovedNode removedNode = (ItemRemovedNode) itemsChange.children().get(0);
+            final ItemRemovedChange removedNode = (ItemRemovedChange) itemsChange.children().get(0);
             assertEquals("items[null]", removedNode.path());
         }
 
@@ -286,14 +285,14 @@ class ValueNodeComparisonStrategyUnitTest {
             final ObjectNode oldRoot = new ObjectNode(Map.of("map", new CollectionNode(List.of(oldEntry))));
             final ObjectNode newRoot = new ObjectNode(Map.of("map", new CollectionNode(List.of(newEntry))));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
-            final ContainerChangeNode mapChange = (ContainerChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldRoot), snapshotOf(newRoot));
+            final ContainerChange mapChange = (ContainerChange) result.get(0);
             assertEquals("map", mapChange.path());
 
-            final ContainerChangeNode entryChange = (ContainerChangeNode) mapChange.children().get(0);
+            final ContainerChange entryChange = (ContainerChange) mapChange.children().get(0);
             assertEquals("map[null]", entryChange.path());
 
-            final FieldChangeNode valueChange = (FieldChangeNode) entryChange.children().get(0);
+            final ValueChange valueChange = (ValueChange) entryChange.children().get(0);
             assertEquals("map[null].value", valueChange.path());
             assertEquals("v1", valueChange.oldValue());
             assertEquals("v2", valueChange.newValue());
@@ -322,15 +321,14 @@ class ValueNodeComparisonStrategyUnitTest {
             newBFields.put("a", newA);
             newBFields.put("value", new PrimitiveNode("v2"));
 
-            final ChangeNode result = assertDoesNotThrow(() -> strategy.compare(snapshotOf(oldA), snapshotOf(newA)));
-            final ContainerChangeNode rootChange = (ContainerChangeNode) result;
-            assertEquals(1, rootChange.children().size());
+            final List<Change> result = assertDoesNotThrow(() -> strategy.compare(snapshotOf(oldA), snapshotOf(newA)));
+            assertEquals(1, result.size());
 
-            final ContainerChangeNode bChange = (ContainerChangeNode) rootChange.children().get(0);
+            final ContainerChange bChange = (ContainerChange) result.get(0);
             assertEquals("b", bChange.path());
             assertEquals(1, bChange.children().size());
 
-            final FieldChangeNode valueChange = (FieldChangeNode) bChange.children().get(0);
+            final ValueChange valueChange = (ValueChange) bChange.children().get(0);
             assertEquals("b.value", valueChange.path());
             assertEquals("v1", valueChange.oldValue());
             assertEquals("v2", valueChange.newValue());
@@ -338,19 +336,19 @@ class ValueNodeComparisonStrategyUnitTest {
     }
 
     @Nested
-    @DisplayName("类型变化场景测试（跨类型 → ObjectFieldChangeNode）")
+    @DisplayName("类型变化场景测试（跨类型 → ObjectFieldChange）")
     class TypeChangeTests {
 
         @Test
-        @DisplayName("ObjectNode 变为 PrimitiveNode 应产出 ObjectFieldChangeNode（两侧为 ValueNode 实例）")
+        @DisplayName("ObjectNode 变为 PrimitiveNode 应产出 ObjectFieldChange（两侧为 ValueNode 实例）")
         void objectNode_toPrimitiveNode_shouldProduceObjectFieldChange() {
             final ObjectNode oldAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
             final PrimitiveNode newAddress = new PrimitiveNode("42");
             final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
             final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
 
             assertEquals("address", change.path());
             assertSame(oldAddress, change.oldNode(), "oldNode 应为原始 ObjectNode 实例（快照表示）");
@@ -358,15 +356,15 @@ class ValueNodeComparisonStrategyUnitTest {
         }
 
         @Test
-        @DisplayName("CollectionNode 变为 ObjectNode 应产出 ObjectFieldChangeNode（两侧为 ValueNode 实例）")
+        @DisplayName("CollectionNode 变为 ObjectNode 应产出 ObjectFieldChange（两侧为 ValueNode 实例）")
         void collectionNode_toObjectNode_shouldProduceObjectFieldChange() {
             final CollectionNode oldItems = new CollectionNode(List.of(new PrimitiveNode("A")));
             final ObjectNode newItems = new ObjectNode(Map.of("id", new PrimitiveNode("1")));
             final ObjectNode oldUser = new ObjectNode(Map.of("items", oldItems));
             final ObjectNode newUser = new ObjectNode(Map.of("items", newItems));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
 
             assertEquals("items", change.path());
             assertSame(oldItems, change.oldNode(), "oldNode 应为原始 CollectionNode 实例（快照表示）");
@@ -374,15 +372,15 @@ class ValueNodeComparisonStrategyUnitTest {
         }
 
         @Test
-        @DisplayName("PrimitiveNode 变为 ObjectNode 应产出 ObjectFieldChangeNode（两侧为 ValueNode 实例）")
+        @DisplayName("PrimitiveNode 变为 ObjectNode 应产出 ObjectFieldChange（两侧为 ValueNode 实例）")
         void primitiveNode_toObjectNode_shouldProduceObjectFieldChange() {
             final PrimitiveNode oldAddress = new PrimitiveNode("42");
             final ObjectNode newAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
             final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
             final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
 
             assertEquals("address", change.path());
             assertSame(oldAddress, change.oldNode(), "oldNode 应为原始 PrimitiveNode 实例（快照表示）");
@@ -390,14 +388,14 @@ class ValueNodeComparisonStrategyUnitTest {
         }
 
         @Test
-        @DisplayName("NullNode 变为 ObjectNode 应产出 ObjectFieldChangeNode（两侧为 ValueNode 实例）")
+        @DisplayName("NullNode 变为 ObjectNode 应产出 ObjectFieldChange（两侧为 ValueNode 实例）")
         void nullNode_toObjectNode_shouldProduceObjectFieldChange() {
             final ObjectNode newAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
             final ObjectNode oldUser = new ObjectNode(Map.of("address", new NullNode()));
             final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
 
             assertEquals("address", change.path());
             assertTrue(change.oldNode() instanceof NullNode, "oldNode 应为 NullNode");
@@ -405,14 +403,14 @@ class ValueNodeComparisonStrategyUnitTest {
         }
 
         @Test
-        @DisplayName("CollectionNode 变为 NullNode 应产出 ObjectFieldChangeNode")
+        @DisplayName("CollectionNode 变为 NullNode 应产出 ObjectFieldChange")
         void collectionNode_toNullNode_shouldProduceObjectFieldChange() {
             final CollectionNode oldItems = new CollectionNode(List.of(new PrimitiveNode("A")));
             final ObjectNode oldUser = new ObjectNode(Map.of("items", oldItems));
             final ObjectNode newUser = new ObjectNode(Map.of("items", new NullNode()));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
 
             assertEquals("items", change.path());
             assertSame(oldItems, change.oldNode(), "oldNode 应为原始 CollectionNode 实例（快照表示）");
@@ -420,14 +418,14 @@ class ValueNodeComparisonStrategyUnitTest {
         }
 
         @Test
-        @DisplayName("NullNode 变为 CollectionNode 应产出 ObjectFieldChangeNode")
+        @DisplayName("NullNode 变为 CollectionNode 应产出 ObjectFieldChange")
         void nullNode_toCollectionNode_shouldProduceObjectFieldChange() {
             final CollectionNode newItems = new CollectionNode(List.of(new PrimitiveNode("A")));
             final ObjectNode oldUser = new ObjectNode(Map.of("items", new NullNode()));
             final ObjectNode newUser = new ObjectNode(Map.of("items", newItems));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
 
             assertEquals("items", change.path());
             assertTrue(change.oldNode() instanceof NullNode, "oldNode 应为 NullNode");
@@ -435,15 +433,15 @@ class ValueNodeComparisonStrategyUnitTest {
         }
 
         @Test
-        @DisplayName("ObjectNode 变为 CollectionNode 应产出 ObjectFieldChangeNode")
+        @DisplayName("ObjectNode 变为 CollectionNode 应产出 ObjectFieldChange")
         void objectNode_toCollectionNode_shouldProduceObjectFieldChange() {
             final ObjectNode oldAddress = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
             final CollectionNode newAddress = new CollectionNode(List.of(new PrimitiveNode("A")));
             final ObjectNode oldUser = new ObjectNode(Map.of("address", oldAddress));
             final ObjectNode newUser = new ObjectNode(Map.of("address", newAddress));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
 
             assertEquals("address", change.path());
             assertSame(oldAddress, change.oldNode(), "oldNode 应为原始 ObjectNode 实例（快照表示）");
@@ -451,15 +449,15 @@ class ValueNodeComparisonStrategyUnitTest {
         }
 
         @Test
-        @DisplayName("CollectionNode 变为 PrimitiveNode 应产出 ObjectFieldChangeNode")
+        @DisplayName("CollectionNode 变为 PrimitiveNode 应产出 ObjectFieldChange")
         void collectionNode_toPrimitiveNode_shouldProduceObjectFieldChange() {
             final CollectionNode oldItems = new CollectionNode(List.of(new PrimitiveNode("A")));
             final PrimitiveNode newItems = new PrimitiveNode("x");
             final ObjectNode oldUser = new ObjectNode(Map.of("items", oldItems));
             final ObjectNode newUser = new ObjectNode(Map.of("items", newItems));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
 
             assertEquals("items", change.path());
             assertSame(oldItems, change.oldNode(), "oldNode 应为原始 CollectionNode 实例（快照表示）");
@@ -472,7 +470,7 @@ class ValueNodeComparisonStrategyUnitTest {
     class FlatViewTests {
 
         private ChangeSet changeSetOf(ValueNode oldTree, ValueNode newTree) {
-            final ChangeNode tree = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
+            final List<Change> tree = strategy.compare(snapshotOf(oldTree), snapshotOf(newTree));
             return new ChangeSet(List.of(new ObjectChange(new Object(), tree)));
         }
 
@@ -546,15 +544,15 @@ class ValueNodeComparisonStrategyUnitTest {
             newFields.put("alpha", new PrimitiveNode("a2"));
             newFields.put("mango", new PrimitiveNode("m2"));
 
-            final ChangeNode result = strategy.compare(
+            final List<Change> result = strategy.compare(
                     snapshotOf(new ObjectNode(oldFields)),
                     snapshotOf(new ObjectNode(newFields)));
 
-            final List<ChangeNode> children = ((ContainerChangeNode) result).children();
+            final List<Change> children = result;
             assertEquals(3, children.size());
             // 声明序 zebra/alpha/mango，字典序为 alpha/mango/zebra
             assertEquals(List.of("zebra", "alpha", "mango"),
-                    children.stream().map(ChangeNode::path).toList());
+                    children.stream().map(Change::path).toList());
         }
 
         @Test
@@ -568,15 +566,15 @@ class ValueNodeComparisonStrategyUnitTest {
             newFields.put("zebra", new PrimitiveNode("z2"));
             newFields.put("mango", new PrimitiveNode("m1"));
 
-            final ChangeNode result = strategy.compare(
+            final List<Change> result = strategy.compare(
                     snapshotOf(new ObjectNode(oldFields)),
                     snapshotOf(new ObjectNode(newFields)));
 
-            final List<ChangeNode> children = ((ContainerChangeNode) result).children();
+            final List<Change> children = result;
             assertEquals(3, children.size());
             // old 声明序 alpha/zebra 为基准，新增 mango 追加在后（非字典序 alpha/mango/zebra）
             assertEquals(List.of("alpha", "zebra", "mango"),
-                    children.stream().map(ChangeNode::path).toList());
+                    children.stream().map(Change::path).toList());
         }
     }
 
@@ -590,30 +588,30 @@ class ValueNodeComparisonStrategyUnitTest {
             final ArrayNode oldArr = new ArrayNode(new byte[]{1, 2, 3});
             final ArrayNode newArr = new ArrayNode(new byte[]{1, 2, 3});
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
-            assertTrue(((ContainerChangeNode) result).children().isEmpty(), "内容相同的数组不应报告变更");
+            final List<Change> result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
+            assertTrue(result.isEmpty(), "内容相同的数组不应报告变更");
         }
 
         @Test
-        @DisplayName("顺序变化 {1,2,3}→{3,2,1} 应报告 FieldChangeNode（顺序敏感固化）")
+        @DisplayName("顺序变化 {1,2,3}→{3,2,1} 应报告 ValueChange（顺序敏感固化）")
         void array_reordered_shouldReportValueChange() {
             final ArrayNode oldArr = new ArrayNode(new int[]{1, 2, 3});
             final ArrayNode newArr = new ArrayNode(new int[]{3, 2, 1});
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
+            final ValueChange change = (ValueChange) result.get(0);
             assertArrayEquals(new int[]{1, 2, 3}, (int[]) change.oldValue(), "oldValue 应为旧数组实例");
             assertArrayEquals(new int[]{3, 2, 1}, (int[]) change.newValue(), "newValue 应为新数组实例");
         }
 
         @Test
-        @DisplayName("byte[] 内容不同应报告 FieldChangeNode（载荷为数组实例，消费方可强转）")
+        @DisplayName("byte[] 内容不同应报告 ValueChange（载荷为数组实例，消费方可强转）")
         void byteArray_differentContent_shouldReportValueChange() {
             final ArrayNode oldArr = new ArrayNode(new byte[]{1, 2});
             final ArrayNode newArr = new ArrayNode(new byte[]{1, 2, 3});
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
+            final ValueChange change = (ValueChange) result.get(0);
             assertArrayEquals(new byte[]{1, 2}, (byte[]) change.oldValue());
             assertArrayEquals(new byte[]{1, 2, 3}, (byte[]) change.newValue());
         }
@@ -624,88 +622,88 @@ class ValueNodeComparisonStrategyUnitTest {
             final ArrayNode oldArr = new ArrayNode(new int[][]{{1, 2}, {3, 4}});
             final ArrayNode newArr = new ArrayNode(new int[][]{{1, 2}, {3, 4}});
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
-            assertTrue(((ContainerChangeNode) result).children().isEmpty(), "多维数组内容相同不应报告变更");
+            final List<Change> result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
+            assertTrue(result.isEmpty(), "多维数组内容相同不应报告变更");
         }
 
         @Test
-        @DisplayName("多维数组内容不同应报告 FieldChangeNode")
+        @DisplayName("多维数组内容不同应报告 ValueChange")
         void multiDimArray_differentContent_shouldReportValueChange() {
             final ArrayNode oldArr = new ArrayNode(new int[][]{{1, 2}, {3, 4}});
             final ArrayNode newArr = new ArrayNode(new int[][]{{1, 2}, {5, 4}});
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
-            assertEquals(1, ((ContainerChangeNode) result).children().size());
+            final List<Change> result = strategy.compare(snapshotOf(oldArr), snapshotOf(newArr));
+            assertEquals(1, result.size());
         }
 
         @Test
-        @DisplayName("对象内数组字段内容变化应报告 FieldChangeNode（路径正确）")
+        @DisplayName("对象内数组字段内容变化应报告 ValueChange（路径正确）")
         void arrayField_insideObject_shouldReportValueChange() {
             final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
             final ObjectNode newUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 3})));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final FieldChangeNode change = (FieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ValueChange change = (ValueChange) result.get(0);
             assertEquals("data", change.path());
         }
 
         @Test
-        @DisplayName("数组↔null 应产出 ObjectFieldChangeNode（跨类型，携带 ValueNode 表示）")
+        @DisplayName("数组↔null 应产出 ObjectFieldChange（跨类型，携带 ValueNode 表示）")
         void array_toNull_shouldProduceObjectFieldChange() {
             final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
             final ObjectNode newUser = new ObjectNode(Map.of("data", new NullNode()));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
             assertEquals("data", change.path());
             assertInstanceOf(ArrayNode.class, change.oldNode());
             assertTrue(change.newNode() instanceof NullNode);
         }
 
         @Test
-        @DisplayName("null→数组 应产出 ObjectFieldChangeNode")
+        @DisplayName("null→数组 应产出 ObjectFieldChange")
         void null_toArray_shouldProduceObjectFieldChange() {
             final ObjectNode oldUser = new ObjectNode(Map.of("data", new NullNode()));
             final ObjectNode newUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
             assertTrue(change.oldNode() instanceof NullNode);
             assertInstanceOf(ArrayNode.class, change.newNode());
         }
 
         @Test
-        @DisplayName("数组↔Primitive 应产出 ObjectFieldChangeNode")
+        @DisplayName("数组↔Primitive 应产出 ObjectFieldChange")
         void array_toPrimitive_shouldProduceObjectFieldChange() {
             final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
             final ObjectNode newUser = new ObjectNode(Map.of("data", new PrimitiveNode(42)));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
             assertInstanceOf(ArrayNode.class, change.oldNode());
             assertInstanceOf(PrimitiveNode.class, change.newNode());
         }
 
         @Test
-        @DisplayName("数组↔ObjectNode 应产出 ObjectFieldChangeNode")
+        @DisplayName("数组↔ObjectNode 应产出 ObjectFieldChange")
         void array_toObjectNode_shouldProduceObjectFieldChange() {
             final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
             final ObjectNode newUser = new ObjectNode(Map.of("data", new ObjectNode(Map.of("x", new PrimitiveNode(1)))));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
             assertInstanceOf(ArrayNode.class, change.oldNode());
             assertInstanceOf(ObjectNode.class, change.newNode());
         }
 
         @Test
-        @DisplayName("数组↔CollectionNode 应产出 ObjectFieldChangeNode")
+        @DisplayName("数组↔CollectionNode 应产出 ObjectFieldChange")
         void array_toCollection_shouldProduceObjectFieldChange() {
             final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
             final ObjectNode newUser = new ObjectNode(Map.of("data", new CollectionNode(List.of(new PrimitiveNode(1)))));
 
-            final ChangeNode result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
-            final ObjectFieldChangeNode change = (ObjectFieldChangeNode) ((ContainerChangeNode) result).children().get(0);
+            final List<Change> result = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final ObjectFieldChange change = (ObjectFieldChange) result.get(0);
             assertInstanceOf(ArrayNode.class, change.oldNode());
             assertInstanceOf(CollectionNode.class, change.newNode());
         }
@@ -715,7 +713,7 @@ class ValueNodeComparisonStrategyUnitTest {
         void arrayField_flatView_shouldProduceValueChange() {
             final ObjectNode oldUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 2})));
             final ObjectNode newUser = new ObjectNode(Map.of("data", new ArrayNode(new byte[]{1, 3})));
-            final ChangeNode tree = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
+            final List<Change> tree = strategy.compare(snapshotOf(oldUser), snapshotOf(newUser));
             final ChangeSet changeSet = new ChangeSet(List.of(new ObjectChange(new Object(), tree)));
 
             final List<Change> leaves = changeSet.getLeafChanges();

@@ -3,45 +3,28 @@ package com.nona.changeTracking.domain.model.changeset;
 import java.util.List;
 
 /**
- * 表示容器变更（扁平视图）。
+ * 表示变更分组：某个结构位置包含哪些变化。
  * <p>
- * 仅在 {@link ChangeSet#getAllChanges()} 中出现。
+ * 分组自身不代表一项可执行的变化，它是结果树中的组织节点；原子变化通过 {@link ValueChange}、
+ * {@link ObjectFieldChange}、{@link ItemAddedChange}、{@link ItemRemovedChange} 表达。
+ * <p>
+ * 构造即结果构建入口，须满足领域不变量：子结果非空；每个子结果的定位必须处于本分组的包含结构之下
+ * （子结果的完整路径非空，且以本分组的完整路径为前缀）；分组自身不能出现在非根的空路径位置。
+ * 违反上述不变量的分组在构造时被拒绝，不延迟到视图访问时才失败。
  *
- * @param path                相对路径。
- * @param fullPath            完整路径。
- * @param fieldName           纯字段名（不含索引）。
- * @param collectionFieldName 所属集合字段名，主表字段为 null。
- * @param parentIsCollection  父节点是否为集合。
- * @param children            子变更列表。
+ * @param location 分组的定位
+ * @param children 分组内的子结果，非空
  */
-public record ContainerChange(
-        String path,
-        String fullPath,
-        String fieldName,
-        String collectionFieldName,
-        boolean parentIsCollection,
-        List<Change> children
-) implements Change {
+public record ContainerChange(ChangeLocation location, List<Change> children) implements Change {
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isParentCollection() {
-        return parentIsCollection;
-    }
-
-    /**
-     * 紧凑构造器：防御性拷贝子变更列表，保证节点构造后不可变。
+     * 紧凑构造器：拒绝空分组，防御性复制子结果列表并校验包含定位一致。
      *
-     * @param path                相对路径。
-     * @param fullPath            完整路径。
-     * @param fieldName           纯字段名（不含索引）。
-     * @param collectionFieldName 所属集合字段名，主表字段为 null。
-     * @param parentIsCollection  父节点是否为集合。
-     * @param children            子变更列表。
+     * @param location 分组的定位
+     * @param children 分组内的子结果，非空
      */
     public ContainerChange {
-        children = List.copyOf(children);
+        System.err.println("[red] ContainerChange.<init> not implemented");
+        throw new UnsupportedOperationException("ContainerChange.<init> is not implemented yet");
     }
 }

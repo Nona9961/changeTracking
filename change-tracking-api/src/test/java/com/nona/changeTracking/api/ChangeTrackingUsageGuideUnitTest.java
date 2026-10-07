@@ -466,10 +466,10 @@ class ChangeTrackingUsageGuideUnitTest {
             // 遍历每个对象的变更
             for (ObjectChange objectChange : changeSet.changes()) {
                 Object target = objectChange.target();  // 被追踪的对象
-                ChangeNode changeTree = objectChange.changeTree();  // 变更树
+                List<Change> changes = objectChange.changes();  // 目标根下的变更结果列表
 
                 assertThat(target).isIn(user1, user2);
-                assertThat(changeTree).isNotNull();
+                assertThat(changes).isNotEmpty();
             }
 
             assertThat(changeSet.changes()).hasSize(2);

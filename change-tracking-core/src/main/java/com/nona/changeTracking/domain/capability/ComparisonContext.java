@@ -1,5 +1,6 @@
 package com.nona.changeTracking.domain.capability;
 
+import com.nona.changeTracking.domain.model.changeset.ChangeLocation;
 import com.nona.changeTracking.domain.model.snapshot.ValueNode;
 
 import java.util.Arrays;
@@ -131,6 +132,20 @@ final class ComparisonContext {
             this.pathStack[index].appendTo(builder, index == 0);
         }
         return builder.toString();
+    }
+
+    /**
+     * 按当前栈<b>按需</b>生成当前比较位置的定位对象。
+     * <p>
+     * 定位由同一份路径段栈一次性形成一致的整体：字段段产生字段定位，集合项段产生集合项定位，
+     * 完整路径、相对路径、字段名、最近集合字段名与「直接包含者是否为集合」不分别猜测。
+     * 集合项标识文本与 {@link #currentPath()} 使用同一份按需渲染结果。
+     *
+     * @return 当前比较位置的定位；栈为空时返回根定位。
+     */
+    ChangeLocation currentLocation() {
+        System.err.println("[red] ComparisonContext.currentLocation not implemented");
+        throw new UnsupportedOperationException("ComparisonContext.currentLocation is not implemented yet");
     }
 
     /**

@@ -5,10 +5,10 @@ import com.nona.changeTracking.domain.capability.TrackingCapability;
 import com.nona.changeTracking.domain.capability.TrackingConfiguration;
 import com.nona.changeTracking.internal.capability.DefaultTrackingCapability;
 import com.nona.changeTracking.spi.SnapshotStrategy;
-import com.nona.changeTracking.domain.model.changeset.ChangeNode;
+import com.nona.changeTracking.domain.model.changeset.Change;
+import com.nona.changeTracking.domain.model.changeset.ChangeLocation;
 import com.nona.changeTracking.domain.model.changeset.ChangeSet;
-import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
-import com.nona.changeTracking.domain.model.changeset.FieldChangeNode;
+import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
 import com.nona.changeTracking.domain.model.snapshot.Snapshot;
 import com.nona.changeTracking.domain.model.snapshot.ValueNodeSnapshot;
@@ -21,7 +21,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -61,8 +60,9 @@ class ChangeTrackerUnitTest {
     private final ValueNodeSnapshot oldSnapshot = new ValueNodeSnapshot(null);
     private final ValueNodeSnapshot newSnapshot = new ValueNodeSnapshot(null);
     private final ValueNodeSnapshot newerSnapshot = new ValueNodeSnapshot(null);
-    private final ChangeNode changeTree = new ContainerChangeNode("user", List.of(new FieldChangeNode("user.name", "a", "b")));
-    private final ChangeNode noChangeTree = new ContainerChangeNode("", Collections.emptyList());
+    private final List<Change> changeResults = List.of(
+            new ValueChange(ChangeLocation.field(ChangeLocation.root(), "name"), "a", "b"));
+    private final List<Change> noChangeResults = List.of();
 
 
     @BeforeEach
@@ -84,7 +84,7 @@ class ChangeTrackerUnitTest {
             doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
             changeTracker.track(user1);
 
-            when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeTree);
+            when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeResults);
 
             // --- Act ---
             final ChangeSet changeSet = changeTracker.calculateChanges();
@@ -93,7 +93,7 @@ class ChangeTrackerUnitTest {
             assertFalse(changeSet.isEmpty());
             assertEquals(1, changeSet.changes().size());
             assertEquals(user1, changeSet.changes().get(0).target());
-            assertEquals(changeTree, changeSet.changes().get(0).changeTree());
+            assertEquals(changeResults, changeSet.changes().get(0).changes());
 
             verify(snapshotStrategy, times(2)).createSnapshot(user1);
             verify(comparisonStrategy, times(1)).compare(oldSnapshot, newSnapshot);
@@ -104,7 +104,7 @@ class ChangeTrackerUnitTest {
         void calculateChanges_repeatedCalls_shouldReturnSameChangeSet() {
             doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
             changeTracker.track(user1);
-            when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeTree);
+            when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeResults);
 
             final ChangeSet firstCall = changeTracker.calculateChanges();
             final ChangeSet secondCall = changeTracker.calculateChanges();
@@ -122,7 +122,7 @@ class ChangeTrackerUnitTest {
             doReturn(oldSnapshot, oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
             changeTracker.track(user1);
 
-            when(comparisonStrategy.compare(oldSnapshot, oldSnapshot)).thenReturn(noChangeTree);
+            when(comparisonStrategy.compare(oldSnapshot, oldSnapshot)).thenReturn(noChangeResults);
 
             // --- Act ---
             final ChangeSet changeSet = changeTracker.calculateChanges();
@@ -182,14 +182,14 @@ class ChangeTrackerUnitTest {
             changeTracker.track(user1); // 重新登记：以当前状态建立新基线
 
             // 恢复后的比较基于新基线：newSnapshot（重新 track 时刻状态） vs newerSnapshot（当前状态）
-            when(comparisonStrategy.compare(newSnapshot, newerSnapshot)).thenReturn(changeTree);
+            when(comparisonStrategy.compare(newSnapshot, newerSnapshot)).thenReturn(changeResults);
 
             // 恢复追踪后修改应产生变更
             final ChangeSet changeSet = changeTracker.calculateChanges();
             assertFalse(changeSet.isEmpty());
             assertEquals(1, changeSet.changes().size());
             assertEquals(user1, changeSet.changes().get(0).target());
-            assertEquals(changeTree, changeSet.changes().get(0).changeTree());
+            assertEquals(changeResults, changeSet.changes().get(0).changes());
 
             verify(snapshotStrategy, times(3)).createSnapshot(user1);
             verify(comparisonStrategy, times(1)).compare(newSnapshot, newerSnapshot);
@@ -229,11 +229,13 @@ class ChangeTrackerUnitTest {
             changeTracker.track(user1);
             changeTracker.track(user2);
 
-            final ChangeNode changeTree1 = new ContainerChangeNode("user1", List.of(new FieldChangeNode("name", "a", "b")));
-            final ChangeNode changeTree2 = new ContainerChangeNode("user2", List.of(new FieldChangeNode("name", "c", "d")));
+            final List<Change> changeResults1 = List.of(
+                    new ValueChange(ChangeLocation.field(ChangeLocation.root(), "name"), "a", "b"));
+            final List<Change> changeResults2 = List.of(
+                    new ValueChange(ChangeLocation.field(ChangeLocation.root(), "name"), "c", "d"));
 
-            when(comparisonStrategy.compare(oldSnapshot1, newSnapshot1)).thenReturn(changeTree1);
-            when(comparisonStrategy.compare(oldSnapshot2, newSnapshot2)).thenReturn(changeTree2);
+            when(comparisonStrategy.compare(oldSnapshot1, newSnapshot1)).thenReturn(changeResults1);
+            when(comparisonStrategy.compare(oldSnapshot2, newSnapshot2)).thenReturn(changeResults2);
 
             final ChangeSet changeSet = changeTracker.calculateChanges();
 
@@ -254,8 +256,8 @@ class ChangeTrackerUnitTest {
             changeTracker.track(user1);
             changeTracker.track(user2);
 
-            when(comparisonStrategy.compare(snapshot1, newSnapshot1)).thenReturn(changeTree);
-            when(comparisonStrategy.compare(snapshot2, snapshot2)).thenReturn(noChangeTree);
+            when(comparisonStrategy.compare(snapshot1, newSnapshot1)).thenReturn(changeResults);
+            when(comparisonStrategy.compare(snapshot2, snapshot2)).thenReturn(noChangeResults);
 
             final ChangeSet changeSet = changeTracker.calculateChanges();
 

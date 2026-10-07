@@ -1,68 +1,90 @@
 package com.nona.changeTracking.domain.model.changeset;
 
 /**
- * 变更的密封接口（扁平视图）。
+ * 变更的密封接口：一次基线比较产出的统一变更描述。
  * <p>
- * 这是框架对外暴露的变更表示，由 {@link ChangeSet} 从 {@link ChangeNode} 树转换而来。
- * 适用于审计日志、持久化操作等场景。
+ * 统一模型只保留这一套变更类型（五个实现，见 {@code permits}），由比较策略直接产出：
+ * 原子变化（字段值变化、整体替换、集合项新增、集合项移除）与变更分组（容器）都表达为
+ * {@link Change}，通过既有五个具体类型区分；不再存在第二套中间节点层次，也不再需要
+ * 节点到节点的转换链路。
  * <p>
- * 允许的实现类型：
- * <ul>
- *   <li>{@link ValueChange} - 基本值字段变更（oldValue/newValue 为业务值）</li>
- *   <li>{@link ObjectFieldChange} - 对象/集合字段整体替换（oldNode/newNode 为 ValueNode）</li>
- *   <li>{@link ContainerChange} - 容器变更（仅在 getAllChanges 中出现）</li>
- *   <li>{@link ItemAddedChange} - 集合项新增</li>
- *   <li>{@link ItemRemovedChange} - 集合项删除</li>
- * </ul>
+ * 每个变更携带一个不可变的 {@link ChangeLocation} 定位，下列定位访问入口都是对它的薄委托，
+ * 语义由定位对象集中拥有：完整路径在所有入口下固定（{@link #path()} 与 {@link #fullPath()}
+ * 含义一致，保留 {@code path} 作为同义入口），相对路径相对真实包含节点，字段名、集合归属与
+ * 「直接包含者是否为集合」在所有入口下一致。
  *
- * @see ChangeNode 树形视图的变更表示
+ * @see ValueChange 基本值字段变更
+ * @see ObjectFieldChange 对象/集合字段整体替换
+ * @see ContainerChange 变更分组
+ * @see ItemAddedChange 集合项新增
+ * @see ItemRemovedChange 集合项移除
  */
 public sealed interface Change permits ValueChange, ObjectFieldChange, ContainerChange, ItemAddedChange, ItemRemovedChange {
 
     /**
-     * 获取此变更的路径。
-     * <p>
-     * 在树形视图（{@link ContainerChange#children()}）中，子变更的 {@code path()} 为相对路径（相对于当前容器）。
-     * 在扁平视图（{@link ChangeSet#getLeafChanges()} / {@link ChangeSet#getAllChanges()} 返回的列表）中，
-     * {@code path()} 与 {@link #fullPath()} 保持一致（均为完整路径）。
+     * 返回此变更的定位。
      *
-     * @return 变更路径（相对或完整，取决于视图）。
+     * @return 不可变定位对象
      */
-    String path();
+    ChangeLocation location();
 
     /**
-     * 获取此变更从根到当前节点的完整路径。
+     * 返回此变更的路径：与 {@link #fullPath()} 含义一致（完整路径），保留本入口作为既有名称的同义入口。
      *
-     * @return 完整路径，如 {@code "items[1].name"}。
+     * @return 完整路径
      */
-    String fullPath();
+    default String path() {
+        System.err.println("[red] Change.path not implemented");
+        throw new UnsupportedOperationException("Change.path is not implemented yet");
+    }
 
     /**
-     * 获取此变更的纯字段名（不含索引）。
-     * <p>
-     * 例如：{@code "items[1]"} 返回 {@code "items"}，
-     * {@code "[1]"} 返回 {@code null}，
-     * {@code "name"} 返回 {@code "name"}。
+     * 返回此变更相对被追踪根对象的完整路径。
      *
-     * @return 纯字段名，纯索引路径返回 null。
+     * @return 完整路径
      */
-    String fieldName();
+    default String fullPath() {
+        System.err.println("[red] Change.fullPath not implemented");
+        throw new UnsupportedOperationException("Change.fullPath is not implemented yet");
+    }
 
     /**
-     * 获取此变更所属的最近一层集合字段名。
-     * <p>
-     * 例如：{@code "items[1].subItems[101].name"} 返回 {@code "subItems"}，
-     * {@code "items[1].name"} 返回 {@code "items"}，
-     * {@code "status"} 返回 {@code null}（主表字段）。
+     * 返回此变更相对真实包含节点的局部路径。
      *
-     * @return 所属集合字段名，主表字段返回 null。
+     * @return 相对路径
      */
-    String collectionFieldName();
+    default String relativePath() {
+        System.err.println("[red] Change.relativePath not implemented");
+        throw new UnsupportedOperationException("Change.relativePath is not implemented yet");
+    }
 
     /**
-     * 判断父节点是否为集合。
+     * 返回此变更定位对应的字段名。
      *
-     * @return 如果父节点是集合则返回 true。
+     * @return 字段名，直接集合项为 null
      */
-    boolean isParentCollection();
+    default String fieldName() {
+        System.err.println("[red] Change.fieldName not implemented");
+        throw new UnsupportedOperationException("Change.fieldName is not implemented yet");
+    }
+
+    /**
+     * 返回此变更所属的最近集合字段名。
+     *
+     * @return 集合字段名，不在集合内时为 null
+     */
+    default String collectionFieldName() {
+        System.err.println("[red] Change.collectionFieldName not implemented");
+        throw new UnsupportedOperationException("Change.collectionFieldName is not implemented yet");
+    }
+
+    /**
+     * 判断此变更的直接包含者是否为集合。
+     *
+     * @return 直接包含者是集合时返回 true
+     */
+    default boolean isParentCollection() {
+        System.err.println("[red] Change.isParentCollection not implemented");
+        throw new UnsupportedOperationException("Change.isParentCollection is not implemented yet");
+    }
 }

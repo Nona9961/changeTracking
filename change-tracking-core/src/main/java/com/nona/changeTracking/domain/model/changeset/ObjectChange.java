@@ -1,19 +1,29 @@
 package com.nona.changeTracking.domain.model.changeset;
 
-import java.util.Objects;
+import java.util.List;
 
 /**
- * 表示单个被追踪对象的整体变更。
+ * 表示单个被追踪对象的整体变更：该目标相对于基线的净差异组织根。
  * <p>
- * 它持有一个代表所有细粒度变更的 {@link ChangeNode} 树的根节点。
- * 这是一个 record，因为它是一个不可变的数据载体。
+ * 结果组织边界：本类型绑定追踪目标身份，并直接持有<b>目标根下</b>的非空结果列表——没有额外的人工根
+ * 容器包装；比较策略产出空列表即无变化，此时不创建本对象。结果列表元素可以是原子变化（含真实根值
+ * 变化产生的空路径原子变化）或顶层变更分组。
+ * <p>
+ * 本类型持有活动目标引用，不宣称深不可变；结果列表本身防御性复制并只读。
  *
- * @param target     被追踪的、发生变更的对象实例。
- * @param changeTree 描述该对象所有内部变更的树的根节点。
+ * @param target  被追踪的、发生变更的对象实例
+ * @param changes 目标根下的变更列表，非空
  */
-public record ObjectChange(Object target, ChangeNode changeTree) {
+public record ObjectChange(Object target, List<Change> changes) {
+
+    /**
+     * 紧凑构造器：拒绝空目标与空结果列表，拒绝非法顶层结果（空路径分组），并防御性复制结果列表。
+     *
+     * @param target  被追踪的、发生变更的对象实例
+     * @param changes 目标根下的变更列表，非空
+     */
     public ObjectChange {
-        Objects.requireNonNull(target, "Target object cannot be null.");
-        Objects.requireNonNull(changeTree, "Change tree cannot be null.");
+        System.err.println("[red] ObjectChange.<init> not implemented");
+        throw new UnsupportedOperationException("ObjectChange.<init> is not implemented yet");
     }
 }

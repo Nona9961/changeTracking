@@ -1,7 +1,8 @@
 package com.nona.changeTracking.domain.capability;
 
-import com.nona.changeTracking.domain.model.changeset.ChangeNode;
-import com.nona.changeTracking.domain.model.changeset.FieldChangeNode;
+import com.nona.changeTracking.domain.model.changeset.Change;
+import com.nona.changeTracking.domain.model.changeset.ChangeLocation;
+import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -52,7 +53,7 @@ class ChangeAccumulatorUnitTest {
         @Test
         @DisplayName("收集一项后应非空且仅含该项")
         void add_singleChange_shouldBeRetained() {
-            final ChangeNode change = change("a");
+            final Change change = change("a");
 
             accumulator.add(change);
 
@@ -63,9 +64,9 @@ class ChangeAccumulatorUnitTest {
         @Test
         @DisplayName("收集多项应按加入顺序保留")
         void add_multipleChanges_shouldPreserveDiscoveryOrder() {
-            final ChangeNode first = change("first");
-            final ChangeNode second = change("second");
-            final ChangeNode third = change("third");
+            final Change first = change("first");
+            final Change second = change("second");
+            final Change third = change("third");
 
             accumulator.add(first);
             accumulator.add(second);
@@ -77,7 +78,7 @@ class ChangeAccumulatorUnitTest {
         @Test
         @DisplayName("相同实例加入两次应按出现次数各保留一次（不去重）")
         void add_sameChangeTwice_shouldRetainBothOccurrences() {
-            final ChangeNode change = change("a");
+            final Change change = change("a");
 
             accumulator.add(change);
             accumulator.add(change);
@@ -87,12 +88,12 @@ class ChangeAccumulatorUnitTest {
     }
 
     /**
-     * 创建一个可区分的叶子变更节点。
+     * 创建一个可区分的叶子变更结果。
      *
-     * @param path 路径。
-     * @return 叶子变更节点。
+     * @param fieldName 字段名
+     * @return 字段值变更结果
      */
-    private static ChangeNode change(final String path) {
-        return new FieldChangeNode(path, "old", "new");
+    private static Change change(final String fieldName) {
+        return new ValueChange(ChangeLocation.field(ChangeLocation.root(), fieldName), "old", "new");
     }
 }
