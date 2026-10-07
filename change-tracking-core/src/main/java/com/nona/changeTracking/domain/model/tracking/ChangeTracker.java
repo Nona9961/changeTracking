@@ -2,6 +2,7 @@ package com.nona.changeTracking.domain.model.tracking;
 
 import com.nona.changeTracking.domain.capability.ComparisonStrategy;
 import com.nona.changeTracking.domain.capability.TrackingCapability;
+import com.nona.changeTracking.domain.model.changeset.Change;
 import com.nona.changeTracking.domain.model.changeset.ChangeSet;
 import com.nona.changeTracking.domain.model.changeset.ObjectChange;
 import com.nona.changeTracking.domain.model.snapshot.Snapshot;
@@ -238,7 +239,19 @@ public final class ChangeTracker {
      * @return 单元素变更集（有变化）或空变更集（无变化）。
      */
     private <S extends Snapshot<?>> ChangeSet calculateChangeForWithCapture(final Object entity, final TrackingCapability<S> specificCapability) {
-        System.err.println("[red] ChangeTracker.resultOrganization not implemented");
-        throw new UnsupportedOperationException("ChangeTracker result organization is not implemented yet");
+        final SnapshotStrategy<S> snapshotStrategy = specificCapability.getSnapshotStrategy();
+        final ComparisonStrategy<S> comparisonStrategy = specificCapability.getComparisonStrategy();
+        final Class<S> supportedSnapshotType = comparisonStrategy.getSupportedSnapshotType();
+        final S oldSnapshot = supportedSnapshotType.cast(this.cleanObjects.get(entity));
+        final S newSnapshot = snapshotStrategy.createSnapshot(entity);
+        final List<Change> changes = comparisonStrategy.compare(oldSnapshot, newSnapshot);
+        if (changes == null) {
+            throw new IllegalStateException(
+                    "Comparison strategy violated the result contract: expected a non-null read-only change list.");
+        }
+        if (changes.isEmpty()) {
+            return new ChangeSet(List.of());
+        }
+        return new ChangeSet(List.of(new ObjectChange(entity, changes)));
     }
 }

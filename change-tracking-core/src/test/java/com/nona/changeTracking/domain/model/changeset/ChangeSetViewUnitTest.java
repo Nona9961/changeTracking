@@ -112,12 +112,16 @@ class ChangeSetViewUnitTest {
 
             assertThat(locationOf(all, "status")).usingRecursiveComparison()
                     .isEqualTo(locationOf(leaves, "status"));
-            assertThat(locationOf(all, "items[200].name")).usingRecursiveComparison()
-                    .isEqualTo(locationOf(leaves, "items[200].name"));
+            assertThat(locationOf(all, "items[200].quantity")).usingRecursiveComparison()
+                    .isEqualTo(locationOf(leaves, "items[200].quantity"));
             assertThat(locationOf(all, "items[100]")).usingRecursiveComparison()
                     .isEqualTo(locationOf(leaves, "items[100]"));
-            assertThat(locationOf(all, "items[200]")).usingRecursiveComparison()
-                    .isEqualTo(locationOf(leaves, "items[200]"));
+            final Change itemContainerChange = byFullPath(all, "items[200]");
+            assertThat(itemContainerChange.location()).usingRecursiveComparison()
+                    .isEqualTo(tree.item7Group().location());
+            assertThat(itemContainerChange.relativePath()).isEqualTo("[200]");
+            assertThat(itemContainerChange.collectionFieldName()).isEqualTo("items");
+            assertThat(itemContainerChange.isParentCollection()).isTrue();
 
             final Change fieldChange = byFullPath(leaves, "status");
             assertThat(fieldChange.relativePath()).isEqualTo("status");
@@ -136,9 +140,9 @@ class ChangeSetViewUnitTest {
             assertThat(itemChange.collectionFieldName()).isEqualTo("items");
             assertThat(itemChange.isParentCollection()).isTrue();
 
-            final Change itemFieldChange = byFullPath(leaves, "items[200].name");
-            assertThat(itemFieldChange.relativePath()).isEqualTo("name");
-            assertThat(itemFieldChange.fieldName()).isEqualTo("name");
+            final Change itemFieldChange = byFullPath(leaves, "items[200].quantity");
+            assertThat(itemFieldChange.relativePath()).isEqualTo("quantity");
+            assertThat(itemFieldChange.fieldName()).isEqualTo("quantity");
             assertThat(itemFieldChange.collectionFieldName()).isEqualTo("items");
             assertThat(itemFieldChange.isParentCollection()).isFalse();
         }
@@ -151,8 +155,8 @@ class ChangeSetViewUnitTest {
             assertThat(tree.itemsGroup().children()).extracting(Change::fullPath)
                     .containsExactly("items[200]", "items[100]", "items[3]");
             assertThat(tree.item7Group().children()).extracting(Change::fullPath)
-                    .containsExactly("items[200].name");
-            assertThat(tree.item7Group().children().get(0).relativePath()).isEqualTo("name");
+                    .containsExactly("items[200].quantity");
+            assertThat(tree.item7Group().children().get(0).relativePath()).isEqualTo("quantity");
         }
     }
 

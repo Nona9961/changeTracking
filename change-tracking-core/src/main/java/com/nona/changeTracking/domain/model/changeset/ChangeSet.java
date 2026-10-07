@@ -1,6 +1,9 @@
 package com.nona.changeTracking.domain.model.changeset;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 代表一次变更检测计算产出的全部对象变更集合（检测器输出）。
@@ -29,8 +32,42 @@ public record ChangeSet(List<ObjectChange> changes) {
      * @param changes 包含所有对象变更的列表，不能为 null
      */
     public ChangeSet {
-        System.err.println("[red] ChangeSet.<init> not implemented");
-        throw new UnsupportedOperationException("ChangeSet.<init> is not implemented yet");
+        Objects.requireNonNull(changes, "changes");
+        for (final ObjectChange change : changes) {
+            Objects.requireNonNull(change, "change");
+        }
+        changes = List.copyOf(changes);
+    }
+
+    /**
+     * 按前序把一个目标根下的结果追加到收集列表（分组与其后代各出现一次）。
+     *
+     * @param changes   目标根下的结果列表
+     * @param collected 收集列表
+     */
+    private static void collectAll(final List<Change> changes, final List<Change> collected) {
+        for (final Change change : changes) {
+            collected.add(change);
+            if (change instanceof ContainerChange container) {
+                collectAll(container.children(), collected);
+            }
+        }
+    }
+
+    /**
+     * 按相同前序收集一个目标根下的原子变化（非分组节点）。
+     *
+     * @param changes   目标根下的结果列表
+     * @param collected 收集列表
+     */
+    private static void collectLeaves(final List<Change> changes, final List<Change> collected) {
+        for (final Change change : changes) {
+            if (change instanceof ContainerChange container) {
+                collectLeaves(container.children(), collected);
+            } else {
+                collected.add(change);
+            }
+        }
     }
 
     /**
@@ -39,8 +76,14 @@ public record ChangeSet(List<ObjectChange> changes) {
      * @return 完整变更的只读列表
      */
     public List<Change> getAllChanges() {
-        System.err.println("[red] ChangeSet.getAllChanges not implemented");
-        throw new UnsupportedOperationException("ChangeSet.getAllChanges is not implemented yet");
+        if (this.changes.isEmpty()) {
+            return List.of();
+        }
+        final List<Change> collected = new ArrayList<>();
+        for (final ObjectChange objectChange : this.changes) {
+            collectAll(objectChange.changes(), collected);
+        }
+        return Collections.unmodifiableList(collected);
     }
 
     /**
@@ -49,8 +92,14 @@ public record ChangeSet(List<ObjectChange> changes) {
      * @return 原子变化的只读列表
      */
     public List<Change> getLeafChanges() {
-        System.err.println("[red] ChangeSet.getLeafChanges not implemented");
-        throw new UnsupportedOperationException("ChangeSet.getLeafChanges is not implemented yet");
+        if (this.changes.isEmpty()) {
+            return List.of();
+        }
+        final List<Change> collected = new ArrayList<>();
+        for (final ObjectChange objectChange : this.changes) {
+            collectLeaves(objectChange.changes(), collected);
+        }
+        return Collections.unmodifiableList(collected);
     }
 
     /**

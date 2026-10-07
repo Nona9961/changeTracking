@@ -1,5 +1,7 @@
 package com.nona.changeTracking.domain.model.changeset;
 
+import java.util.Objects;
+
 /**
  * 变更定位值对象：集中拥有一个变化位置的完整路径、相对路径、字段名、集合归属与直接包含者类型。
  * <p>
@@ -15,10 +17,10 @@ package com.nona.changeTracking.domain.model.changeset;
  *   <li>{@link #field(ChangeLocation, String)}：某包含位置下的<b>字段</b>定位。完整路径为包含位置的
  *       完整路径与字段名以点号连接；相对路径就是字段名；字段名即该字段；最近集合字段名继承包含位置的
  *       集合归属；直接包含者不是集合。</li>
- *   <li>{@link #collectionItem(ChangeLocation, Object, int)}：某<b>集合字段</b>位置下的集合项定位。
- *       相对路径为 {@code [标识]}（重复标识按出现序追加 {@code #n}）；完整路径为集合字段位置的完整路径
- *       与相对路径连接；字段名为 null；最近集合字段名取包含位置自身的字段名（根集合时为 null）；
- *       直接包含者是集合。</li>
+ *   <li>{@link #collectionItem(ChangeLocation, Object, int)}：某<b>包含位置</b>下的集合项定位。包含位置
+ *       可以是集合字段定位，也可以是集合项定位（集合项自身是集合时）；相对路径为 {@code [标识]}
+ *       （重复标识按出现序追加 {@code #n}）；完整路径为包含位置的完整路径与相对路径连接；字段名为 null；
+ *       最近集合字段名取包含位置自身的字段名（集合项位置与根位置为 null）；直接包含者是集合。</li>
  * </ul>
  * <table border="1">
  *   <caption>定位示例</caption>
@@ -36,6 +38,11 @@ public final class ChangeLocation {
      * 不需要出现序后缀的标记值：唯一标识的集合项使用该值。
      */
     public static final int NO_OCCURRENCE = 0;
+
+    /**
+     * 直接集合项的字段名占位：集合项本身不对应字段名，其相对路径以方括号开头。
+     */
+    private static final String ITEM_PATH_PREFIX = "[";
 
     /**
      * 相对被追踪根对象的完整路径；根处为空串。
@@ -73,8 +80,11 @@ public final class ChangeLocation {
      */
     private ChangeLocation(final String fullPath, final String relativePath, final String fieldName,
                            final String collectionFieldName, final boolean parentCollection) {
-        System.err.println("[red] ChangeLocation.<init> not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.<init> is not implemented yet");
+        this.fullPath = fullPath;
+        this.relativePath = relativePath;
+        this.fieldName = fieldName;
+        this.collectionFieldName = collectionFieldName;
+        this.parentCollection = parentCollection;
     }
 
     /**
@@ -85,8 +95,7 @@ public final class ChangeLocation {
      * @return 根处定位
      */
     public static ChangeLocation root() {
-        System.err.println("[red] ChangeLocation.root not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.root is not implemented yet");
+        return new ChangeLocation("", "", null, null, false);
     }
 
     /**
@@ -97,33 +106,50 @@ public final class ChangeLocation {
      * @return 字段定位
      */
     public static ChangeLocation field(final ChangeLocation parent, final String fieldName) {
-        System.err.println("[red] ChangeLocation.field not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.field is not implemented yet");
+        Objects.requireNonNull(parent, "parent");
+        Objects.requireNonNull(fieldName, "fieldName");
+        if (fieldName.isBlank()) {
+            throw new IllegalArgumentException("fieldName must not be blank.");
+        }
+        final String parentPath = parent.fullPath;
+        final String fullPath = parentPath.isEmpty() ? fieldName : parentPath + '.' + fieldName;
+        return new ChangeLocation(fullPath, fieldName, fieldName, parent.collectionFieldName, false);
     }
 
     /**
      * 在某集合字段位置下创建唯一标识的集合项定位（不加出现序后缀）。
      *
-     * @param parent   集合字段位置的定位，不能为 null
+     * @param parent   包含位置的定位（集合字段位置或集合项位置），不能为 null
      * @param identity 集合项的匹配标识，允许为 null
      * @return 集合项定位
      */
     public static ChangeLocation collectionItem(final ChangeLocation parent, final Object identity) {
-        System.err.println("[red] ChangeLocation.collectionItem not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.collectionItem is not implemented yet");
+        return collectionItem(parent, identity, NO_OCCURRENCE);
     }
 
     /**
-     * 在某集合字段位置下创建集合项定位，出现序非 {@link #NO_OCCURRENCE} 时渲染 {@code #n} 后缀。
+     * 在某包含位置下创建集合项定位，出现序非 {@link #NO_OCCURRENCE} 时渲染 {@code #n} 后缀。
      *
-     * @param parent     集合字段位置的定位，不能为 null
+     * @param parent     包含位置的定位（集合字段位置或集合项位置），不能为 null
      * @param identity   集合项的匹配标识，允许为 null
      * @param occurrence 出现序；{@link #NO_OCCURRENCE} 表示不加后缀
      * @return 集合项定位
      */
     public static ChangeLocation collectionItem(final ChangeLocation parent, final Object identity, final int occurrence) {
-        System.err.println("[red] ChangeLocation.collectionItem not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.collectionItem is not implemented yet");
+        Objects.requireNonNull(parent, "parent");
+        if (occurrence < NO_OCCURRENCE) {
+            throw new IllegalArgumentException("occurrence must not be negative: " + occurrence);
+        }
+        final StringBuilder relativePath = new StringBuilder();
+        relativePath.append(ITEM_PATH_PREFIX).append(identity);
+        if (occurrence != NO_OCCURRENCE) {
+            relativePath.append('#').append(occurrence);
+        }
+        relativePath.append(']');
+        final String relative = relativePath.toString();
+        final String parentPath = parent.fullPath;
+        final String fullPath = parentPath.isEmpty() ? relative : parentPath + relative;
+        return new ChangeLocation(fullPath, relative, null, parent.fieldName, true);
     }
 
     /**
@@ -132,8 +158,7 @@ public final class ChangeLocation {
      * @return 完整路径，根处为空串
      */
     public String fullPath() {
-        System.err.println("[red] ChangeLocation.fullPath not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.fullPath is not implemented yet");
+        return this.fullPath;
     }
 
     /**
@@ -142,8 +167,7 @@ public final class ChangeLocation {
      * @return 相对路径，根处为空串
      */
     public String relativePath() {
-        System.err.println("[red] ChangeLocation.relativePath not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.relativePath is not implemented yet");
+        return this.relativePath;
     }
 
     /**
@@ -152,8 +176,7 @@ public final class ChangeLocation {
      * @return 字段名，直接集合项为 null
      */
     public String fieldName() {
-        System.err.println("[red] ChangeLocation.fieldName not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.fieldName is not implemented yet");
+        return this.fieldName;
     }
 
     /**
@@ -162,8 +185,7 @@ public final class ChangeLocation {
      * @return 集合字段名，不在集合内时为 null
      */
     public String collectionFieldName() {
-        System.err.println("[red] ChangeLocation.collectionFieldName not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.collectionFieldName is not implemented yet");
+        return this.collectionFieldName;
     }
 
     /**
@@ -172,8 +194,7 @@ public final class ChangeLocation {
      * @return 直接包含者是集合时返回 true
      */
     public boolean isParentCollection() {
-        System.err.println("[red] ChangeLocation.isParentCollection not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.isParentCollection is not implemented yet");
+        return this.parentCollection;
     }
 
     /**
@@ -184,8 +205,17 @@ public final class ChangeLocation {
      */
     @Override
     public boolean equals(final Object other) {
-        System.err.println("[red] ChangeLocation.equals not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.equals is not implemented yet");
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof ChangeLocation that)) {
+            return false;
+        }
+        return this.parentCollection == that.parentCollection
+                && this.fullPath.equals(that.fullPath)
+                && this.relativePath.equals(that.relativePath)
+                && Objects.equals(this.fieldName, that.fieldName)
+                && Objects.equals(this.collectionFieldName, that.collectionFieldName);
     }
 
     /**
@@ -195,8 +225,8 @@ public final class ChangeLocation {
      */
     @Override
     public int hashCode() {
-        System.err.println("[red] ChangeLocation.hashCode not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.hashCode is not implemented yet");
+        return Objects.hash(this.fullPath, this.relativePath, this.fieldName, this.collectionFieldName,
+                this.parentCollection);
     }
 
     /**
@@ -206,7 +236,6 @@ public final class ChangeLocation {
      */
     @Override
     public String toString() {
-        System.err.println("[red] ChangeLocation.toString not implemented");
-        throw new UnsupportedOperationException("ChangeLocation.toString is not implemented yet");
+        return this.fullPath;
     }
 }

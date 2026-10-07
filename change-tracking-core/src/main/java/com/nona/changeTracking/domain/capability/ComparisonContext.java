@@ -144,8 +144,11 @@ final class ComparisonContext {
      * @return 当前比较位置的定位；栈为空时返回根定位。
      */
     ChangeLocation currentLocation() {
-        System.err.println("[red] ComparisonContext.currentLocation not implemented");
-        throw new UnsupportedOperationException("ComparisonContext.currentLocation is not implemented yet");
+        ChangeLocation location = ChangeLocation.root();
+        for (int index = 0; index < this.depth; index++) {
+            location = this.pathStack[index].toLocation(location);
+        }
+        return location;
     }
 
     /**
@@ -261,6 +264,23 @@ final class ComparisonContext {
          * 按需准备的标识文本；null 表示尚未准备。
          */
         private String identityText;
+
+        /**
+         * 按本段的派生规则形成定位：字段段产生字段定位，集合项段产生集合项定位。
+         * <p>
+         * 集合项段使用本槽位按需准备的标识文本（与 {@link #currentPath()} 共享同一份缓存），
+         * 使同一活动项在多次形成定位时只格式化一次标识；已渲染的文本是字符串，不会再次触发
+         * 原标识的 {@link Object#toString()}。
+         *
+         * @param parent 包含位置的定位。
+         * @return 本段的定位。
+         */
+        ChangeLocation toLocation(final ChangeLocation parent) {
+            if (this.fieldName != null) {
+                return ChangeLocation.field(parent, this.fieldName);
+            }
+            return ChangeLocation.collectionItem(parent, identifierText(), this.occurrence);
+        }
 
         /**
          * 将本槽位重置为字段段。

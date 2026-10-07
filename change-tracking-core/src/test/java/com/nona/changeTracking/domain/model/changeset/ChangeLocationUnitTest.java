@@ -240,12 +240,17 @@ class ChangeLocationUnitTest {
         }
 
         @Test
-        @DisplayName("集合项定位拒绝以集合项定位作为包含位置（集合项不能直接嵌套集合项）")
-        void item_withCollectionItemParent_shouldBeRejected() {
+        @DisplayName("集合项可作为包含位置：集合项自身是集合时，嵌套集合项按既有路径规则拼接")
+        void item_withCollectionItemParent_shouldComposeNestedItemPath() {
             final ChangeLocation item = ChangeLocation.collectionItem(ChangeLocation.field(ChangeLocation.root(), "items"), 1);
 
-            assertThatThrownBy(() -> ChangeLocation.collectionItem(item, 2))
-                    .isInstanceOf(IllegalArgumentException.class);
+            final ChangeLocation nested = ChangeLocation.collectionItem(item, 2);
+
+            assertThat(nested.fullPath()).isEqualTo("items[1][2]");
+            assertThat(nested.relativePath()).isEqualTo("[2]");
+            assertThat(nested.fieldName()).isNull();
+            assertThat(nested.collectionFieldName()).isNull();
+            assertThat(nested.isParentCollection()).isTrue();
         }
 
         @Test

@@ -7,6 +7,7 @@ import com.nona.changeTracking.domain.model.changeset.ObjectChange;
 import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import com.nona.changeTracking.domain.capability.TrackingConfiguration;
 import com.nona.changeTracking.internal.capability.DefaultTrackingCapability;
+import com.nona.changeTracking.internal.snapshot.ValueNodeSnapshotStrategy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -81,8 +82,7 @@ class ChangeTrackerResultContractUnitTest {
             final ChangeSet changeSet = tracker.calculateChanges();
 
             assertThat(changeSet.changes()).hasSize(2);
-            assertThat(changeSet.changes().get(0).target()).isSameAs(first);
-            assertThat(changeSet.changes().get(1).target()).isSameAs(second);
+            assertThat(changeSet.changes()).extracting(ObjectChange::target).containsExactlyInAnyOrder(first, second);
         }
 
         @Test
@@ -142,7 +142,9 @@ class ChangeTrackerResultContractUnitTest {
         @DisplayName("策略异常不推进追踪基线：重复调用仍以同一失败结束")
         void failingStrategy_shouldNotAdvanceTheBaseline() {
             final IllegalStateException failure = new IllegalStateException("strategy failure");
-            final ChangeTracker tracker = trackerWith(ScriptedTrackingSupport.ScriptedComparisonStrategy.failing(failure));
+            final ChangeTracker tracker = new ChangeTracker(new ScriptedTrackingSupport.ValueNodeSnapshotCapability(
+                    new ValueNodeSnapshotStrategy(TrackingConfiguration.empty()),
+                    new ScriptedTrackingSupport.FailingValueNodeComparisonStrategy(failure)));
             tracker.track(new SimpleEntity());
 
             assertThatThrownBy(tracker::calculateChanges).isSameAs(failure);

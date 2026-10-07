@@ -1,6 +1,7 @@
 package com.nona.changeTracking.domain.model.changeset;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 表示单个被追踪对象的整体变更：该目标相对于基线的净差异组织根。
@@ -23,7 +24,18 @@ public record ObjectChange(Object target, List<Change> changes) {
      * @param changes 目标根下的变更列表，非空
      */
     public ObjectChange {
-        System.err.println("[red] ObjectChange.<init> not implemented");
-        throw new UnsupportedOperationException("ObjectChange.<init> is not implemented yet");
+        Objects.requireNonNull(target, "target");
+        Objects.requireNonNull(changes, "changes");
+        if (changes.isEmpty()) {
+            throw new IllegalArgumentException("A tracked object result must hold at least one change.");
+        }
+        for (final Change change : changes) {
+            Objects.requireNonNull(change, "change");
+            if (change instanceof ContainerChange && change.fullPath().isEmpty()) {
+                throw new IllegalArgumentException(
+                        "An artificial root container must not be located at the empty root path.");
+            }
+        }
+        changes = List.copyOf(changes);
     }
 }

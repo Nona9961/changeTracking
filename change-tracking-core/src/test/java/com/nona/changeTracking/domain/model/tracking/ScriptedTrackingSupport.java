@@ -210,4 +210,87 @@ final class ScriptedTrackingSupport {
             return this.comparisonStrategy;
         }
     }
+
+    /**
+     * 基于默认快照类型的追踪能力单元：真实组合一个 {@link SnapshotStrategy} 与一个比较策略，
+     * 用于承载需要基线导出（仅支持 {@link ValueNodeSnapshot}）的失败契约场景。
+     */
+    static final class ValueNodeSnapshotCapability implements TrackingCapability<ValueNodeSnapshot> {
+
+        /**
+         * 快照策略。
+         */
+        private final SnapshotStrategy<ValueNodeSnapshot> snapshotStrategy;
+
+        /**
+         * 比较策略。
+         */
+        private final ComparisonStrategy<ValueNodeSnapshot> comparisonStrategy;
+
+        /**
+         * 创建能力单元。
+         *
+         * @param snapshotStrategy   快照策略
+         * @param comparisonStrategy 比较策略
+         */
+        ValueNodeSnapshotCapability(final SnapshotStrategy<ValueNodeSnapshot> snapshotStrategy,
+                                    final ComparisonStrategy<ValueNodeSnapshot> comparisonStrategy) {
+            this.snapshotStrategy = Objects.requireNonNull(snapshotStrategy, "snapshotStrategy");
+            this.comparisonStrategy = Objects.requireNonNull(comparisonStrategy, "comparisonStrategy");
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public SnapshotStrategy<ValueNodeSnapshot> getSnapshotStrategy() {
+            return this.snapshotStrategy;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public ComparisonStrategy<ValueNodeSnapshot> getComparisonStrategy() {
+            return this.comparisonStrategy;
+        }
+    }
+
+    /**
+     * 基于默认快照类型的脚本化比较策略：比较时抛出预设异常。
+     */
+    static final class FailingValueNodeComparisonStrategy implements ComparisonStrategy<ValueNodeSnapshot> {
+
+        /**
+         * 预设失败。
+         */
+        private final RuntimeException failure;
+
+        /**
+         * 创建脚本化比较策略。
+         *
+         * @param failure 比较时抛出的预设失败
+         */
+        FailingValueNodeComparisonStrategy(final RuntimeException failure) {
+            this.failure = Objects.requireNonNull(failure, "failure");
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public Class<ValueNodeSnapshot> getSupportedSnapshotType() {
+            return ValueNodeSnapshot.class;
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * 始终抛出预设异常实例，用于验证异常传播与基线不推进。
+         */
+        @Override
+        public List<Change> compare(final ValueNodeSnapshot oldSnapshot, final ValueNodeSnapshot newSnapshot) {
+            throw this.failure;
+        }
+    }
 }

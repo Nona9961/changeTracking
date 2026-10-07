@@ -34,8 +34,7 @@ public sealed interface Change permits ValueChange, ObjectFieldChange, Container
      * @return 完整路径
      */
     default String path() {
-        System.err.println("[red] Change.path not implemented");
-        throw new UnsupportedOperationException("Change.path is not implemented yet");
+        return location().fullPath();
     }
 
     /**
@@ -44,8 +43,7 @@ public sealed interface Change permits ValueChange, ObjectFieldChange, Container
      * @return 完整路径
      */
     default String fullPath() {
-        System.err.println("[red] Change.fullPath not implemented");
-        throw new UnsupportedOperationException("Change.fullPath is not implemented yet");
+        return location().fullPath();
     }
 
     /**
@@ -54,8 +52,7 @@ public sealed interface Change permits ValueChange, ObjectFieldChange, Container
      * @return 相对路径
      */
     default String relativePath() {
-        System.err.println("[red] Change.relativePath not implemented");
-        throw new UnsupportedOperationException("Change.relativePath is not implemented yet");
+        return location().relativePath();
     }
 
     /**
@@ -64,8 +61,7 @@ public sealed interface Change permits ValueChange, ObjectFieldChange, Container
      * @return 字段名，直接集合项为 null
      */
     default String fieldName() {
-        System.err.println("[red] Change.fieldName not implemented");
-        throw new UnsupportedOperationException("Change.fieldName is not implemented yet");
+        return location().fieldName();
     }
 
     /**
@@ -74,8 +70,7 @@ public sealed interface Change permits ValueChange, ObjectFieldChange, Container
      * @return 集合字段名，不在集合内时为 null
      */
     default String collectionFieldName() {
-        System.err.println("[red] Change.collectionFieldName not implemented");
-        throw new UnsupportedOperationException("Change.collectionFieldName is not implemented yet");
+        return location().collectionFieldName();
     }
 
     /**
@@ -84,7 +79,6 @@ public sealed interface Change permits ValueChange, ObjectFieldChange, Container
      * @return 直接包含者是集合时返回 true
      */
     default boolean isParentCollection() {
-        System.err.println("[red] Change.isParentCollection not implemented");
-        throw new UnsupportedOperationException("Change.isParentCollection is not implemented yet");
+        return location().isParentCollection();
     }
 }
