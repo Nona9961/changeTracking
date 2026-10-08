@@ -50,6 +50,26 @@ java -cp target/benchmarks.jar com.nona.changeTracking.bench.result.CompareResul
 
 归档目录整体不进版本管理（仓库忽略 `benchmark/results/*`）；要留存的运行由人挑选后放入 `benchmark/results/committed/` 再提交。
 
+## 保留内存测量
+
+`bench.memory` 提供与 JMH 分开的结果保留内存测量：从持有的结果根出发遍历可达对象，报告「保留范围」
+（可达对象的总字节数与对象数）与「主要保留对象」（按类聚合、按字节降序）。浅尺寸按测量 JVM 的实际
+对象布局估算（压缩 oops、8 字节对齐），不引入第三方内存布局库。该口径与时间/分配量分开，两者不互相替代。
+
+```bash
+# 默认全部五个场景；--scenario <令牌> 可只测指定场景（可重复传参）
+java --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED \
+    -cp target/benchmarks.jar com.nona.changeTracking.bench.memory.RetainedMemoryMain
+```
+
+运行前提：测量通过反射读取结果图的引用字段，结果图包含 `java.lang.String` 载荷与 `java.util` 集合存储，
+因此**必须**带上述两个 `--add-opens`；缺少时入口以非零退出码失败并在 stderr 指名不可读字段，不静默低估。
+
+每个场景输出一组稳定键行（场景间空行分隔）：`scenario=`、`shape=`、`heldResults=`、`retainedBytes=`、
+`retainedObjects=`，其后每个保留类一行 `retainedClass=<类名> count=<对象数> bytes=<字节数>`。场景令牌为
+`calculateOnly`、`leafOnly`、`fullView`、`repeatedAcquire`、`calculateAndLeaf`，依次对应仅计算、仅叶子、
+完整视图、重复获取与计算加叶子。
+
 ## 负载样本族
 
 `bench/sample` 提供冻结的样本形态：`SampleShape` 描述字段数、嵌套深度与集合规模，
