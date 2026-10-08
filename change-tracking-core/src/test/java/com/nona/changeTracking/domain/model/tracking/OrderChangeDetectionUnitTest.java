@@ -21,7 +21,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 订单净差异与输出顺序单元测试（AC01-1、AC01-2、AC04-1 的订单场景）。
+ * 订单净差异与输出顺序单元测试。
  * <p>
  * 用真实默认装配（provider → capability → 反射快照 → 默认比较策略 → 追踪器）验证：订单字段修改、成员内部
  * 字段修改、成员加入与成员移出分别得到正确的位置、类型与载荷；对象整体赋值与清空是原子变化，不展开载荷

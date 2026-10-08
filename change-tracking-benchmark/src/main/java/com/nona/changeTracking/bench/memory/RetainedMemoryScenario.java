@@ -44,6 +44,24 @@ public enum RetainedMemoryScenario {
     }
 
     /**
+     * Resolves the scenario carried by a command line token.
+     *
+     * @param commandLineName the command line token of the requested scenario
+     * @return the scenario carrying the token
+     * @throws NullPointerException     if the token is null
+     * @throws IllegalArgumentException if no scenario carries the token
+     */
+    public static RetainedMemoryScenario fromCommandLineName(final String commandLineName) {
+        Objects.requireNonNull(commandLineName, "commandLineName");
+        for (final RetainedMemoryScenario scenario : values()) {
+            if (scenario.commandLineName.equals(commandLineName)) {
+                return scenario;
+            }
+        }
+        throw new IllegalArgumentException("Unknown scenario: " + commandLineName);
+    }
+
+    /**
      * Returns the stable command line token of this scenario.
      *
      * @return the command line token
@@ -68,24 +86,6 @@ public enum RetainedMemoryScenario {
             case CALCULATE_AND_LEAF ->
                     List.of(ResultView.CALCULATED_SET, ResultView.FULL_VIEW, ResultView.LEAF_VIEW);
         };
-    }
-
-    /**
-     * Resolves the scenario carried by a command line token.
-     *
-     * @param commandLineName the command line token of the requested scenario
-     * @return the scenario carrying the token
-     * @throws NullPointerException     if the token is null
-     * @throws IllegalArgumentException if no scenario carries the token
-     */
-    public static RetainedMemoryScenario fromCommandLineName(final String commandLineName) {
-        Objects.requireNonNull(commandLineName, "commandLineName");
-        for (final RetainedMemoryScenario scenario : values()) {
-            if (scenario.commandLineName.equals(commandLineName)) {
-                return scenario;
-            }
-        }
-        throw new IllegalArgumentException("Unknown scenario: " + commandLineName);
     }
 
     /**

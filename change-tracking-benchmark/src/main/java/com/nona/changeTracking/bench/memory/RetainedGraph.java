@@ -109,6 +109,13 @@ public final class RetainedGraph {
     /**
      * Pushes the non null reference field values of an instance, walking its class hierarchy, onto the
      * pending stack.
+     * <p>
+     * The class hierarchy walk with the static field skip stays here next to the instance field sum of
+     * {@link ObjectLayout} instead of being extracted into a shared skeleton: a shared skeleton has to
+     * receive the per field action as a functional parameter, and the action lambda captures the walk
+     * state, so it allocates one action instance per expanded object - an allocation escape analysis is
+     * not guaranteed to remove. This walk runs inside the measured window, so those allocations would add
+     * heap pressure to the very measurement the walker performs.
      *
      * @param object  the instance to expand
      * @param pending the pending stack of the walk

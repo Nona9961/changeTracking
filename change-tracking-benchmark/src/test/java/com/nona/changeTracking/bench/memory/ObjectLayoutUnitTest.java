@@ -13,8 +13,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * and inherited field carriers, and of representative JDK classes.
  * <p>
  * Every expected byte count is the value the estimator has to reproduce for the measured HotSpot
- * layout; the counts of the carriers and the arrays were cross checked against exact allocation sizes
- * (see the task report), so the assertions lock the layout rules, not the implementation.
+ * layout; the counts of the carriers and the arrays were cross checked against exact allocation sizes,
+ * so the assertions lock the layout rules, not the implementation.
  */
 @DisplayName("ObjectLayout 对象浅尺寸估算单元测试")
 class ObjectLayoutUnitTest {

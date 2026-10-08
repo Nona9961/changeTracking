@@ -28,8 +28,73 @@ import java.util.Objects;
  * 结果契约与 {@link ComparisonStrategy#compare} 一致：目标根下的只读变更列表，无变化返回空列表，
  * 真实根值变化为空路径原子变化，不产出包装根。既有匹配规则、输出顺序、变更类型、载荷与循环终止
  * 语义保持不变。
+ * <p>
+ * 分发与遍历处的 {@code push / try / finally pop} 作用域样板有意保留在各调用点，不提取为统一的
+ * 「带作用域分发」方法：统一入口只能把被执行的比较动作作为 lambda 或回调传入，而 lambda 的捕获会在
+ * 比较热路径上为每次分发额外分配，该路径的每操作分配量正是比较策略的性能判据指标；显式成对写法同时
+ * 让「进入上下文必须退出」的资源纪律在调用处可见。
  */
 public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNodeSnapshot> {
+
+    /**
+     * 计算出现序后缀值。
+     * <p>
+     * 仅当同一标识出现多次时才需要后缀；唯一项返回 {@link ComparisonContext#NO_OCCURRENCE}（不加后缀）。
+     *
+     * @param useOccurrenceSuffix 是否需要后缀。
+     * @param zeroBasedIndex      项在该标识分组内的零基索引。
+     * @return 从 1 开始的出现序；不需要后缀时返回 {@link ComparisonContext#NO_OCCURRENCE}。
+     */
+    private static int toOccurrence(final boolean useOccurrenceSuffix, final int zeroBasedIndex) {
+        return useOccurrenceSuffix ? zeroBasedIndex + 1 : ComparisonContext.NO_OCCURRENCE;
+    }
+
+    /**
+     * 按字段名取值，字段缺失时返回 NullNode。
+     * <p>
+     * {@link ObjectNode#field(String)} 对缺失字段返回 null，而 diff 逻辑需要 NullNode 语义
+     * （缺失 = NullNode，与旧 keySet+getOrDefault 行为一致）。
+     *
+     * @param node 目标 ObjectNode。
+     * @param key  字段名。
+     * @return 字段的 ValueNode，字段缺失时返回 NullNode。
+     */
+    private static ValueNode fieldOrNullNode(final ObjectNode node, final String key) {
+        final ValueNode value = node.field(key);
+        return value != null ? value : new NullNode();
+    }
+
+    /**
+     * 从基本值节点（PrimitiveNode/NullNode）中提取业务值。
+     * <p>
+     * 仅用于 {@link #diffNode} 的基本值路径（P↔P / P↔N / N↔P）——业务值可得。
+     * 容器节点参与的跨类型变化没有业务值可提取，由 {@link ObjectFieldChange}
+     * 原样携带 ValueNode 节点承载，不经过本方法。
+     *
+     * @param node 基本值节点（PrimitiveNode 或 NullNode）。
+     * @return 业务值：PrimitiveNode 返回其 value，NullNode 返回 null。
+     */
+    private static Object extractValue(final ValueNode node) {
+        if (node instanceof PrimitiveNode pn) {
+            return pn.value();
+        }
+        return null;
+    }
+
+    /**
+     * 判断节点对是否为容器同类型（O↔O / C↔C）。
+     * <p>
+     * 根层分发与嵌套分发共用本判定，使「容器对」在根处展开子节点、在嵌套处经节点对状态进入递归的
+     * 识别保持一致。
+     *
+     * @param oldNode 旧节点。
+     * @param newNode 新节点。
+     * @return 两侧同为 ObjectNode 或同为 CollectionNode 时返回 true。
+     */
+    private static boolean isContainerPair(final ValueNode oldNode, final ValueNode newNode) {
+        return (oldNode instanceof ObjectNode && newNode instanceof ObjectNode)
+                || (oldNode instanceof CollectionNode && newNode instanceof CollectionNode);
+    }
 
     /**
      * {@inheritDoc}
@@ -69,9 +134,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     private void diffRoot(final ValueNode oldNode, final ValueNode newNode,
                           final ComparisonContext context, final ChangeAccumulator accumulator) {
-        final boolean bothObject = oldNode instanceof ObjectNode && newNode instanceof ObjectNode;
-        final boolean bothCollection = oldNode instanceof CollectionNode && newNode instanceof CollectionNode;
-        if (bothObject || bothCollection) {
+        if (isContainerPair(oldNode, newNode)) {
             diffChildren(oldNode, newNode, context, accumulator);
             return;
         }
@@ -137,9 +200,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
         }
 
         // 容器同类型（O↔O / C↔C）：一次查询同时回答循环终止与安全无变更复用
-        final boolean bothObject = oldNode instanceof ObjectNode && newNode instanceof ObjectNode;
-        final boolean bothCollection = oldNode instanceof CollectionNode && newNode instanceof CollectionNode;
-        if (bothObject || bothCollection) {
+        if (isContainerPair(oldNode, newNode)) {
             if (!context.enterNodePair(oldNode, newNode)) {
                 // false 同时涵盖循环截断（终止递归）与「已完成且无变更」的复用命中（不生成路径、不生成变更）
                 return;
@@ -262,50 +323,5 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
                 }
             }
         });
-    }
-
-    /**
-     * 计算出现序后缀值。
-     * <p>
-     * 仅当同一标识出现多次时才需要后缀；唯一项返回 {@link ComparisonContext#NO_OCCURRENCE}（不加后缀）。
-     *
-     * @param useOccurrenceSuffix 是否需要后缀。
-     * @param zeroBasedIndex      项在该标识分组内的零基索引。
-     * @return 从 1 开始的出现序；不需要后缀时返回 {@link ComparisonContext#NO_OCCURRENCE}。
-     */
-    private static int toOccurrence(final boolean useOccurrenceSuffix, final int zeroBasedIndex) {
-        return useOccurrenceSuffix ? zeroBasedIndex + 1 : ComparisonContext.NO_OCCURRENCE;
-    }
-
-    /**
-     * 按字段名取值，字段缺失时返回 NullNode。
-     * <p>
-     * {@link ObjectNode#field(String)} 对缺失字段返回 null，而 diff 逻辑需要 NullNode 语义
-     * （缺失 = NullNode，与旧 keySet+getOrDefault 行为一致）。
-     *
-     * @param node 目标 ObjectNode。
-     * @param key  字段名。
-     * @return 字段的 ValueNode，字段缺失时返回 NullNode。
-     */
-    private static ValueNode fieldOrNullNode(final ObjectNode node, final String key) {
-        final ValueNode value = node.field(key);
-        return value != null ? value : new NullNode();
-    }
-
-    /**
-     * 从基本值节点（PrimitiveNode/NullNode）中提取业务值。
-     * <p>
-     * 仅用于 {@link #diffNode} 的基本值路径（P↔P / P↔N / N↔P）——业务值可得。
-     * 容器节点参与的跨类型变化没有业务值可提取，由 {@link ObjectFieldChange}
-     * 原样携带 ValueNode 节点承载，不经过本方法。
-     *
-     * @param node 基本值节点（PrimitiveNode 或 NullNode）。
-     * @return 业务值：PrimitiveNode 返回其 value，NullNode 返回 null。
-     */
-    private static Object extractValue(final ValueNode node) {
-        if (node instanceof PrimitiveNode pn) {
-            return pn.value();
-        }
-        return null;
     }
 }

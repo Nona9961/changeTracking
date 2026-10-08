@@ -64,15 +64,6 @@ final class CollectionMatchIndex {
     }
 
     /**
-     * 按首次出现顺序访问匹配项组。
-     *
-     * @param consumer 接收每个匹配项组的消费者，不能为 null。
-     */
-    void forEachGroup(final Consumer<MatchGroup> consumer) {
-        this.groups.values().forEach(consumer);
-    }
-
-    /**
      * 提取集合项的匹配标识。
      *
      * @param node     集合项节点。
@@ -91,6 +82,15 @@ final class CollectionMatchIndex {
             return null;
         }
         return new PositionalIdentity(position);
+    }
+
+    /**
+     * 按首次出现顺序访问匹配项组。
+     *
+     * @param consumer 接收每个匹配项组的消费者，不能为 null。
+     */
+    void forEachGroup(final Consumer<MatchGroup> consumer) {
+        this.groups.values().forEach(consumer);
     }
 
     /**

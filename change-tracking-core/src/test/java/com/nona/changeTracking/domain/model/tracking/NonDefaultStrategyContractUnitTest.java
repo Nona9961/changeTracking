@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 非默认比较策略经既有 capability 与 tracker 入口工作的单元测试（AC05-1、AC05-2 框架侧）。
+ * 非默认比较策略经既有 capability 与 tracker 入口工作的单元测试。
  * <p>
  * 策略与快照策略都是真实的非默认实现（脚本只决定策略返回什么结果），经
  * {@link TrackingCapability} 与 {@link ChangeTracker} 的公开入口调用，覆盖空结果、普通字段变化、

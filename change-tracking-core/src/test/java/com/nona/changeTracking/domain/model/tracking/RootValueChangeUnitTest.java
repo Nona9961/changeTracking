@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 真实根值变化（空路径原子变化）单元测试（AC01-2、AC02-2、AC05-4 的根值部分）。
+ * 真实根值变化（空路径原子变化）单元测试。
  * <p>
  * 追踪目标本身就是快照根：可变但不能脱水的 {@code AtomicInteger} 按当前值复制为基本值节点，
  * 数组按值语义成为数组根节点。根处的真实值变化以<b>空路径原子变化</b>表达，并在完整视图与叶子视图

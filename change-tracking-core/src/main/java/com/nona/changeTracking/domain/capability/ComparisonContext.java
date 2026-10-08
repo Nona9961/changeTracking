@@ -32,8 +32,12 @@ final class ComparisonContext {
 
     /**
      * 不需要出现序后缀的标记值：{@code 0} 表示唯一项不加后缀，正数为既有出现序。
+     * <p>
+     * 与定位工厂的 occurrence 参数取同一事实源 {@link ChangeLocation#NO_OCCURRENCE}：本值经本包直接
+     * 传给 {@link ChangeLocation#collectionItem(ChangeLocation, Object, int)}，两处必须一致，否则唯一项
+     * 会被误加出现序后缀。
      */
-    static final int NO_OCCURRENCE = 0;
+    static final int NO_OCCURRENCE = ChangeLocation.NO_OCCURRENCE;
 
     /**
      * 当前递归路径的活动路径：段栈、按需路径与按深度复用的定位前缀缓存。

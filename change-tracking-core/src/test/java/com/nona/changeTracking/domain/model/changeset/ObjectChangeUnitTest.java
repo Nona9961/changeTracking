@@ -15,8 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * {@link ObjectChange} 单目标变更单元测试。
  * <p>
  * 覆盖结果组织边界：绑定原追踪目标身份、直接持有目标根下的非空结果列表（无人工根容器）、真实根值变化
- * 以空路径原子变化保留；以及失败路径「空单目标结果在构造时拒绝」与「空路径分组（人工根容器）被拒绝」
- * （失败条件与 AC01-4、AC01-5）。
+ * 以空路径原子变化保留；以及失败路径「空单目标结果在构造时拒绝」与「空路径分组（人工根容器）被拒绝」。
  */
 @DisplayName("ObjectChange 单目标变更单元测试")
 class ObjectChangeUnitTest {

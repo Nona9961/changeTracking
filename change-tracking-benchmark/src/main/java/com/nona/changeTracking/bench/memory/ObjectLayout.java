@@ -20,9 +20,9 @@ import java.util.Objects;
  * The estimator reads the field layout of the JVM under test instead of hard coding the field set of
  * any class, so it follows a JDK that adds or removes a field (for example the {@code hashIsZero}
  * flag of {@code java.lang.String}). The rules are validated against exact allocation sizes measured
- * through {@code com.sun.management.ThreadMXBean#getThreadAllocatedBytes} in the probe recorded with
- * this task: the twelve primitive and object array lengths, the empty and mixed field carriers, the
- * inherited field carrier and the {@code java.lang.String} instance all match the estimate exactly.
+ * through {@code com.sun.management.ThreadMXBean#getThreadAllocatedBytes}: the twelve primitive and
+ * object array lengths, the empty and mixed field carriers, the inherited field carrier and the
+ * {@code java.lang.String} instance all match the estimate exactly.
  * <p>
  * The estimator is read only over field metadata: it never reads a field value and never makes a
  * field accessible, so it works without opening any module.
@@ -96,7 +96,7 @@ public final class ObjectLayout {
             throw new IllegalArgumentException("Not an array: " + array.getClass().getName());
         }
         final Class<?> componentType = array.getClass().getComponentType();
-        return align(ARRAY_HEADER_BYTES + (long) arrayElementBytes(componentType) * Array.getLength(array));
+        return align(ARRAY_HEADER_BYTES + (long) slotBytes(componentType) * Array.getLength(array));
     }
 
     /**
@@ -110,7 +110,7 @@ public final class ObjectLayout {
         for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
             for (final Field field : current.getDeclaredFields()) {
                 if (!Modifier.isStatic(field.getModifiers())) {
-                    bytes += fieldBytes(field.getType());
+                    bytes += slotBytes(field.getType());
                 }
             }
         }
@@ -118,27 +118,16 @@ public final class ObjectLayout {
     }
 
     /**
-     * Returns the number of bytes a field of the given type occupies in the measured layout.
+     * Returns the number of bytes one slot of the measured layout occupies: the width of a primitive
+     * type, or a compressed reference for every other type. An instance field and a reference array
+     * element share this rule, so both call this method.
      *
-     * @param fieldType the field type
-     * @return the field size in bytes
+     * @param slotType the field type or the array component type
+     * @return the slot size in bytes
      */
-    private static int fieldBytes(final Class<?> fieldType) {
-        if (fieldType.isPrimitive()) {
-            return primitiveBytes(fieldType);
-        }
-        return COMPRESSED_REFERENCE_BYTES;
-    }
-
-    /**
-     * Returns the number of bytes one array element of the given component type occupies.
-     *
-     * @param componentType the array component type
-     * @return the element size in bytes
-     */
-    private static int arrayElementBytes(final Class<?> componentType) {
-        if (componentType.isPrimitive()) {
-            return primitiveBytes(componentType);
+    private static int slotBytes(final Class<?> slotType) {
+        if (slotType.isPrimitive()) {
+            return primitiveBytes(slotType);
         }
         return COMPRESSED_REFERENCE_BYTES;
     }

@@ -118,6 +118,13 @@ final class ActivePath {
      * 集合项标识文本经 {@link String#valueOf(Object)} 准备并缓存在当前活动项路径段内，
      * null 标识呈现为 {@code null}；出现序非 {@link ComparisonContext#NO_OCCURRENCE} 时追加 {@code #n}。
      * 每次调用单遍拼接，不构造中间路径列表。
+     * <p>
+     * 本渲染与 {@link ChangeLocation#collectionItem(ChangeLocation, Object, int)} 的 relativePath 渲染是
+     * 有意保留的重复，不合并：取路径文本不必构造定位对象；{@link ChangeLocation} 的渲染是公开值对象语义的
+     * 一部分（{@link ChangeLocation#root()}、{@link ChangeLocation#field(ChangeLocation, String)} 与
+     * collectionItem 三个语义工厂的路径一致性由构造保证）；本实现还要复用路径段槽位里「同一活动项内标识
+     * 文本只准备一次」的缓存（见 {@link PathSegment}）。合并会让路径渲染从定位语义工厂退化为跨包共享的
+     * 渲染工具，并把本包与 {@link ChangeLocation} 的定位构造语义耦合起来。
      *
      * @return 完整路径；栈为空时返回空字符串
      */
@@ -237,10 +244,8 @@ final class ActivePath {
          * @param name 字段名，不能为 null
          */
         void asField(final String name) {
+            this.reset();
             this.fieldName = name;
-            this.identity = null;
-            this.occurrence = ComparisonContext.NO_OCCURRENCE;
-            this.identityText = null;
         }
 
         /**
@@ -250,10 +255,9 @@ final class ActivePath {
          * @param occurrence 数值出现序；{@link ComparisonContext#NO_OCCURRENCE} 表示不加后缀
          */
         void asItem(final Object identity, final int occurrence) {
-            this.fieldName = null;
+            this.reset();
             this.identity = identity;
             this.occurrence = occurrence;
-            this.identityText = null;
         }
 
         /**
@@ -279,8 +283,18 @@ final class ActivePath {
 
         /**
          * 清理本槽位的原标识与文本引用，供后续复用。
+         * <p>
+         * 等价于 {@link #reset()}：清空本槽位的全部状态（字段名、原标识、出现序与按需文本引用），
+         * 不只是标识与文本引用。
          */
         void clear() {
+            this.reset();
+        }
+
+        /**
+         * 清空本槽位保存的全部状态（字段名、原标识、出现序与按需文本引用），供三种重置入口共用。
+         */
+        private void reset() {
             this.fieldName = null;
             this.identity = null;
             this.occurrence = ComparisonContext.NO_OCCURRENCE;
