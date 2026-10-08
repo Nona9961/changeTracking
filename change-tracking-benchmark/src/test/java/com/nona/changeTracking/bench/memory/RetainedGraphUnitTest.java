@@ -208,10 +208,11 @@ class RetainedGraphUnitTest {
 
         final RetainedFootprint footprint = RetainedGraph.measure(typed);
 
-        // The class literal is counted alone: 16 bytes for the carrier plus the Class estimate of
-        // 12 header + 13 reference fields + one int field (68), aligned to 72 bytes. Three of those
-        // reference fields are non null for a class literal (for example its name), so an expanded
-        // leaf would raise both totals.
+        // The class literal is counted alone: 16 bytes for the carrier plus the 72 byte Class
+        // estimate of ObjectLayout (12 byte object header plus the declared fields, aligned to 8
+        // bytes). Several declared reference fields are non null for a class literal (for example its
+        // name), so a traversed leaf would raise the object count and the byte totals instead of
+        // counting the class literal alone.
         assertThat(footprint.objectCount()).isEqualTo(2);
         assertThat(footprint.retainedBytes()).isEqualTo(88L);
         assertThat(footprint.classFootprints()).extracting(ClassFootprint::className)
