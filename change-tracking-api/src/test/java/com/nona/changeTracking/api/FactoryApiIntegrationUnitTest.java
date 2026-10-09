@@ -1,7 +1,7 @@
 package com.nona.changeTracking.api;
 
-import com.nona.changeTracking.domain.model.changeset.*;
-import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
+import com.nona.changeTracking.change.*;
+import com.nona.changeTracking.tracking.ChangeTracker;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 注意：需要配置业务标识符或自定义值类型的端到端测试位于 core 模块，
  * 因为这些配置需要直接访问 Provider 实现类。
  *
- * @see com.nona.changeTracking.internal.capability.EndToEndIntegrationUnitTest
+ * @see com.nona.changeTracking.tracking.EndToEndIntegrationUnitTest
  */
 @DisplayName("Factory API 端到端测试")
 class FactoryApiIntegrationUnitTest {
