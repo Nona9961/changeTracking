@@ -16,12 +16,12 @@ public final class ArrayCopyUtils {
     /**
      * 深拷贝数组（防御拷贝）。
      * <p>
-     * 一维：按组件类型创建同类型新数组并浅拷贝——元素已判定为值类型（不可变），浅拷贝安全，
-     * 且保持运行时数组类型（消费方按原类型强转可用），与源数组不共享元素引用；
+     * 一维：按组件类型创建同类型新数组并浅拷贝——元素已判定为值类型（不可变），元素引用虽与源数组
+     * 相同但不可变，故与源数组不共享可变内容；同时保持运行时数组类型（消费方按原类型强转可用）。
      * 多维：逐层递归深拷贝（内层行也是数组），每层同样按组件类型创建。
      *
      * @param array 源数组。
-     * @return 内容相同、互不共享引用的新数组。
+     * @return 内容相同的新数组；多维为逐层深拷贝，一维为同类型浅拷贝（元素不可变，引用共享安全）。
      */
     public static Object deepCopy(final Object array) {
         final Class<?> componentType = array.getClass().getComponentType();
