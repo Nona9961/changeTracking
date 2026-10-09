@@ -1,248 +1,191 @@
 package com.nona.changeTracking.domain.changeset;
 
-import com.nona.changeTracking.domain.model.changeset.*;
+import com.nona.changeTracking.domain.model.changeset.Change;
+import com.nona.changeTracking.domain.model.changeset.ChangeLocation;
+import com.nona.changeTracking.domain.model.changeset.ChangeSet;
+import com.nona.changeTracking.domain.model.changeset.ContainerChange;
+import com.nona.changeTracking.domain.model.changeset.ItemAddedChange;
+import com.nona.changeTracking.domain.model.changeset.ObjectChange;
+import com.nona.changeTracking.domain.model.changeset.ObjectFieldChange;
+import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import com.nona.changeTracking.domain.model.snapshot.NullNode;
 import com.nona.changeTracking.domain.model.snapshot.ObjectNode;
 import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
-import org.junit.jupiter.api.BeforeEach;
+import com.nona.changeTracking.domain.model.snapshot.ValueNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@DisplayName("ChangeSet 相关模型契约测试")
+/**
+ * 结果模型安全性与只读边界单元测试。
+ * <p>
+ * 覆盖三层结构（变更集 → 单目标结果 → 分组）的防御性复制与只读契约、原子变化载荷按引用共享且不被包装或
+ * 改写，以及视图访问不改变结果内容与目标绑定。定位对象不持业务对象、完整结果节点或比较会话状态的要求
+ * 由 {@code ChangeLocationUnitTest} 的字段白名单断言覆盖。
+ */
+@DisplayName("结果模型安全性与只读边界单元测试")
 class ChangeSetModelUnitTest {
 
-    // --- Test Data ---
-    private final FieldChangeNode fieldChangeNode = new FieldChangeNode("path.name", "old", "new");
-    private final ContainerChangeNode containerNode = new ContainerChangeNode("path", List.of(fieldChangeNode));
-    private final ItemAddedNode itemAddedNode = new ItemAddedNode("path.items", new PrimitiveNode("newItem"));
-    private final ContainerChangeNode rootNode = new ContainerChangeNode("", List.of(containerNode, itemAddedNode));
-    private final Object sampleTarget = new Object();
-    private final ObjectChange objectChange = new ObjectChange(sampleTarget, rootNode);
-    private ChangeSet changeSet;
-
-    @BeforeEach
-    void setup() {
-        changeSet = new ChangeSet(List.of(objectChange));
-    }
-
-
     @Nested
-    @DisplayName("ObjectChange Record 测试")
-    class ObjectChangeRecordTest {
-        // ... (这部分测试保持不变) ...
-    }
-
-    @Nested
-    @DisplayName("ChangeSet Class 测试")
-    class ChangeSetClassTest {
-
-        // ... (构造函数、不可变性等测试保持不变) ...
+    @DisplayName("三层防御性复制")
+    class DefensiveCopy {
 
         @Test
-        @DisplayName("getAllChanges() 应返回包含容器和叶子节点的扁平列表")
-        void getAllChanges_shouldReturnFlatListOfAllNodes() {
-            final List<Change> allChanges = changeSet.getAllChanges();
+        @DisplayName("分组子结果列表在构造时复制：修改入参不影响分组")
+        void containerChange_shouldCopyIncomingChildren() {
+            final ChangeLocation items = ChangeLocation.field(ChangeLocation.root(), "items");
+            final ValueChange quantity = new ValueChange(ChangeLocation.field(
+                    ChangeLocation.collectionItem(items, 7), "quantity"), 1, 2);
+            final List<Change> incoming = new ArrayList<>(List.of(quantity));
 
-            // 预期结果: 根节点(Container), 容器节点(Container), 字段变更(Field), 新增项(ItemAdded)
-            // 注意：根节点 "" 我们通常不关心，所以实现时可以跳过
-            assertEquals(3, allChanges.size());
-            assertTrue(allChanges.stream().anyMatch(c -> c.path().equals("path") && c instanceof ContainerChange));
-            assertTrue(allChanges.stream().anyMatch(c -> c.path().equals("path.name") && c instanceof ValueChange));
-            assertTrue(allChanges.stream().anyMatch(c -> c.path().equals("path.items") && c instanceof ItemAddedChange));
+            final ContainerChange group = new ContainerChange(items, incoming);
+            incoming.add(new ValueChange(ChangeLocation.field(ChangeLocation.root(), "other"), "a", "b"));
+            incoming.clear();
+
+            assertThat(group.children()).containsExactly(quantity);
         }
 
         @Test
-        @DisplayName("getLeafChanges() 应只返回最细粒度的叶子节点（path 为完整路径）")
-        void getLeafChanges_shouldReturnOnlyLeafNodes() {
-            final List<Change> leafChanges = changeSet.getLeafChanges();
+        @DisplayName("单目标结果列表在构造时复制：修改入参不影响结果")
+        void objectChange_shouldCopyIncomingChanges() {
+            final ValueChange status = new ValueChange(ChangeLocation.field(ChangeLocation.root(), "status"), "a", "b");
+            final List<Change> incoming = new ArrayList<>(List.of(status));
 
-            // 预期结果: 字段变更(Field), 新增项(ItemAdded)
-            assertEquals(2, leafChanges.size());
-            assertTrue(leafChanges.stream().anyMatch(c -> c.path().equals("path.name") && c instanceof ValueChange));
-            assertTrue(leafChanges.stream().anyMatch(c -> c.path().equals("path.items") && c instanceof ItemAddedChange));
-            // 确保没有任何容器节点
-            assertFalse(leafChanges.stream().anyMatch(c -> c instanceof ContainerChange));
+            final ObjectChange objectChange = new ObjectChange(new Object(), incoming);
+            incoming.clear();
+
+            assertThat(objectChange.changes()).containsExactly(status);
         }
 
         @Test
-        @DisplayName("对于空的 ChangeSet，视图方法应返回空列表")
-        void viewMethods_onEmptyChangeSet_shouldReturnEmptyList() {
-            final ChangeSet emptyChangeSet = new ChangeSet(Collections.emptyList());
-            assertTrue(emptyChangeSet.getAllChanges().isEmpty());
-            assertTrue(emptyChangeSet.getLeafChanges().isEmpty());
-        }
+        @DisplayName("变更集目标列表在构造时复制：修改入参不影响变更集")
+        void changeSet_shouldCopyIncomingTargets() {
+            final ObjectChange objectChange = new ObjectChange(new Object(),
+                    List.of(new ValueChange(ChangeLocation.field(ChangeLocation.root(), "status"), "a", "b")));
+            final List<ObjectChange> incoming = new ArrayList<>(List.of(objectChange));
 
-        @Test
-        @DisplayName("ContainerChange 的 children 应包含相对路径而非完整路径")
-        void containerChange_children_shouldHaveRelativePaths() {
-            final List<Change> allChanges = changeSet.getAllChanges();
+            final ChangeSet changeSet = new ChangeSet(incoming);
+            incoming.clear();
 
-            // 找到 path 为 "path" 的 ContainerChange
-            final ContainerChange container = allChanges.stream()
-                    .filter(c -> c instanceof ContainerChange && c.path().equals("path"))
-                    .map(c -> (ContainerChange) c)
-                    .findFirst()
-                    .orElseThrow();
-
-            // children 应该包含相对路径 "name"，而不是完整路径 "path.name"
-            assertEquals(1, container.children().size());
-            assertEquals("name", container.children().get(0).path());
+            assertThat(changeSet.changes()).containsExactly(objectChange);
         }
     }
 
     @Nested
-    @DisplayName("唯一转换核心去重：多级嵌套树视图契约测试")
-    class NestedTreeViewContractTest {
-
-        // 模拟真实 diffNode 输出格式的多级嵌套变更树：
-        // "" (root ContainerChangeNode)
-        // ├── "status"                  (FieldChangeNode)          叶子
-        // ├── "items"                   (ContainerChangeNode)      容器
-        // │   ├── "items[100]"          (ItemAddedNode)            叶子
-        // │   └── "items[200].name"     (FieldChangeNode)          叶子
-        // └── "address"                 (ContainerChangeNode)      容器
-        //     ├── "address.city"        (FieldChangeNode)          叶子
-        //     ├── "address.items"       (ContainerChangeNode)      容器
-        //     │   └── "address.items[5].zip"  (FieldChangeNode)    叶子
-        //     └── "address.coords"      (ObjectFieldChangeNode)    叶子
-        private final ChangeNode nestedTree = new ContainerChangeNode("", List.of(
-                new FieldChangeNode("status", "PENDING", "CONFIRMED"),
-                new ContainerChangeNode("items", List.of(
-                        new ItemAddedNode("items[100]", new PrimitiveNode("SKU-X")),
-                        new FieldChangeNode("items[200].name", "旧名", "新名")
-                )),
-                new ContainerChangeNode("address", List.of(
-                        new FieldChangeNode("address.city", "A市", "B市"),
-                        new ContainerChangeNode("address.items", List.of(
-                                new FieldChangeNode("address.items[5].zip", "100000", "200000")
-                        )),
-                        new ObjectFieldChangeNode("address.coords", new NullNode(),
-                                new ObjectNode(Map.of("lat", new PrimitiveNode(1))))
-                ))
-        ));
-        private final ChangeSet nestedChangeSet =
-                new ChangeSet(List.of(new ObjectChange(new Object(), nestedTree)));
+    @DisplayName("只读边界")
+    class ReadOnlyBoundary {
 
         @Test
-        @DisplayName("getAllChanges() 每个容器和每个叶子恰好出现一次（无重复无缺失）")
-        void getAllChanges_eachContainerAndLeaf_shouldAppearExactlyOnce() {
-            final List<Change> allChanges = nestedChangeSet.getAllChanges();
+        @DisplayName("三层结构与两个视图列表都拒绝修改")
+        void everyStructuralList_shouldBeReadOnly() {
+            final ChangeLocation items = ChangeLocation.field(ChangeLocation.root(), "items");
+            final ValueChange quantity = new ValueChange(ChangeLocation.field(
+                    ChangeLocation.collectionItem(items, 7), "quantity"), 1, 2);
+            final ContainerChange group = new ContainerChange(items, List.of(quantity));
+            final ObjectChange objectChange = new ObjectChange(new Object(), List.of(group));
+            final ChangeSet changeSet = new ChangeSet(List.of(objectChange));
 
-            // 容器：items / address / address.items（根 "" 跳过）——各恰好一次，前序顺序
-            final List<Change> containers = allChanges.stream()
-                    .filter(c -> c instanceof ContainerChange)
-                    .toList();
-            assertEquals(3, containers.size());
-            assertEquals(List.of("items", "address", "address.items"),
-                    containers.stream().map(Change::path).toList());
+            assertThat(throwableOf(() -> changeSet.changes().clear())).isInstanceOf(UnsupportedOperationException.class);
+            assertThat(throwableOf(() -> objectChange.changes().clear())).isInstanceOf(UnsupportedOperationException.class);
+            assertThat(throwableOf(() -> group.children().clear())).isInstanceOf(UnsupportedOperationException.class);
+            assertThat(throwableOf(() -> changeSet.getAllChanges().clear())).isInstanceOf(UnsupportedOperationException.class);
+            assertThat(throwableOf(() -> changeSet.getLeafChanges().clear())).isInstanceOf(UnsupportedOperationException.class);
+        }
+    }
 
-            // 叶子：status / items[100] / items[200].name / address.city /
-            //       address.items[5].zip / address.coords——各恰好一次，前序顺序
-            final List<Change> leaves = allChanges.stream()
-                    .filter(c -> !(c instanceof ContainerChange))
-                    .toList();
-            assertEquals(6, leaves.size());
-            assertEquals(List.of("status", "items[100]", "items[200].name",
-                            "address.city", "address.items[5].zip", "address.coords"),
-                    leaves.stream().map(Change::path).toList());
+    @Nested
+    @DisplayName("载荷边界")
+    class PayloadBoundary {
 
-            // 扁平列表无重复路径
-            assertEquals(9, allChanges.size());
-            assertEquals(9, allChanges.stream().map(Change::path).distinct().count());
+        @Test
+        @DisplayName("原子变化载荷按引用共享快照节点，不被复制或包装")
+        void itemAddedChange_shouldShareTheSnapshotPayload() {
+            final ValueNode addedItem = new PrimitiveNode("SKU-9");
+            final ItemAddedChange added = new ItemAddedChange(
+                    ChangeLocation.collectionItem(ChangeLocation.field(ChangeLocation.root(), "items"), 9), addedItem);
+
+            assertThat(added.addedItem()).isSameAs(addedItem);
         }
 
         @Test
-        @DisplayName("getLeafChanges() 应只返回叶子（含 ObjectFieldChange），path 与 fullPath 一致")
-        void getLeafChanges_shouldReturnOnlyLeavesWithFullPaths() {
-            final List<Change> leafChanges = nestedChangeSet.getLeafChanges();
+        @DisplayName("整体替换原样携带两侧快照节点，不递归展开为载荷内部操作")
+        void objectFieldChange_shouldCarryBothSnapshots() {
+            final ObjectNode assigned = new ObjectNode(Map.of("street", new PrimitiveNode("Main St")));
+            final NullNode cleared = new NullNode();
+            final ObjectFieldChange change = new ObjectFieldChange(ChangeLocation.field(ChangeLocation.root(), "address"), assigned, cleared);
 
-            assertEquals(6, leafChanges.size());
-            assertFalse(leafChanges.stream().anyMatch(c -> c instanceof ContainerChange));
-            // 扁平视图：每个叶子 path 与 fullPath 一致（完整路径）
-            for (final Change leaf : leafChanges) {
-                assertEquals(leaf.fullPath(), leaf.path());
-            }
-            assertTrue(leafChanges.stream().anyMatch(c -> c instanceof ObjectFieldChange));
+            assertThat(change.oldNode()).isSameAs(assigned);
+            assertThat(change.newNode()).isSameAs(cleared);
         }
 
         @Test
-        @DisplayName("树形 children 视图：相对路径 + 上下文元数据（collectionFieldName / isParentCollection）")
-        void containerChildren_shouldCarryRelativePathsAndContextMetadata() {
-            final ContainerChange itemsContainer = nestedChangeSet.getAllChanges().stream()
-                    .filter(c -> c instanceof ContainerChange && c.path().equals("items"))
-                    .map(c -> (ContainerChange) c)
-                    .findFirst()
-                    .orElseThrow();
+        @DisplayName("值变化的载荷为业务值，不做快照包装")
+        void valueChange_shouldCarryBusinessValues() {
+            final ValueChange change = new ValueChange(ChangeLocation.field(ChangeLocation.root(), "quantity"), 1, 2);
 
-            assertEquals(2, itemsContainer.children().size());
+            assertThat(change.oldValue()).isEqualTo(1);
+            assertThat(change.newValue()).isEqualTo(2);
+        }
+    }
 
-            final ItemAddedChange added = (ItemAddedChange) itemsContainer.children().get(0);
-            assertEquals("[100]", added.path());
-            assertEquals("items[100]", added.fullPath());
-            assertNull(added.fieldName());
-            assertEquals("items", added.collectionFieldName());
-            assertTrue(added.isParentCollection());
+    @Nested
+    @DisplayName("查询无副作用")
+    class SideEffectFreeQueries {
 
-            final ValueChange renamed = (ValueChange) itemsContainer.children().get(1);
-            assertEquals("[200].name", renamed.path());
-            assertEquals("items[200].name", renamed.fullPath());
-            // 现状：相对路径以 "[" 开头时 fieldName 直接为 null（extractFieldName 首段判断）
-            assertNull(renamed.fieldName());
-            assertEquals("items", renamed.collectionFieldName());
-            assertTrue(renamed.isParentCollection());
+        @Test
+        @DisplayName("视图访问不改变结果内容、目标绑定与元素顺序")
+        void viewAccess_shouldNotMutateTheResult() {
+            final Object target = new Object();
+            final ValueChange status = new ValueChange(ChangeLocation.field(ChangeLocation.root(), "status"), "a", "b");
+            final ValueChange name = new ValueChange(ChangeLocation.field(ChangeLocation.root(), "name"), "c", "d");
+            final ObjectChange objectChange = new ObjectChange(target, List.of(status, name));
+            final ChangeSet changeSet = new ChangeSet(List.of(objectChange));
+
+            final List<Change> fullBefore = new ArrayList<>(changeSet.getAllChanges());
+            final List<Change> leafBefore = new ArrayList<>(changeSet.getLeafChanges());
+
+            changeSet.getAllChanges();
+            changeSet.getLeafChanges();
+
+            assertThat(objectChange.target()).isSameAs(target);
+            assertThat(objectChange.changes()).containsExactly(status, name);
+            assertThat(changeSet.getAllChanges()).isEqualTo(fullBefore);
+            assertThat(changeSet.getLeafChanges()).isEqualTo(leafBefore);
         }
 
         @Test
-        @DisplayName("扁平叶子视图：完整路径 + 上下文元数据（含深层嵌套集合）")
-        void leafChanges_shouldCarryFullPathsAndContextMetadata() {
-            final List<Change> leafChanges = nestedChangeSet.getLeafChanges();
+        @DisplayName("重复获取的两个视图按值语义稳定（元素顺序与内容不变）")
+        void repeatedAcquisition_shouldBeValueStable() {
+            final ChangeLocation items = ChangeLocation.field(ChangeLocation.root(), "items");
+            final ItemAddedChange added = new ItemAddedChange(
+                    ChangeLocation.collectionItem(items, 9), new PrimitiveNode("SKU-9"));
+            final ContainerChange group = new ContainerChange(items, List.of(added));
+            final ChangeSet changeSet = new ChangeSet(List.of(new ObjectChange(new Object(), List.of(group))));
 
-            // 集合项新增：path=fullPath，fieldName=null（纯索引项），最近集合=items
-            final ItemAddedChange added = (ItemAddedChange) leafChanges.stream()
-                    .filter(c -> c instanceof ItemAddedChange)
-                    .findFirst()
-                    .orElseThrow();
-            assertEquals("items[100]", added.path());
-            assertEquals("items[100]", added.fullPath());
-            assertNull(added.fieldName());
-            assertEquals("items", added.collectionFieldName());
-            assertTrue(added.isParentCollection());
-
-            // 深层嵌套集合内的字段：最近集合字段名为 items（不含路径前缀）
-            final ValueChange zip = (ValueChange) leafChanges.stream()
-                    .filter(c -> c.path().equals("address.items[5].zip"))
-                    .findFirst()
-                    .orElseThrow();
-            // 现状：扁平视图 fieldName 由相对路径（"[5].zip"）计算，以 "[" 开头 → null
-            assertNull(zip.fieldName());
-            assertEquals("items", zip.collectionFieldName());
-            assertTrue(zip.isParentCollection());
-
-            // 主表字段：无集合上下文
-            final ValueChange status = (ValueChange) leafChanges.stream()
-                    .filter(c -> c.path().equals("status"))
-                    .findFirst()
-                    .orElseThrow();
-            assertEquals("status", status.fieldName());
-            assertNull(status.collectionFieldName());
-            assertFalse(status.isParentCollection());
-
-            // 对象整体替换（ObjectFieldChange）：叶子，主表字段无集合上下文
-            final ObjectFieldChange coords = (ObjectFieldChange) leafChanges.stream()
-                    .filter(c -> c instanceof ObjectFieldChange)
-                    .findFirst()
-                    .orElseThrow();
-            assertEquals("address.coords", coords.path());
-            assertEquals("coords", coords.fieldName());
-            assertNull(coords.collectionFieldName());
-            assertFalse(coords.isParentCollection());
+            assertThat(changeSet.getAllChanges()).isEqualTo(changeSet.getAllChanges());
+            assertThat(changeSet.getLeafChanges()).isEqualTo(changeSet.getLeafChanges());
+            assertThat(changeSet.getLeafChanges()).extracting(Change::fullPath).containsExactly("items[9]");
         }
+    }
+
+    /**
+     * 执行动作并返回抛出的异常，用于只读列表断言。
+     *
+     * @param action 待执行动作
+     * @return 抛出的异常
+     */
+    private static Throwable throwableOf(final Runnable action) {
+        try {
+            action.run();
+        } catch (Throwable thrown) {
+            return thrown;
+        }
+        throw new AssertionError("Expected the read-only list to reject the mutation");
     }
 }

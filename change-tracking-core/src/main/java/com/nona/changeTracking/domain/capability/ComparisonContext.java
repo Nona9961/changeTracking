@@ -1,9 +1,7 @@
 package com.nona.changeTracking.domain.capability;
 
+import com.nona.changeTracking.domain.model.changeset.ChangeLocation;
 import com.nona.changeTracking.domain.model.snapshot.ValueNode;
-
-import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * 单次比较的会话状态。
@@ -11,11 +9,8 @@ import java.util.Objects;
  * 承载两类状态，均随一次 {@link ValueNodeComparisonStrategy#compare} 调用创建、调用结束释放，
  * 不进入策略实例字段、静态缓存或线程局部变量：
  * <ul>
- *   <li><b>路径段栈</b>：字段段保存字段名，集合项段保存匹配组的<b>原标识</b>与数值出现序；
- *       上下文负责路径状态的进入、恢复及<b>按需</b>生成，仅在需要输出变更时拼接完整路径。
- *       路径栈按最大深度扩容并复用槽位，压入不为每个被检查字段新建路径段对象或可选值包装；
- *       标识不因入栈而字符串化，仅在当前活动项需要输出时准备文本并供其后续输出复用，
- *       退出时清理原标识与文本引用。</li>
+ *   <li><b>活动路径</b>：路径段栈与按需、可共享的定位派生由 {@link ActivePath} 承载；上下文只把
+ *       路径状态的进入、恢复与按需生成委托给它，保证单次遍历内的定位只按其活动路径的前缀构造一次。</li>
  *   <li><b>节点对状态（单表三态）</b>：路径段栈之外只保留<b>一份</b>
  *       {@link NodePairStates 节点对状态表}，按新旧节点引用身份组合记录。同一份表同时回答两个
  *       问题——「这个节点对是否正在比较」（{@link NodePairStates#IN_PROGRESS}，用于循环终止）
@@ -25,36 +20,29 @@ import java.util.Objects;
  *       {@link NodePairStates#COMPLETED_CHANGED}，不可复用。</li>
  * </ul>
  * 本类不承担业务比较规则：匹配在 {@link CollectionMatchIndex}，分类与输出在
- * {@link ValueNodeComparisonStrategy}。
+ * {@link ValueNodeComparisonStrategy}，路径与定位在 {@link ActivePath}。
  * <p>
  * <b>非空守卫口径</b>：本类是包内私有实现，节点对相关方法（进入查询、状态更新、退出）
  * <b>不写重复的非空守卫</b>——调用方（{@link ValueNodeComparisonStrategy#compare} 的递归遍历）
  * 在分派前已用 {@code instanceof ObjectNode/CollectionNode} 判定两侧节点，传 null 不可达。
- * 守卫只保留在边界入口（本类构造器与 {@link #pushField(String)} 的字段名边界），
+ * 守卫只保留在边界入口（{@link #pushField(String)} 的字段名边界与 {@link #pop()} 的空栈边界），
  * 不为被调用点已保证的前置条件再付一次检查。
  */
 final class ComparisonContext {
 
     /**
      * 不需要出现序后缀的标记值：{@code 0} 表示唯一项不加后缀，正数为既有出现序。
+     * <p>
+     * 与定位工厂的 occurrence 参数取同一事实源 {@link ChangeLocation#NO_OCCURRENCE}：本值经本包直接
+     * 传给 {@link ChangeLocation#collectionItem(ChangeLocation, Object, int)}，两处必须一致，否则唯一项
+     * 会被误加出现序后缀。
      */
-    static final int NO_OCCURRENCE = 0;
+    static final int NO_OCCURRENCE = ChangeLocation.NO_OCCURRENCE;
 
     /**
-     * 路径段栈的初始容量。
+     * 当前递归路径的活动路径：段栈、按需路径与按深度复用的定位前缀缓存。
      */
-    private static final int INITIAL_PATH_CAPACITY = 8;
-
-    /**
-     * 当前递归路径的路径段栈；槽位按需扩容并复用，元素为 {@link PathSegment}。
-     */
-    private PathSegment[] pathStack;
-
-    /**
-     * 路径段栈的当前深度（已使用的槽位数）。
-     */
-    private int depth;
-
+    private final ActivePath activePath;
     /**
      * 节点对状态表：单表三态，同时承担循环终止与安全无变更复用判定。
      */
@@ -70,10 +58,9 @@ final class ComparisonContext {
      * 创建一次比较的独立会话状态。
      */
     ComparisonContext() {
-        this.pathStack = new PathSegment[INITIAL_PATH_CAPACITY];
+        this.activePath = new ActivePath();
         this.nodePairStates = new NodePairStates();
         this.cycleTruncationCount = 0;
-        this.depth = 0;
     }
 
     /**
@@ -83,9 +70,7 @@ final class ComparisonContext {
      * @throws NullPointerException 如果 fieldName 为 null。
      */
     void pushField(final String fieldName) {
-        Objects.requireNonNull(fieldName, "fieldName");
-        segmentAt(this.depth).asField(fieldName);
-        this.depth++;
+        this.activePath.pushField(fieldName);
     }
 
     /**
@@ -97,8 +82,7 @@ final class ComparisonContext {
      * @param occurrence 数值出现序；{@link #NO_OCCURRENCE} 表示不加后缀。
      */
     void pushItem(final Object identity, final int occurrence) {
-        segmentAt(this.depth).asItem(identity, occurrence);
-        this.depth++;
+        this.activePath.pushItem(identity, occurrence);
     }
 
     /**
@@ -107,11 +91,7 @@ final class ComparisonContext {
      * @throws IllegalStateException 如果当前没有已压入的路径段。
      */
     void pop() {
-        if (this.depth == 0) {
-            throw new IllegalStateException("No path segment to pop");
-        }
-        this.depth--;
-        this.pathStack[this.depth].clear();
+        this.activePath.pop();
     }
 
     /**
@@ -123,14 +103,20 @@ final class ComparisonContext {
      * @return 完整路径；栈为空时返回空字符串。
      */
     String currentPath() {
-        if (this.depth == 0) {
-            return "";
-        }
-        final StringBuilder builder = new StringBuilder();
-        for (int index = 0; index < this.depth; index++) {
-            this.pathStack[index].appendTo(builder, index == 0);
-        }
-        return builder.toString();
+        return this.activePath.currentPath();
+    }
+
+    /**
+     * 按当前栈<b>按需</b>生成当前比较位置的定位对象。
+     * <p>
+     * 定位由同一份路径段栈一次性形成一致的整体：字段段产生字段定位，集合项段产生集合项定位，
+     * 完整路径、相对路径、字段名、最近集合字段名与「直接包含者是否为集合」不分别猜测。
+     * 集合项标识文本与 {@link #currentPath()} 使用同一份按需渲染结果。
+     *
+     * @return 当前比较位置的定位；栈为空时返回根定位。
+     */
+    ChangeLocation currentLocation() {
+        return this.activePath.currentLocation();
     }
 
     /**
@@ -200,121 +186,6 @@ final class ComparisonContext {
      */
     int cycleTruncationCount() {
         return this.cycleTruncationCount;
-    }
-
-    /**
-     * 取指定深度处的路径段槽位，必要时扩容并创建槽位对象以便复用。
-     *
-     * @param index 目标槽位下标。
-     * @return 可复用的路径段槽位。
-     */
-    private PathSegment segmentAt(final int index) {
-        if (index == this.pathStack.length) {
-            this.pathStack = Arrays.copyOf(this.pathStack, this.pathStack.length * 2);
-        }
-        PathSegment segment = this.pathStack[index];
-        if (segment == null) {
-            segment = new PathSegment();
-            this.pathStack[index] = segment;
-        }
-        return segment;
-    }
-
-    /**
-     * 一个路径段槽位：或为字段段（保存字段名），或为集合项段（保存原标识与数值出现序及按需文本）。
-     * <p>
-     * 槽位复用：重复压入不新建对象；退出时清理原标识与文本引用。
-     */
-    private static final class PathSegment {
-
-        /**
-         * 字段名；非 null 表示本段为字段段。
-         */
-        private String fieldName;
-
-        /**
-         * 集合项的原标识；允许 null。
-         */
-        private Object identity;
-
-        /**
-         * 数值出现序；{@link #NO_OCCURRENCE} 表示不加后缀。
-         */
-        private int occurrence;
-
-        /**
-         * 按需准备的标识文本；null 表示尚未准备。
-         */
-        private String identityText;
-
-        /**
-         * 将本槽位重置为字段段。
-         *
-         * @param name 字段名，不能为 null。
-         */
-        void asField(final String name) {
-            this.fieldName = name;
-            this.identity = null;
-            this.occurrence = NO_OCCURRENCE;
-            this.identityText = null;
-        }
-
-        /**
-         * 将本槽位重置为集合项段。
-         *
-         * @param identity   原标识；允许 null。
-         * @param occurrence 数值出现序；{@link #NO_OCCURRENCE} 表示不加后缀。
-         */
-        void asItem(final Object identity, final int occurrence) {
-            this.fieldName = null;
-            this.identity = identity;
-            this.occurrence = occurrence;
-            this.identityText = null;
-        }
-
-        /**
-         * 将本段追加到路径构建器。
-         *
-         * @param builder 路径构建器。
-         * @param first   本段是否为路径首段（字段段首段不加点号）。
-         */
-        void appendTo(final StringBuilder builder, final boolean first) {
-            if (this.fieldName != null) {
-                if (!first) {
-                    builder.append('.');
-                }
-                builder.append(this.fieldName);
-                return;
-            }
-            builder.append('[').append(identifierText());
-            if (this.occurrence != NO_OCCURRENCE) {
-                builder.append('#').append(this.occurrence);
-            }
-            builder.append(']');
-        }
-
-        /**
-         * 清理本槽位的原标识与文本引用，供后续复用。
-         */
-        void clear() {
-            this.fieldName = null;
-            this.identity = null;
-            this.occurrence = NO_OCCURRENCE;
-            this.identityText = null;
-        }
-
-        /**
-         * 按需准备并复用标识文本：null 标识为 {@code null}，非 null 标识为
-         * {@link String#valueOf(Object)}。
-         *
-         * @return 标识文本。
-         */
-        String identifierText() {
-            if (this.identityText == null) {
-                this.identityText = this.identity == null ? "null" : String.valueOf(this.identity);
-            }
-            return this.identityText;
-        }
     }
 
     /**

@@ -16,7 +16,7 @@ changeTracking 以框架无关（不绑定 ORM）的方式解决这个问题：�
 - **属性级精确追踪**：字段级变更检测，覆盖嵌套对象与集合的深度比较
 - **业务标识符匹配**：集合项按业务标识符（而非索引）匹配——集合重排序不产生虚假变更，适合 DDD 聚合根
 - **明确的值语义**：数组按值比较（顺序敏感）；基本值、对象、集合的变更类型清晰可辨
-- **双视图变更集**：树形视图保留完整结构，扁平视图可直接转换为数据库操作
+- **双视图变更集**：同一变更模型派生完整视图与叶子视图，完整视图保留嵌套分组结构，叶子视图可直接转换为数据库操作
 - **循环引用安全**：快照构建与差异比较在循环对象图上不栈溢出
 - **SPI 可扩展**：快照策略、比较策略、标识符提取器均可插拔，`ServiceLoader` 自动发现
 - **基线安全**：快照持有不可变拷贝，`track()` 之后修改业务对象不污染基线；类路径（非模块路径）下反射使用无需额外 JVM 参数
@@ -65,8 +65,7 @@ for (Change change : leafChanges) {
         System.out.printf("字段 %s: %s -> %s%n",
             vc.path(), vc.oldValue(), vc.newValue());
     } else if (change instanceof ObjectFieldChange ofc) {
-        // 对象/集合字段整体替换：无业务值，携带 ValueNode 表示
-        // NullNode=清空、ObjectNode/CollectionNode/ArrayNode=整体赋值
+        // 对象/集合字段整体替换：无单一业务值，载荷为快照节点
         System.out.printf("字段 %s 整体替换: %s -> %s%n",
             ofc.path(), ofc.oldNode(), ofc.newNode());
     }

@@ -1,7 +1,7 @@
 package com.nona.changeTracking.domain.capability;
 
-import com.nona.changeTracking.domain.model.changeset.ChangeNode;
-import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
+import com.nona.changeTracking.domain.model.changeset.Change;
+import com.nona.changeTracking.domain.model.changeset.ContainerChange;
 import com.nona.changeTracking.domain.model.snapshot.CollectionNode;
 import com.nona.changeTracking.domain.model.snapshot.NullNode;
 import com.nona.changeTracking.domain.model.snapshot.ObjectNode;
@@ -112,7 +112,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final long expanded = expandedComparisons(oldChain, identitySet());
 
             counter.reset();
-            final ChangeNode result = compare(oldChain, newChain);
+            final List<Change> result = compare(oldChain, newChain);
 
             assertThat(expanded).isEqualTo(REPRODUCTION_EXPANDED_COMPARISONS);
             assertThat(1L << REPRODUCTION_DEPTH).isEqualTo(REPRODUCTION_EXPANDED_COMPARISONS);
@@ -164,7 +164,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
                 final int edges = 2 * depth;
 
                 counter.reset();
-                final ChangeNode result = compare(oldChain, newChain);
+                final List<Change> result = compare(oldChain, newChain);
 
                 assertThat(leafPaths(result)).as("paths at depth %d", depth).isEmpty();
                 assertThat(independentObjectCount(oldChain)).as("node pairs at depth %d", depth).isEqualTo(nodePairs);
@@ -211,7 +211,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final long expanded = expandedComparisons(oldRoot, identitySet());
 
             counter.reset();
-            final ChangeNode result = compare(oldRoot, newRoot);
+            final List<Change> result = compare(oldRoot, newRoot);
 
             assertThat(expanded).isEqualTo(4L);
             assertThat(counter.count()).isEqualTo(2L);
@@ -225,7 +225,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final ObjectNode newRoot = sharedCollectionGraph(2, true);
 
             counter.reset();
-            final ChangeNode result = compare(oldRoot, newRoot);
+            final List<Change> result = compare(oldRoot, newRoot);
 
             assertThat(leafPaths(result)).containsExactly(
                     "a.items[item-0]." + ITEM_VALUE_FIELD,
@@ -244,7 +244,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final ObjectNode newChain = sharedChain(2, true, NO_CHANGED_LAYER, true);
 
             counter.reset();
-            final ChangeNode result = compare(oldChain, newChain);
+            final List<Change> result = compare(oldChain, newChain);
 
             assertThat(leafPaths(result)).containsExactlyInAnyOrder(
                     "left.left." + LEAF_VALUE_FIELD,
@@ -259,12 +259,12 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final ObjectNode unchanged = sharedChain(2, true, NO_CHANGED_LAYER, false);
 
             counter.reset();
-            final ChangeNode rootLevelResult = compare(unchanged, sharedChain(2, true, 0, false));
+            final List<Change> rootLevelResult = compare(unchanged, sharedChain(2, true, 0, false));
 
             assertThat(leafPaths(rootLevelResult)).containsExactly(LAYER_VALUE_FIELD);
 
             counter.reset();
-            final ChangeNode innerLevelResult = compare(unchanged, sharedChain(2, true, 1, false));
+            final List<Change> innerLevelResult = compare(unchanged, sharedChain(2, true, 1, false));
 
             assertThat(leafPaths(innerLevelResult)).containsExactlyInAnyOrder(
                     LEFT_FIELD + "." + LAYER_VALUE_FIELD,
@@ -278,7 +278,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final ObjectNode newChain = sharedChain(1, true, NO_CHANGED_LAYER, true);
 
             counter.reset();
-            final ChangeNode result = compare(oldChain, newChain);
+            final List<Change> result = compare(oldChain, newChain);
 
             assertThat(leafPaths(result)).containsExactlyInAnyOrder(
                     LEFT_FIELD + "." + LEAF_VALUE_FIELD,
@@ -297,7 +297,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final ObjectNode newRoot = cyclicRoot(2, "C");
 
             counter.reset();
-            final ChangeNode result = compare(oldRoot, newRoot);
+            final List<Change> result = compare(oldRoot, newRoot);
 
             assertThat(counter.count()).isEqualTo(2L);
             assertThat(leafPaths(result)).isEmpty();
@@ -310,7 +310,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final ObjectNode newRoot = mixedRoot();
 
             counter.reset();
-            final ChangeNode result = compare(oldRoot, newRoot);
+            final List<Change> result = compare(oldRoot, newRoot);
 
             assertThat(counter.count()).isEqualTo(2L);
             assertThat(leafPaths(result)).isEmpty();
@@ -323,7 +323,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final ObjectNode newRoot = singleFieldRoot("cycle", cyclicNode("C", true));
 
             counter.reset();
-            final ChangeNode result = compare(oldRoot, newRoot);
+            final List<Change> result = compare(oldRoot, newRoot);
 
             assertThat(leafPaths(result)).containsExactly("cycle.value");
         }
@@ -334,7 +334,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final ObjectNode chain = sharedChain(2, true, NO_CHANGED_LAYER, false);
 
             counter.reset();
-            final ChangeNode result = compare(chain, chain);
+            final List<Change> result = compare(chain, chain);
 
             assertThat(counter.count()).isZero();
             assertThat(leafPaths(result)).isEmpty();
@@ -353,7 +353,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final long expanded = expandedComparisons(oldTree, identitySet());
 
             counter.reset();
-            final ChangeNode result = compare(oldTree, newTree);
+            final List<Change> result = compare(oldTree, newTree);
 
             assertThat(expanded).isEqualTo(3L);
             assertThat(counter.count()).isEqualTo(3L);
@@ -379,7 +379,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final ObjectNode newTree = plainTree(true);
 
             counter.reset();
-            final ChangeNode result = compare(oldTree, newTree);
+            final List<Change> result = compare(oldTree, newTree);
 
             assertThat(leafPaths(result)).containsExactlyInAnyOrder(
                     LAYER_VALUE_FIELD,
@@ -415,7 +415,7 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
             final ObjectNode oldChain = sharedChain(4, false, NO_CHANGED_LAYER, false);
             final ObjectNode newChain = sharedChain(4, false, NO_CHANGED_LAYER, false);
             counter.reset();
-            final ChangeNode result = compare(oldChain, newChain);
+            final List<Change> result = compare(oldChain, newChain);
 
             assertThat(counter.count()).isEqualTo(1L);
             assertThat(leafPaths(result)).isEmpty();
@@ -575,9 +575,9 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
      *
      * @param oldRoot 旧侧根节点。
      * @param newRoot 新侧根节点。
-     * @return 变更树根节点。
+     * @return 目标根下的变更结果列表。
      */
-    private ChangeNode compare(final ValueNode oldRoot, final ValueNode newRoot) {
+    private List<Change> compare(final ValueNode oldRoot, final ValueNode newRoot) {
         return strategy.compare(new ValueNodeSnapshot(oldRoot), new ValueNodeSnapshot(newRoot));
     }
 
@@ -712,31 +712,33 @@ class ValueNodeComparisonStrategySharedSubgraphUnitTest {
     }
 
     /**
-     * 按前序展开变更树，收集全部叶子变更的路径。
+     * 按前序展开变更结果，收集全部叶子变更的路径。
      *
-     * @param node 变更树根节点。
+     * @param changes 变更结果列表。
      * @return 叶子路径列表，按展开顺序。
      */
-    private static List<String> leafPaths(final ChangeNode node) {
+    private static List<String> leafPaths(final List<Change> changes) {
         final List<String> paths = new ArrayList<>();
-        collectPaths(node, paths);
+        for (final Change change : changes) {
+            collectPaths(change, paths);
+        }
         return paths;
     }
 
     /**
      * 递归收集叶子路径。
      *
-     * @param node  当前变更节点。
+     * @param node  当前变更结果。
      * @param paths 收集目标。
      */
-    private static void collectPaths(final ChangeNode node, final List<String> paths) {
-        if (node instanceof ContainerChangeNode container) {
-            for (final ChangeNode child : container.children()) {
+    private static void collectPaths(final Change node, final List<String> paths) {
+        if (node instanceof ContainerChange container) {
+            for (final Change child : container.children()) {
                 collectPaths(child, paths);
             }
             return;
         }
-        paths.add(node.path());
+        paths.add(node.fullPath());
     }
 
     /**

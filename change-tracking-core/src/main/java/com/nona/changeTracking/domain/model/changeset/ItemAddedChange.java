@@ -3,29 +3,13 @@ package com.nona.changeTracking.domain.model.changeset;
 import com.nona.changeTracking.domain.model.snapshot.ValueNode;
 
 /**
- * 表示集合项新增（扁平视图）。
+ * 表示集合项新增：一次原子变化，载荷是加入项的只读快照表示。
+ * <p>
+ * 加入集合不必然代表创建实体——本类型只表达集合成员关系的变化，业务含义由消费方解释。
+ * 定位是加入项自身的位置（集合字段位置下的集合项位置）。
  *
- * @param path                相对路径。
- * @param fullPath            完整路径。
- * @param fieldName           纯字段名（不含索引）。
- * @param collectionFieldName 所属集合字段名，主表字段为 null。
- * @param parentIsCollection  父节点是否为集合。
- * @param addedItem           新增项的 ValueNode 表示。
+ * @param location  加入项的定位
+ * @param addedItem 加入项的 ValueNode 表示
  */
-public record ItemAddedChange(
-        String path,
-        String fullPath,
-        String fieldName,
-        String collectionFieldName,
-        boolean parentIsCollection,
-        ValueNode addedItem
-) implements Change {
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isParentCollection() {
-        return parentIsCollection;
-    }
+public record ItemAddedChange(ChangeLocation location, ValueNode addedItem) implements Change {
 }

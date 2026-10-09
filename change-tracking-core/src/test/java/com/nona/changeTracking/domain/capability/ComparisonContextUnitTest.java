@@ -1,5 +1,6 @@
 package com.nona.changeTracking.domain.capability;
 
+import com.nona.changeTracking.domain.model.changeset.ChangeLocation;
 import com.nona.changeTracking.domain.model.snapshot.ObjectNode;
 import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
 import com.nona.changeTracking.domain.model.snapshot.ValueNode;
@@ -255,6 +256,98 @@ class ComparisonContextUnitTest {
      */
     private static ValueNode node(final String value) {
         return new ObjectNode(Map.of("value", new PrimitiveNode(value)));
+    }
+
+    @Nested
+    @DisplayName("定位按需生成")
+    class LocationGeneration {
+
+        @Test
+        @DisplayName("空栈返回根定位")
+        void currentLocation_withEmptyStack_shouldReturnRootLocation() {
+            final ChangeLocation location = context.currentLocation();
+
+            assertThat(location.fullPath()).isEmpty();
+            assertThat(location.relativePath()).isEmpty();
+            assertThat(location.fieldName()).isNull();
+            assertThat(location.collectionFieldName()).isNull();
+            assertThat(location.isParentCollection()).isFalse();
+        }
+
+        @Test
+        @DisplayName("字段段形成字段定位：完整路径为全部字段段、相对路径为本段、集合归属为空")
+        void currentLocation_withFieldSegments_shouldFormFieldLocation() {
+            context.pushField("address");
+            context.pushField("street");
+            try {
+                final ChangeLocation location = context.currentLocation();
+
+                assertThat(location.fullPath()).isEqualTo("address.street");
+                assertThat(location.relativePath()).isEqualTo("street");
+                assertThat(location.fieldName()).isEqualTo("street");
+                assertThat(location.collectionFieldName()).isNull();
+                assertThat(location.isParentCollection()).isFalse();
+            } finally {
+                context.pop();
+                context.pop();
+            }
+        }
+
+        @Test
+        @DisplayName("集合项段形成集合项定位：字段名为空、集合归属为集合字段、直接父级为集合")
+        void currentLocation_withItemSegment_shouldFormItemLocation() {
+            context.pushField("items");
+            context.pushItem("A", ComparisonContext.NO_OCCURRENCE);
+            try {
+                final ChangeLocation location = context.currentLocation();
+
+                assertThat(location.fullPath()).isEqualTo("items[A]");
+                assertThat(location.relativePath()).isEqualTo("[A]");
+                assertThat(location.fieldName()).isNull();
+                assertThat(location.collectionFieldName()).isEqualTo("items");
+                assertThat(location.isParentCollection()).isTrue();
+            } finally {
+                context.pop();
+                context.pop();
+            }
+        }
+
+        @Test
+        @DisplayName("集合项内的字段形成继承集合上下文的字段定位（含出现序后缀）")
+        void currentLocation_withFieldInsideItem_shouldInheritCollectionFieldName() {
+            context.pushField("items");
+            context.pushItem("A", 2);
+            context.pushField("quantity");
+            try {
+                final ChangeLocation location = context.currentLocation();
+
+                assertThat(location.fullPath()).isEqualTo("items[A#2].quantity");
+                assertThat(location.relativePath()).isEqualTo("quantity");
+                assertThat(location.fieldName()).isEqualTo("quantity");
+                assertThat(location.collectionFieldName()).isEqualTo("items");
+                assertThat(location.isParentCollection()).isFalse();
+            } finally {
+                context.pop();
+                context.pop();
+                context.pop();
+            }
+        }
+
+        @Test
+        @DisplayName("根集合下的集合项形成不伪造集合字段名的集合项定位")
+        void currentLocation_withRootItem_shouldNotInventCollectionFieldName() {
+            context.pushItem("A", ComparisonContext.NO_OCCURRENCE);
+            try {
+                final ChangeLocation location = context.currentLocation();
+
+                assertThat(location.fullPath()).isEqualTo("[A]");
+                assertThat(location.fieldName()).isNull();
+                assertThat(location.collectionFieldName()).isNull();
+                assertThat(location.isParentCollection()).isTrue();
+            } finally {
+                context.pop();
+            }
+        }
     }
 
     /**

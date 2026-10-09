@@ -2,9 +2,8 @@ package com.nona.changeTracking.domain.model.tracking;
 
 import com.nona.changeTracking.domain.capability.ComparisonStrategy;
 import com.nona.changeTracking.domain.capability.TrackingCapability;
-import com.nona.changeTracking.domain.model.changeset.ChangeNode;
+import com.nona.changeTracking.domain.model.changeset.Change;
 import com.nona.changeTracking.domain.model.changeset.ChangeSet;
-import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
 import com.nona.changeTracking.domain.model.changeset.ObjectChange;
 import com.nona.changeTracking.domain.model.snapshot.Snapshot;
 import com.nona.changeTracking.domain.model.snapshot.ValueNode;
@@ -161,7 +160,7 @@ public final class ChangeTracker {
      * 重复调用返回相同变更集。
      *
      * @param entity 要计算变更的实体，不能为 null。
-     * @return 该实体的单元素 ChangeSet（含完整 changeTree）；无变更/未追踪时为空 ChangeSet。
+     * @return 该实体的单元素 ChangeSet（含该目标根下的变更结果列表）；无变更/未追踪时为空 ChangeSet。
      * @throws NullPointerException 如果 entity 为 null。
      */
     public ChangeSet calculateChangesFor(final Object entity) {
@@ -226,16 +225,33 @@ public final class ChangeTracker {
         return new ChangeSet(changes);
     }
 
+    /**
+     * 对单个实体执行一次基线比较，并按统一结果契约组织该目标的变更结果。
+     * <p>
+     * 处理顺序：按策略支持类型对旧快照做显式 checked cast（不匹配即 {@link ClassCastException}）；
+     * 创建当前状态快照；调用比较策略取得目标根下的结果列表；空列表表示无变化，不创建
+     * {@link ObjectChange}；非空列表绑定实体身份建立单个 {@link ObjectChange}。策略返回 {@code null}
+     * 视为违反结果契约，本次计算明确失败，不当作空列表处理。
+     *
+     * @param entity             被追踪的实体，调用方已保证非 null 且仍在追踪集合中。
+     * @param specificCapability 具有具体泛型类型 S 的能力实例。
+     * @param <S>                被捕获的、具体的 Snapshot 类型。
+     * @return 单元素变更集（有变化）或空变更集（无变化）。
+     */
     private <S extends Snapshot<?>> ChangeSet calculateChangeForWithCapture(final Object entity, final TrackingCapability<S> specificCapability) {
         final SnapshotStrategy<S> snapshotStrategy = specificCapability.getSnapshotStrategy();
         final ComparisonStrategy<S> comparisonStrategy = specificCapability.getComparisonStrategy();
         final Class<S> supportedSnapshotType = comparisonStrategy.getSupportedSnapshotType();
         final S oldSnapshot = supportedSnapshotType.cast(this.cleanObjects.get(entity));
         final S newSnapshot = snapshotStrategy.createSnapshot(entity);
-        final ChangeNode changeTree = comparisonStrategy.compare(oldSnapshot, newSnapshot);
-        if (changeTree instanceof ContainerChangeNode container && !container.children().isEmpty()) {
-            return new ChangeSet(List.of(new ObjectChange(entity, changeTree)));
+        final List<Change> changes = comparisonStrategy.compare(oldSnapshot, newSnapshot);
+        if (changes == null) {
+            throw new IllegalStateException(
+                    "Comparison strategy violated the result contract: expected a non-null read-only change list.");
         }
-        return new ChangeSet(List.of());
+        if (changes.isEmpty()) {
+            return new ChangeSet(List.of());
+        }
+        return new ChangeSet(List.of(new ObjectChange(entity, changes)));
     }
 }

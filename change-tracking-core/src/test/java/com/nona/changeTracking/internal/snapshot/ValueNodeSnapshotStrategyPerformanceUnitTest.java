@@ -2,9 +2,9 @@ package com.nona.changeTracking.internal.snapshot;
 
 import com.nona.changeTracking.domain.capability.TrackingConfiguration;
 import com.nona.changeTracking.domain.capability.ValueNodeComparisonStrategy;
-import com.nona.changeTracking.domain.model.changeset.ChangeNode;
-import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
-import com.nona.changeTracking.domain.model.changeset.FieldChangeNode;
+import com.nona.changeTracking.domain.model.changeset.Change;
+import com.nona.changeTracking.domain.model.changeset.ContainerChange;
+import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import com.nona.changeTracking.domain.model.snapshot.ValueNodeSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -104,22 +104,21 @@ class ValueNodeSnapshotStrategyPerformanceUnitTest {
         final ValueNodeSnapshot oldSnapshot = strategy.createSnapshot(oldOrder);
         final ValueNodeSnapshot newSnapshot = strategy.createSnapshot(newOrder);
 
-        final ChangeNode result = assertTimeout(
+        final List<Change> result = assertTimeout(
                 Duration.ofSeconds(10),
                 () -> comparison.compare(oldSnapshot, newSnapshot)
         );
 
         // 正确性：万级 items 中仅第 1000 项 quantity 变化 → 只报告一处变更
-        final ContainerChangeNode rootChange = (ContainerChangeNode) result;
-        assertEquals(1, rootChange.children().size());
-        final ContainerChangeNode itemsChange = (ContainerChangeNode) rootChange.children().get(0);
-        assertEquals("items", itemsChange.path());
+        assertEquals(1, result.size());
+        final ContainerChange itemsChange = (ContainerChange) result.get(0);
+        assertEquals("items", itemsChange.fullPath());
         assertEquals(1, itemsChange.children().size());
-        final ContainerChangeNode itemChange = (ContainerChangeNode) itemsChange.children().get(0);
-        assertEquals("items[1000]", itemChange.path());
+        final ContainerChange itemChange = (ContainerChange) itemsChange.children().get(0);
+        assertEquals("items[1000]", itemChange.fullPath());
         assertEquals(1, itemChange.children().size());
-        final FieldChangeNode quantityChange = (FieldChangeNode) itemChange.children().get(0);
-        assertEquals("items[1000].quantity", quantityChange.path());
+        final ValueChange quantityChange = (ValueChange) itemChange.children().get(0);
+        assertEquals("items[1000].quantity", quantityChange.fullPath());
         assertEquals(0, quantityChange.oldValue());
         assertEquals(999, quantityChange.newValue());
     }

@@ -1,7 +1,6 @@
 package com.nona.changeTracking.domain.model.tracking;
 
 import com.nona.changeTracking.domain.capability.TrackingCapability;
-import com.nona.changeTracking.domain.model.changeset.ChangeNode;
 import com.nona.changeTracking.domain.model.changeset.ChangeSet;
 import com.nona.changeTracking.domain.model.changeset.ObjectChange;
 import com.nona.changeTracking.domain.model.snapshot.ValueNodeSnapshot;
@@ -149,7 +148,7 @@ class ChangeTrackerStopTrackingUnitTest {
             final ChangeSet changeSet = tracker.calculateChanges();
             assertThat(changeSet.changes()).hasSize(1);
             assertThat(changeSet.changes().get(0).target()).isSameAs(rootA);
-            assertThat(changeSet.changes().get(0).changeTree()).isNotNull();
+            assertThat(changeSet.changes().get(0).changes()).isNotNull();
         }
     }
 

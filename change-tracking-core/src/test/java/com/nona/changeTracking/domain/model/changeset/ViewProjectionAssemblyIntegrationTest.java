@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 视图投影的装配面集成测试：用真实 SPI 装配的默认 provider、真实 capability、真实快照与比较策略
  * 以及真实 {@link ChangeTracker} 链路，验证单元测试（手工构造变更树）覆盖不到的投影接入面。
  * <p>
- * 覆盖：默认装配链路产出的变更集在两个视图上的输出契约（含两入口上下文差异）、经公开扩展点注册业务标识
+ * 覆盖：默认装配链路产出的变更集在两个视图上的输出契约（所有入口定位一致）、经公开扩展点注册业务标识
  * 后的集合项上下文、重复获取与值语义、以及视图消费不得改动比较结果的基线语义。
  */
 @DisplayName("视图投影装配面集成测试")
@@ -125,8 +125,8 @@ class ViewProjectionAssemblyIntegrationTest {
     class RegisteredIdentifierContext {
 
         @Test
-        @DisplayName("注册业务标识后，两视图对同一集合项节点的集合上下文不同（完整视图扁平项为 null、叶子视图为 items）")
-        void registeredIdentifier_shouldExposeTheDocumentedContextDifference() {
+        @DisplayName("注册业务标识后，两视图对同一集合项内字段节点给出一致的定位")
+        void registeredIdentifier_shouldExposeTheSameLocationInBothViews() {
             provider.withIdentifier(LineItem.class, item -> item.id);
             final ChangeTracker tracker = new ChangeTracker(provider.create());
             final Order order = new Order();
@@ -144,15 +144,17 @@ class ViewProjectionAssemblyIntegrationTest {
                     .findFirst()
                     .orElseThrow();
 
-            assertThat(allEntry.collectionFieldName()).isNull();
+            assertThat(allEntry.collectionFieldName()).isEqualTo("items");
             assertThat(leafEntry.collectionFieldName()).isEqualTo("items");
             assertThat(allEntry.fieldName()).isEqualTo("sku");
             assertThat(leafEntry.fieldName()).isEqualTo("sku");
+            assertThat(allEntry.isParentCollection()).isFalse();
+            assertThat(leafEntry.isParentCollection()).isFalse();
         }
 
         @Test
-        @DisplayName("注册业务标识后集合项新增在叶子视图继承 items 上下文，完整视图扁平项不继承")
-        void registeredIdentifier_addition_shouldShowTheContextDifference() {
+        @DisplayName("注册业务标识后集合项新增在两个视图中给出一致的定位")
+        void registeredIdentifier_addition_shouldKeepTheSameLocationInBothViews() {
             provider.withIdentifier(LineItem.class, item -> item.id);
             final ChangeTracker tracker = new ChangeTracker(provider.create());
             final Order order = new Order();
@@ -171,12 +173,10 @@ class ViewProjectionAssemblyIntegrationTest {
 
             assertThat(allEntry.path()).isEqualTo("items[100]");
             assertThat(leafEntry.path()).isEqualTo("items[100]");
-            // 两入口的既有契约差异：完整视图扁平入口从空上下文解析（fieldName=items、
-            // collectionFieldName=null、父集合标记=false），叶子视图以实际父路径为基准
-            // （fieldName=null、collectionFieldName=items、父集合标记=true）。
-            assertThat(allEntry.fieldName()).isEqualTo("items");
-            assertThat(allEntry.collectionFieldName()).isNull();
-            assertThat(allEntry.isParentCollection()).isFalse();
+            // 两个入口的定位一致：直接集合项的 fieldName 为 null、集合归属为 items、直接父级为集合。
+            assertThat(allEntry.fieldName()).isNull();
+            assertThat(allEntry.collectionFieldName()).isEqualTo("items");
+            assertThat(allEntry.isParentCollection()).isTrue();
             assertThat(leafEntry.fieldName()).isNull();
             assertThat(leafEntry.collectionFieldName()).isEqualTo("items");
             assertThat(leafEntry.isParentCollection()).isTrue();
@@ -184,7 +184,7 @@ class ViewProjectionAssemblyIntegrationTest {
 
         @Test
         @DisplayName("完整视图容器 children 中集合项容器的字段变更应继承 items 上下文")
-        void registeredIdentifier_containerChildFieldShouldInheritCollectionContext() {
+        void registeredIdentifier_containerChildFieldShouldCarryFullPathsAndInheritedContext() {
             provider.withIdentifier(LineItem.class, item -> item.id);
             final ChangeTracker tracker = new ChangeTracker(provider.create());
             final Order order = new Order();
@@ -196,17 +196,20 @@ class ViewProjectionAssemblyIntegrationTest {
 
             // 真实比较产出的树：items 容器 → 集合项容器 [7] → 字段 sku
             final Change itemsContainer = changeSet.getAllChanges().stream()
-                    .filter(change -> change.path().equals("items"))
+                    .filter(change -> change.fullPath().equals("items"))
                     .findFirst()
                     .orElseThrow();
             final Change itemContainer = ((ContainerChange) itemsContainer).children().stream()
-                    .filter(change -> change.path().equals("[7]"))
+                    .filter(change -> change.fullPath().equals("items[7]"))
                     .findFirst()
                     .orElseThrow();
             final Change skuWithinContainer = ((ContainerChange) itemContainer).children().stream()
-                    .filter(change -> change.path().equals("sku"))
+                    .filter(change -> change.fullPath().equals("items[7].sku"))
                     .findFirst()
                     .orElseThrow();
+
+            assertThat(itemContainer.relativePath()).isEqualTo("[7]");
+            assertThat(skuWithinContainer.relativePath()).isEqualTo("sku");
 
             assertThat(itemContainer.collectionFieldName()).isEqualTo("items");
             assertThat(itemContainer.isParentCollection()).isTrue();

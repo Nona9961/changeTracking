@@ -1,11 +1,11 @@
 package com.nona.changeTracking.domain.capability;
 
-import com.nona.changeTracking.domain.model.changeset.ChangeNode;
-import com.nona.changeTracking.domain.model.changeset.ContainerChangeNode;
-import com.nona.changeTracking.domain.model.changeset.FieldChangeNode;
-import com.nona.changeTracking.domain.model.changeset.ItemAddedNode;
-import com.nona.changeTracking.domain.model.changeset.ItemRemovedNode;
-import com.nona.changeTracking.domain.model.changeset.ObjectFieldChangeNode;
+import com.nona.changeTracking.domain.model.changeset.Change;
+import com.nona.changeTracking.domain.model.changeset.ContainerChange;
+import com.nona.changeTracking.domain.model.changeset.ItemAddedChange;
+import com.nona.changeTracking.domain.model.changeset.ItemRemovedChange;
+import com.nona.changeTracking.domain.model.changeset.ObjectFieldChange;
+import com.nona.changeTracking.domain.model.changeset.ValueChange;
 import com.nona.changeTracking.domain.model.snapshot.ArrayNode;
 import com.nona.changeTracking.domain.model.snapshot.CollectionNode;
 import com.nona.changeTracking.domain.model.snapshot.NullNode;
@@ -14,36 +14,87 @@ import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
 import com.nona.changeTracking.domain.model.snapshot.ValueNode;
 import com.nona.changeTracking.domain.model.snapshot.ValueNodeSnapshot;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
- * 基于 {@link ValueNode} 树结构的快照比较策略实现。
+ * 默认比较策略：递归比较两个 {@link ValueNodeSnapshot} 的树结构，直接产出统一变更结果。
  * <p>
- * 此策略通过递归比较两个 {@link ValueNodeSnapshot} 的树结构，
- * 生成描述所有差异的 {@link ChangeNode} 变更树。
+ * 比较算法采用双层递归设计（{@code diffNode} 负责分发与变更分类，{@code diffChildren} 负责遍历与收集），
+ * 并在一次 {@code compare} 内创建独立的 {@link ComparisonContext} 与 {@link ChangeAccumulator}：
+ * 路径与定位由上下文承载（字段段与集合项段按需形成定位），对象字段不建立字段名并集，集合项经
+ * {@link CollectionMatchIndex} 有序匹配，子变更按发现顺序收入收集器，零或多项结果直接交给所属分组。
  * <p>
- * 比较算法采用双层递归设计：
- * <ul>
- *   <li>{@code diffNode} - 高层方法，负责分发与变更分类</li>
- *   <li>{@code diffChildren} - 低层方法，负责遍历与收集</li>
- * </ul>
+ * 结果契约与 {@link ComparisonStrategy#compare} 一致：目标根下的只读变更列表，无变化返回空列表，
+ * 真实根值变化为空路径原子变化，不产出包装根。既有匹配规则、输出顺序、变更类型、载荷与循环终止
+ * 语义保持不变。
  * <p>
- * <b>原地优化</b>：一次 {@code compare} 创建独立的
- * {@link ComparisonContext} 与 {@link ChangeAccumulator}。路径不再以字符串参数逐层拼接，
- * 而由上下文承载路径段栈并按需生成；对象字段不再建立字段名并集，集合项经
- * {@link CollectionMatchIndex} 有序匹配；子变更按发现顺序收入
- * {@link ChangeAccumulator}，零或一项结果直接交给所属容器。既有匹配规则、输出顺序、
- * 变更类型、载荷与循环终止语义保持不变。
- * <p>
- * <b>安全无变更复用</b>：容器节点对在递归前对单表三态节点对状态做<b>一次查询</b>，
- * 返回 false 即直接返回——该 false 同时表达「循环截断」与「已完成且无变更的复用命中」；返回 true
- * 才递归子节点，并在退出时把「无变更且期间未发生循环截断」写为可复用状态。有变化、依赖截断或
- * 异常退出的节点对不可复用，仍沿各条路径生成必要输出；根节点保留原来的直接展开方式，不登记根节点对。
- * <p>
- * 集合项匹配基于 {@link ObjectNode#identifier()} 业务标识符，
- * 允许检测集合中项的新增、删除和修改。
+ * 分发与遍历处的 {@code push / try / finally pop} 作用域样板有意保留在各调用点，不提取为统一的
+ * 「带作用域分发」方法：统一入口只能把被执行的比较动作作为 lambda 或回调传入，而 lambda 的捕获会在
+ * 比较热路径上为每次分发额外分配，该路径的每操作分配量正是比较策略的性能判据指标；显式成对写法同时
+ * 让「进入上下文必须退出」的资源纪律在调用处可见。
  */
 public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNodeSnapshot> {
+
+    /**
+     * 计算出现序后缀值。
+     * <p>
+     * 仅当同一标识出现多次时才需要后缀；唯一项返回 {@link ComparisonContext#NO_OCCURRENCE}（不加后缀）。
+     *
+     * @param useOccurrenceSuffix 是否需要后缀。
+     * @param zeroBasedIndex      项在该标识分组内的零基索引。
+     * @return 从 1 开始的出现序；不需要后缀时返回 {@link ComparisonContext#NO_OCCURRENCE}。
+     */
+    private static int toOccurrence(final boolean useOccurrenceSuffix, final int zeroBasedIndex) {
+        return useOccurrenceSuffix ? zeroBasedIndex + 1 : ComparisonContext.NO_OCCURRENCE;
+    }
+
+    /**
+     * 按字段名取值，字段缺失时返回 NullNode。
+     * <p>
+     * {@link ObjectNode#field(String)} 对缺失字段返回 null，而 diff 逻辑需要 NullNode 语义
+     * （缺失 = NullNode，与旧 keySet+getOrDefault 行为一致）。
+     *
+     * @param node 目标 ObjectNode。
+     * @param key  字段名。
+     * @return 字段的 ValueNode，字段缺失时返回 NullNode。
+     */
+    private static ValueNode fieldOrNullNode(final ObjectNode node, final String key) {
+        final ValueNode value = node.field(key);
+        return value != null ? value : new NullNode();
+    }
+
+    /**
+     * 从基本值节点（PrimitiveNode/NullNode）中提取业务值。
+     * <p>
+     * 仅用于 {@link #diffNode} 的基本值路径（P↔P / P↔N / N↔P）——业务值可得。
+     * 容器节点参与的跨类型变化没有业务值可提取，由 {@link ObjectFieldChange}
+     * 原样携带 ValueNode 节点承载，不经过本方法。
+     *
+     * @param node 基本值节点（PrimitiveNode 或 NullNode）。
+     * @return 业务值：PrimitiveNode 返回其 value，NullNode 返回 null。
+     */
+    private static Object extractValue(final ValueNode node) {
+        if (node instanceof PrimitiveNode pn) {
+            return pn.value();
+        }
+        return null;
+    }
+
+    /**
+     * 判断节点对是否为容器同类型（O↔O / C↔C）。
+     * <p>
+     * 根层分发与嵌套分发共用本判定，使「容器对」在根处展开子节点、在嵌套处经节点对状态进入递归的
+     * 识别保持一致。
+     *
+     * @param oldNode 旧节点。
+     * @param newNode 新节点。
+     * @return 两侧同为 ObjectNode 或同为 CollectionNode 时返回 true。
+     */
+    private static boolean isContainerPair(final ValueNode oldNode, final ValueNode newNode) {
+        return (oldNode instanceof ObjectNode && newNode instanceof ObjectNode)
+                || (oldNode instanceof CollectionNode && newNode instanceof CollectionNode);
+    }
 
     /**
      * {@inheritDoc}
@@ -56,16 +107,17 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
     /**
      * {@inheritDoc}
      * <p>
-     * 比较两个 ValueNode 快照，生成变更树。
-     * 返回的根节点是一个 {@link com.nona.changeTracking.domain.model.changeset.ContainerChangeNode}，
-     * 包含所有检测到的变更。根节点保留原来的直接展开方式，不登记根节点对。
+     * 产出目标根下的变更结果列表：根节点对为容器（O↔O / C↔C）时展开子节点，其他组合按完整 dispatch
+     * 表处理（基本值之间的变化、数组值变化、容器同类型递归与容器参与的跨类型替换）。
      */
     @Override
-    public ChangeNode compare(final ValueNodeSnapshot oldSnapshot, final ValueNodeSnapshot newSnapshot) {
+    public List<Change> compare(final ValueNodeSnapshot oldSnapshot, final ValueNodeSnapshot newSnapshot) {
+        Objects.requireNonNull(oldSnapshot, "oldSnapshot");
+        Objects.requireNonNull(newSnapshot, "newSnapshot");
         final ComparisonContext context = new ComparisonContext();
         final ChangeAccumulator accumulator = new ChangeAccumulator();
         diffRoot(oldSnapshot.getSnapshotData(), newSnapshot.getSnapshotData(), context, accumulator);
-        return new ContainerChangeNode("", accumulator.toList());
+        return List.copyOf(accumulator.toList());
     }
 
     /**
@@ -73,6 +125,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * <p>
      * 根节点可能是任意 {@link ValueNode}（如快照根直接是数组/基本值），
      * 与嵌套节点一样需要完整的 dispatch 表（A↔A 内容比较、跨类型 ObjectFieldChange 等）。
+     * 容器对在根处直接展开：根下的结果列表就是统一结果本身，不产生包装根。
      *
      * @param oldNode     旧根节点。
      * @param newNode     新根节点。
@@ -81,9 +134,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      */
     private void diffRoot(final ValueNode oldNode, final ValueNode newNode,
                           final ComparisonContext context, final ChangeAccumulator accumulator) {
-        final boolean bothObject = oldNode instanceof ObjectNode && newNode instanceof ObjectNode;
-        final boolean bothCollection = oldNode instanceof CollectionNode && newNode instanceof CollectionNode;
-        if (bothObject || bothCollection) {
+        if (isContainerPair(oldNode, newNode)) {
             diffChildren(oldNode, newNode, context, accumulator);
             return;
         }
@@ -95,13 +146,11 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * <p>
      * dispatch 表：
      * <ul>
-     *   <li>P↔P / P↔N / N↔P（基本值之间）→ {@link com.nona.changeTracking.domain.model.changeset.FieldChangeNode}（业务值可得）</li>
+     *   <li>P↔P / P↔N / N↔P（基本值之间）→ {@link ValueChange}（业务值可得）</li>
      *   <li>A↔A（数组之间）→ 内容相等=无变更（{@link com.nona.changeTracking.domain.model.snapshot.ArrayNode#equals} 已是内容语义）；
-     *       不等（含顺序变）→ FieldChangeNode（载荷为数组实例，消费方可强转）</li>
-     *   <li>O↔O / C↔C（容器同类型）→ 递归子节点，有变更则包裹在
-     *       {@link com.nona.changeTracking.domain.model.changeset.ContainerChangeNode} 中</li>
-     *   <li>其余组合（容器/数组参与的跨类型变化）→
-     *       {@link com.nona.changeTracking.domain.model.changeset.ObjectFieldChangeNode}（原样携带 ValueNode）</li>
+     *       不等（含顺序变）→ {@link ValueChange}（载荷为数组实例，消费方可强转）</li>
+     *   <li>O↔O / C↔C（容器同类型）→ 递归子节点，有变更则包裹在 {@link ContainerChange} 中</li>
+     *   <li>其余组合（容器/数组参与的跨类型变化）→ {@link ObjectFieldChange}（原样携带 ValueNode）</li>
      *   <li>N↔N / 同实例 → 无变更</li>
      * </ul>
      * <p>
@@ -109,8 +158,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * {@link ComparisonContext#enterNodePair} 返回 false 即直接返回——该 false 同时涵盖循环截断
      * （原规则）与「已完成且无变更」的复用命中（不生成路径、不生成变更）；返回 true 时递归子节点，
      * 并在退出时把本次结论（无变更且期间未发生循环截断）写回同一状态。有变化时仍按当前路径输出
-     * {@link com.nona.changeTracking.domain.model.changeset.ContainerChangeNode}；节点对状态在正常与
-     * 异常退出时均按结论更新，不泄漏到其他路径。
+     * {@link ContainerChange}；节点对状态在正常与异常退出时均按结论更新，不泄漏到其他路径。
      *
      * @param oldNode     旧节点。
      * @param newNode     新节点。
@@ -131,14 +179,14 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             if (Objects.equals(oldPrim.value(), newPrim.value())) {
                 return;
             }
-            accumulator.add(new FieldChangeNode(context.currentPath(), oldPrim.value(), newPrim.value()));
+            accumulator.add(new ValueChange(context.currentLocation(), oldPrim.value(), newPrim.value()));
             return;
         }
 
-        // 基本值↔基本值（P↔N / N↔P）：快照中业务值可得，仍走 FieldChangeNode
+        // 基本值↔基本值（P↔N / N↔P）：快照中业务值可得，仍走 ValueChange
         if ((oldNode instanceof PrimitiveNode || oldNode instanceof NullNode)
                 && (newNode instanceof PrimitiveNode || newNode instanceof NullNode)) {
-            accumulator.add(new FieldChangeNode(context.currentPath(), extractValue(oldNode), extractValue(newNode)));
+            accumulator.add(new ValueChange(context.currentLocation(), extractValue(oldNode), extractValue(newNode)));
             return;
         }
 
@@ -147,14 +195,12 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             if (oldArray.equals(newArray)) {
                 return;
             }
-            accumulator.add(new FieldChangeNode(context.currentPath(), oldArray.array(), newArray.array()));
+            accumulator.add(new ValueChange(context.currentLocation(), oldArray.array(), newArray.array()));
             return;
         }
 
         // 容器同类型（O↔O / C↔C）：一次查询同时回答循环终止与安全无变更复用
-        final boolean bothObject = oldNode instanceof ObjectNode && newNode instanceof ObjectNode;
-        final boolean bothCollection = oldNode instanceof CollectionNode && newNode instanceof CollectionNode;
-        if (bothObject || bothCollection) {
+        if (isContainerPair(oldNode, newNode)) {
             if (!context.enterNodePair(oldNode, newNode)) {
                 // false 同时涵盖循环截断（终止递归）与「已完成且无变更」的复用命中（不生成路径、不生成变更）
                 return;
@@ -165,7 +211,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
                 diffChildren(oldNode, newNode, context, inner);
                 unchanged = inner.isEmpty();
                 if (!unchanged) {
-                    accumulator.add(new ContainerChangeNode(context.currentPath(), inner.toList()));
+                    accumulator.add(new ContainerChange(context.currentLocation(), inner.toList()));
                 }
             } finally {
                 // 异常退出保持 unchanged=false，置为不可复用
@@ -175,7 +221,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
         }
 
         // 容器参与的跨类型变化：快照中无业务对象可提取，原样携带 ValueNode 表示
-        accumulator.add(new ObjectFieldChangeNode(context.currentPath(), oldNode, newNode));
+        accumulator.add(new ObjectFieldChange(context.currentLocation(), oldNode, newNode));
     }
 
     /**
@@ -238,7 +284,8 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
      * 比较两个 CollectionNode 的所有项。
      * <p>
      * 经 {@link CollectionMatchIndex} 有序匹配标识；每组的共同出现次数按出现次序配对，
-     * 再输出新侧多余项、旧侧多余项；出现序后缀由两侧最大出现次数决定。项的路径由上下文按需生成。
+     * 再输出新侧多余项（{@link ItemAddedChange}）、旧侧多余项（{@link ItemRemovedChange}）；
+     * 出现序后缀由两侧最大出现次数决定。项的定位由上下文按需形成。
      *
      * @param oldColl     旧集合节点。
      * @param newColl     新集合节点。
@@ -262,7 +309,7 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             for (int position = common; position < group.newCount(); position++) {
                 context.pushItem(group.identity(), toOccurrence(useOccurrenceSuffix, position));
                 try {
-                    accumulator.add(new ItemAddedNode(context.currentPath(), group.newItem(position)));
+                    accumulator.add(new ItemAddedChange(context.currentLocation(), group.newItem(position)));
                 } finally {
                     context.pop();
                 }
@@ -270,57 +317,11 @@ public class ValueNodeComparisonStrategy implements ComparisonStrategy<ValueNode
             for (int position = common; position < group.oldCount(); position++) {
                 context.pushItem(group.identity(), toOccurrence(useOccurrenceSuffix, position));
                 try {
-                    accumulator.add(new ItemRemovedNode(context.currentPath(), group.oldItem(position)));
+                    accumulator.add(new ItemRemovedChange(context.currentLocation(), group.oldItem(position)));
                 } finally {
                     context.pop();
                 }
             }
         });
-    }
-
-    /**
-     * 计算出现序后缀值。
-     * <p>
-     * 仅当同一标识出现多次时才需要后缀；唯一项返回 {@link ComparisonContext#NO_OCCURRENCE}（不加后缀）。
-     *
-     * @param useOccurrenceSuffix 是否需要后缀。
-     * @param zeroBasedIndex      项在该标识分组内的零基索引。
-     * @return 从 1 开始的出现序；不需要后缀时返回 {@link ComparisonContext#NO_OCCURRENCE}。
-     */
-    private static int toOccurrence(final boolean useOccurrenceSuffix, final int zeroBasedIndex) {
-        return useOccurrenceSuffix ? zeroBasedIndex + 1 : ComparisonContext.NO_OCCURRENCE;
-    }
-
-    /**
-     * 按字段名取值，字段缺失时返回 NullNode。
-     * <p>
-     * {@link ObjectNode#field(String)} 对缺失字段返回 null，而 diff 逻辑需要 NullNode 语义
-     * （缺失 = NullNode，与旧 keySet+getOrDefault 行为一致）。
-     *
-     * @param node 目标 ObjectNode。
-     * @param key  字段名。
-     * @return 字段的 ValueNode，字段缺失时返回 NullNode。
-     */
-    private static ValueNode fieldOrNullNode(final ObjectNode node, final String key) {
-        final ValueNode value = node.field(key);
-        return value != null ? value : new NullNode();
-    }
-
-    /**
-     * 从基本值节点（PrimitiveNode/NullNode）中提取业务值。
-     * <p>
-     * 仅用于 {@link #diffNode} 的基本值路径（P↔P / P↔N / N↔P）——业务值可得。
-     * 容器节点参与的跨类型变化没有业务值可提取，由
-     * {@link com.nona.changeTracking.domain.model.changeset.ObjectFieldChangeNode}
-     * 原样携带 ValueNode 节点承载，不经过本方法。
-     *
-     * @param node 基本值节点（PrimitiveNode 或 NullNode）。
-     * @return 业务值：PrimitiveNode 返回其 value，NullNode 返回 null。
-     */
-    private Object extractValue(final ValueNode node) {
-        if (node instanceof PrimitiveNode pn) {
-            return pn.value();
-        }
-        return null;
     }
 }
