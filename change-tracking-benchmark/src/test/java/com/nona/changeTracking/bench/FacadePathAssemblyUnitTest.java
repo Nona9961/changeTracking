@@ -6,9 +6,9 @@ import com.nona.changeTracking.bench.FacadeBenchmark.FacadePath;
 import com.nona.changeTracking.bench.sample.SampleFamily;
 import com.nona.changeTracking.bench.sample.SampleMutator;
 import com.nona.changeTracking.bench.sample.SampleShape;
-import com.nona.changeTracking.domain.capability.TrackingCapability;
-import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
-import com.nona.changeTracking.spi.TrackingCapabilityProvider;
+import com.nona.changeTracking.tracking.TrackingCapability;
+import com.nona.changeTracking.tracking.ChangeTracker;
+import com.nona.changeTracking.tracking.TrackingCapabilityProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -43,7 +43,7 @@ class FacadePathAssemblyUnitTest {
 
     /** Service file name the SPI discovery reads; hiding it simulates a deployment without providers. */
     private static final String SPI_SERVICE_FILE =
-            "META-INF/services/com.nona.changeTracking.spi.TrackingCapabilityProvider";
+            "META-INF/services/com.nona.changeTracking.tracking.TrackingCapabilityProvider";
 
     @Test
     @DisplayName("直连路径应经真实 SPI 发现 default-reflection 提供者")

@@ -1,8 +1,8 @@
 package com.nona.changeTracking.bench;
 
 import com.nona.changeTracking.bench.sample.SampleShape;
-import com.nona.changeTracking.domain.model.changeset.ChangeSet;
-import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
+import com.nona.changeTracking.change.ChangeSet;
+import com.nona.changeTracking.tracking.ChangeTracker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

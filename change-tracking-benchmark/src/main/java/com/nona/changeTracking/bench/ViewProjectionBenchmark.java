@@ -2,7 +2,7 @@ package com.nona.changeTracking.bench;
 
 import com.nona.changeTracking.bench.sample.SampleMutator;
 import com.nona.changeTracking.bench.sample.SampleShape;
-import com.nona.changeTracking.domain.model.changeset.ChangeSet;
+import com.nona.changeTracking.change.ChangeSet;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

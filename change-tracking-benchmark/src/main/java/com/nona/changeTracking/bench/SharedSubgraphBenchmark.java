@@ -4,7 +4,7 @@ import com.nona.changeTracking.api.ChangeTrackerFactory;
 import com.nona.changeTracking.bench.sample.SampleFamily;
 import com.nona.changeTracking.bench.sample.SampleGraphNode;
 import com.nona.changeTracking.bench.sample.SampleMutator;
-import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
+import com.nona.changeTracking.tracking.ChangeTracker;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

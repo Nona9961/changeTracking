@@ -75,14 +75,14 @@ class EndToEndBenchmarkIntegrationTest {
 
     /** shade 后 core 的 SPI 服务文件路径。 */
     private static final String SPI_SERVICE_ENTRY =
-            "META-INF/services/com.nona.changeTracking.spi.TrackingCapabilityProvider";
+            "META-INF/services/com.nona.changeTracking.tracking.TrackingCapabilityProvider";
 
     /** JMH 注解处理器生成的基准清单，其存在说明基准类真正进入了可执行 jar。 */
     private static final String BENCHMARK_LIST_ENTRY = "META-INF/BenchmarkList";
 
     /** shade 后应可见的 core 追踪能力提供者。 */
     private static final String CORE_PROVIDER =
-            "com.nona.changeTracking.internal.capability.DefaultTrackingCapabilityProvider";
+            "com.nona.changeTracking.tracking.DefaultTrackingCapabilityProvider";
 
     /** 严格 JSON 解析输出行的前缀。 */
     private static final String ENTRY_PREFIX = "ENTRY|";

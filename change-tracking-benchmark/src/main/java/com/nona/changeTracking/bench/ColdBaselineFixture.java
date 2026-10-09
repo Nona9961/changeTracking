@@ -2,13 +2,13 @@ package com.nona.changeTracking.bench;
 
 import com.nona.changeTracking.bench.sample.SampleOrder;
 import com.nona.changeTracking.bench.sample.SampleOrderSummary;
-import com.nona.changeTracking.domain.model.snapshot.ArrayNode;
-import com.nona.changeTracking.domain.model.snapshot.CollectionNode;
-import com.nona.changeTracking.domain.model.snapshot.NullNode;
-import com.nona.changeTracking.domain.model.snapshot.ObjectNode;
-import com.nona.changeTracking.domain.model.snapshot.PrimitiveNode;
-import com.nona.changeTracking.domain.model.snapshot.ValueNode;
-import com.nona.changeTracking.domain.model.tracking.BaselineSnapshot;
+import com.nona.changeTracking.snapshot.ArrayNode;
+import com.nona.changeTracking.snapshot.CollectionNode;
+import com.nona.changeTracking.snapshot.NullNode;
+import com.nona.changeTracking.snapshot.ObjectNode;
+import com.nona.changeTracking.snapshot.PrimitiveNode;
+import com.nona.changeTracking.snapshot.ValueNode;
+import com.nona.changeTracking.tracking.BaselineSnapshot;
 
 import java.io.File;
 import java.lang.reflect.Array;
