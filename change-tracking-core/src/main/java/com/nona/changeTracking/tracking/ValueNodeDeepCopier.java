@@ -1,5 +1,6 @@
 package com.nona.changeTracking.tracking;
 
+import com.nona.changeTracking.common.ArrayCopyUtils;
 import com.nona.changeTracking.snapshot.ArrayNode;
 import com.nona.changeTracking.snapshot.CollectionNode;
 import com.nona.changeTracking.snapshot.NullNode;
@@ -7,7 +8,6 @@ import com.nona.changeTracking.snapshot.ObjectNode;
 import com.nona.changeTracking.snapshot.PrimitiveNode;
 import com.nona.changeTracking.snapshot.ValueNode;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -49,7 +49,6 @@ public final class ValueNodeDeepCopier {
      * 工具类：禁止实例化。
      */
     private ValueNodeDeepCopier() {
-        // 工具类：禁止实例化
     }
 
     /**
@@ -88,7 +87,7 @@ public final class ValueNodeDeepCopier {
             return copyCollectionNode(collectionNode, copies);
         }
         if (node instanceof ArrayNode arrayNode) {
-            return new ArrayNode(deepCopyArray(arrayNode.array()));
+            return new ArrayNode(ArrayCopyUtils.deepCopy(arrayNode.array()));
         }
         if (node instanceof PrimitiveNode || node instanceof NullNode) {
             // 叶子：值不可变，按引用共享天然安全
@@ -138,32 +137,6 @@ public final class ValueNodeDeepCopier {
         final CollectionNode copy = new CollectionNode(items);
         copies.put(source, copy);
         source.forEachItem(item -> items.add(copyRecursive(item, copies)));
-        return copy;
-    }
-
-    /**
-     * 深拷贝数组（防御拷贝语义；语义同 {@link com.nona.changeTracking.snapshot.ValueNodeSnapshotStrategy} 的数组处理）。
-     * <p>
-     * 一维：按组件类型创建同类型新数组并浅拷贝（元素为值类型=不可变，浅拷贝安全，
-     * 且保持运行时数组类型——消费方强转可用）；多维：逐层递归深拷贝（内层行也是数组）。
-     *
-     * @param array 源数组。
-     * @return 内容相同、互不共享引用的新数组。
-     */
-    private static Object deepCopyArray(final Object array) {
-        final Class<?> componentType = array.getClass().getComponentType();
-        final int length = Array.getLength(array);
-
-        if (componentType.isArray()) {
-            final Object copy = Array.newInstance(componentType, length);
-            for (int index = 0; index < length; index++) {
-                Array.set(copy, index, deepCopyArray(Array.get(array, index)));
-            }
-            return copy;
-        }
-
-        final Object copy = Array.newInstance(componentType, length);
-        System.arraycopy(array, 0, copy, 0, length);
         return copy;
     }
 }

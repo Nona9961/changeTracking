@@ -1,5 +1,7 @@
 package com.nona.changeTracking.snapshot;
 
+import com.nona.changeTracking.common.ArrayCopyUtils;
+
 import java.lang.reflect.Array;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -58,33 +60,6 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
     public ValueNodeSnapshotStrategy(final TrackConfigurable configuration) {
         Objects.requireNonNull(configuration, "Configuration cannot be null.");
         this.rulesCache = new ConfiguredTypeRulesCache(configuration);
-    }
-
-    /**
-     * 深拷贝数组（防御拷贝）。
-     * <p>
-     * 一维：按组件类型创建同类型数组并浅拷贝（元素已判定为值类型=不可变，浅拷贝安全，
-     * 且保持运行时数组类型——消费方 {@code (String[]) } 强转可用）；
-     * 多维：逐层递归深拷贝（内层行也是数组）。
-     *
-     * @param array 源数组。
-     * @return 内容相同、互不共享引用的新数组。
-     */
-    private static Object deepCopyArray(final Object array) {
-        final Class<?> componentType = array.getClass().getComponentType();
-        final int length = Array.getLength(array);
-
-        if (componentType.isArray()) {
-            final Object copy = Array.newInstance(componentType, length);
-            for (int index = 0; index < length; index++) {
-                Array.set(copy, index, deepCopyArray(Array.get(array, index)));
-            }
-            return copy;
-        }
-
-        final Object copy = Array.newInstance(componentType, length);
-        System.arraycopy(array, 0, copy, 0, length);
-        return copy;
     }
 
     /**
@@ -185,7 +160,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      */
     private ValueNode processArray(final Object array, final Map<Object, ValueNode> visited) {
         if (isValueArray(array.getClass())) {
-            return new ArrayNode(deepCopyArray(array));
+            return new ArrayNode(ArrayCopyUtils.deepCopy(array));
         }
 
         final int length = Array.getLength(array);

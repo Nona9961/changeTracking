@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * ChangeTracker 基线导出与重建的场景测试（R1 captureBaseline / R2 fromBaseline）。
+ * ChangeTracker 基线导出与重建的场景测试。
  * <p>
  * 覆盖三类场景：
  * <ul>

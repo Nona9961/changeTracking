@@ -2,6 +2,7 @@ package com.nona.changeTracking.bench;
 
 import com.nona.changeTracking.bench.sample.SampleOrder;
 import com.nona.changeTracking.bench.sample.SampleOrderSummary;
+import com.nona.changeTracking.common.ArrayCopyUtils;
 import com.nona.changeTracking.snapshot.ArrayNode;
 import com.nona.changeTracking.snapshot.CollectionNode;
 import com.nona.changeTracking.snapshot.NullNode;
@@ -190,7 +191,7 @@ public final class ColdBaselineFixture {
      */
     private static ValueNode buildArray(final Object array, final Map<Object, ValueNode> visited) {
         if (isValueArray(array.getClass())) {
-            return new ArrayNode(deepCopyArray(array));
+            return new ArrayNode(ArrayCopyUtils.deepCopy(array));
         }
         final int length = Array.getLength(array);
         final List<ValueNode> items = new ArrayList<>(length);
@@ -297,27 +298,5 @@ public final class ColdBaselineFixture {
             component = component.getComponentType();
         }
         return component.isPrimitive() || isValueType(component);
-    }
-
-    /**
-     * Defensive copy of an array, mirroring the strategy: one dimensional arrays are copied by
-     * component type, multi dimensional arrays are copied recursively row by row.
-     *
-     * @param array the source array
-     * @return a copy sharing no element reference with the source for value arrays
-     */
-    private static Object deepCopyArray(final Object array) {
-        final Class<?> componentType = array.getClass().getComponentType();
-        final int length = Array.getLength(array);
-        if (componentType.isArray()) {
-            final Object copy = Array.newInstance(componentType, length);
-            for (int index = 0; index < length; index++) {
-                Array.set(copy, index, deepCopyArray(Array.get(array, index)));
-            }
-            return copy;
-        }
-        final Object copy = Array.newInstance(componentType, length);
-        System.arraycopy(array, 0, copy, 0, length);
-        return copy;
     }
 }
