@@ -78,6 +78,16 @@
         </dependencies>
     </dependencyManagement>
 
+    <dependencies>
+        <!-- 测试 JVM agent：须在各模块依赖树中，surefire argLine 才能经 dependency-plugin 解析出 jar 路径 -->
+        <dependency>
+            <groupId>net.bytebuddy</groupId>
+            <artifactId>byte-buddy-agent</artifactId>
+            <version>${byte-buddy.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>
