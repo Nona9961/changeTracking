@@ -87,7 +87,7 @@ public final class ValueNodeDeepCopier {
             return copyCollectionNode(collectionNode, copies);
         }
         if (node instanceof ArrayNode arrayNode) {
-            return new ArrayNode(ArrayCopyUtils.deepCopy(arrayNode.array()));
+            return new ArrayNode(ArrayCopyUtils.copyArray(arrayNode.array()));
         }
         if (node instanceof PrimitiveNode || node instanceof NullNode) {
             // 叶子：值不可变，按引用共享天然安全
