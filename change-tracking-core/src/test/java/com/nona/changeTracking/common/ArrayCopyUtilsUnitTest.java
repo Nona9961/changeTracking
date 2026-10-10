@@ -8,8 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * {@link ArrayCopyUtils#copyArray(Object)} 的入参契约与复制语义测试：非法入参显式失败，
- * 一维浅拷贝（元素引用共享）与多维逐层复制（最内层元素仍共享）的边界，运行时数组类型保持。
+ * {@link ArrayCopyUtils#copyArray(Object)} 的入参契约与复制语义测试。
  */
 @DisplayName("ArrayCopyUtils 数组拷贝单元测试")
 class ArrayCopyUtilsUnitTest {
