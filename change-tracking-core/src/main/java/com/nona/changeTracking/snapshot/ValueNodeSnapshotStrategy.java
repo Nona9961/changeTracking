@@ -160,7 +160,7 @@ public class ValueNodeSnapshotStrategy implements SnapshotStrategy<ValueNodeSnap
      */
     private ValueNode processArray(final Object array, final Map<Object, ValueNode> visited) {
         if (isValueArray(array.getClass())) {
-            return new ArrayNode(ArrayCopyUtils.deepCopy(array));
+            return new ArrayNode(ArrayCopyUtils.copyArray(array));
         }
 
         final int length = Array.getLength(array);

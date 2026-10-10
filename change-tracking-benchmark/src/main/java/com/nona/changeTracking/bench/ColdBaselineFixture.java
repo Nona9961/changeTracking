@@ -191,7 +191,7 @@ public final class ColdBaselineFixture {
      */
     private static ValueNode buildArray(final Object array, final Map<Object, ValueNode> visited) {
         if (isValueArray(array.getClass())) {
-            return new ArrayNode(ArrayCopyUtils.deepCopy(array));
+            return new ArrayNode(ArrayCopyUtils.copyArray(array));
         }
         final int length = Array.getLength(array);
         final List<ValueNode> items = new ArrayList<>(length);
