@@ -1,8 +1,8 @@
 package com.nona.changeTracking.api;
 
-import com.nona.changeTracking.domain.capability.TrackingCapability;
-import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
-import com.nona.changeTracking.spi.TrackingCapabilityProvider;
+import com.nona.changeTracking.tracking.ChangeTracker;
+import com.nona.changeTracking.tracking.TrackingCapability;
+import com.nona.changeTracking.tracking.TrackingCapabilityProvider;
 
 import java.util.HashMap;
 import java.util.Map;

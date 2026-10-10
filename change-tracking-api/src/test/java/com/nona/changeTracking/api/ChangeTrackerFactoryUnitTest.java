@@ -1,10 +1,10 @@
 package com.nona.changeTracking.api;
 
-import com.nona.changeTracking.domain.capability.TrackingCapability;
-import com.nona.changeTracking.domain.model.changeset.ChangeSet;
-import com.nona.changeTracking.domain.model.changeset.ValueChange;
-import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
-import com.nona.changeTracking.spi.TrackingCapabilityProvider;
+import com.nona.changeTracking.change.ChangeSet;
+import com.nona.changeTracking.change.ValueChange;
+import com.nona.changeTracking.tracking.ChangeTracker;
+import com.nona.changeTracking.tracking.TrackingCapability;
+import com.nona.changeTracking.tracking.TrackingCapabilityProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;

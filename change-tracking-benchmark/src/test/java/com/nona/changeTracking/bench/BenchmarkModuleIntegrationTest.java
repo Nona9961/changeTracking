@@ -179,10 +179,10 @@ class BenchmarkModuleIntegrationTest {
 
         assertThat(jarListing.exitCode()).isZero();
         assertThat(jarListing.output().lines().map(String::trim).toList())
-                .contains("META-INF/services/com.nona.changeTracking.spi.TrackingCapabilityProvider")
+                .contains("META-INF/services/com.nona.changeTracking.tracking.TrackingCapabilityProvider")
                 .contains("META-INF/BenchmarkList");
         assertThat(serviceProviderContent())
-                .contains("com.nona.changeTracking.internal.capability.DefaultTrackingCapabilityProvider");
+                .contains("com.nona.changeTracking.tracking.DefaultTrackingCapabilityProvider");
         assertThat(benchCommandResult.exitCode())
                 .as("benchmark setUp assembles the tracker through the discovered provider")
                 .isZero();
@@ -242,7 +242,7 @@ class BenchmarkModuleIntegrationTest {
      */
     private static String serviceProviderContent() throws IOException {
         try (JarFile jar = new JarFile(BENCHMARK_JAR.toFile())) {
-            final var entry = jar.getJarEntry("META-INF/services/com.nona.changeTracking.spi.TrackingCapabilityProvider");
+            final var entry = jar.getJarEntry("META-INF/services/com.nona.changeTracking.tracking.TrackingCapabilityProvider");
             return new String(jar.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
         }
     }

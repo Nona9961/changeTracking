@@ -3,11 +3,11 @@ package com.nona.changeTracking.bench;
 import com.nona.changeTracking.bench.sample.SampleFamily;
 import com.nona.changeTracking.bench.sample.SampleMutator;
 import com.nona.changeTracking.bench.sample.SampleShape;
-import com.nona.changeTracking.domain.capability.TrackingCapability;
-import com.nona.changeTracking.domain.model.snapshot.Snapshot;
-import com.nona.changeTracking.domain.model.snapshot.ValueNode;
-import com.nona.changeTracking.domain.model.tracking.BaselineSnapshot;
-import com.nona.changeTracking.spi.TrackingCapabilityProvider;
+import com.nona.changeTracking.tracking.TrackingCapability;
+import com.nona.changeTracking.snapshot.Snapshot;
+import com.nona.changeTracking.snapshot.ValueNode;
+import com.nona.changeTracking.tracking.BaselineSnapshot;
+import com.nona.changeTracking.tracking.TrackingCapabilityProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -22,6 +22,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,9 +42,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * The reference surface check reads the constant pool of the shaded class files, which no unit test
  * can observe: the direct path must reach the provider through {@code java.util.ServiceLoader} and
- * must not mention the facade or the {@code internal} package, while the facade path must mention the
- * facade type and must not mention the service loader. Both halves together pin the pairing to two
- * genuinely different assembly paths.
+ * must reference only the core contract types behind that extension point, while the facade path must
+ * mention the facade type and must not mention the service loader. Both halves together pin the
+ * pairing to two genuinely different assembly paths.
  * <p>
  * Like {@code BenchmarkModuleIntegrationTest}, this class is excluded by the default surefire
  * configuration ({@code **}{@code /}{@code *IntegrationTest}) and runs under {@code -Pfull} only. A
@@ -73,11 +75,11 @@ class FacadeBenchmarkIntegrationTest {
 
     /** shade 后 core 的 SPI 服务文件路径。 */
     private static final String SPI_SERVICE_ENTRY =
-            "META-INF/services/com.nona.changeTracking.spi.TrackingCapabilityProvider";
+            "META-INF/services/com.nona.changeTracking.tracking.TrackingCapabilityProvider";
 
     /** shade 后应可见的 core 追踪能力提供者。 */
     private static final String CORE_PROVIDER =
-            "com.nona.changeTracking.internal.capability.DefaultTrackingCapabilityProvider";
+            "com.nona.changeTracking.tracking.DefaultTrackingCapabilityProvider";
 
     /** 直连装配路径类的字节码条目。 */
     private static final String DIRECT_PATH_CLASS_ENTRY =
@@ -93,8 +95,18 @@ class FacadeBenchmarkIntegrationTest {
     /** 门面侧应引用的门面类型。 */
     private static final String FACADE_TYPE = "com/nona/changeTracking/api/ChangeTrackerFactory";
 
-    /** 直连侧禁止引用的实现包前缀。 */
-    private static final String INTERNAL_PACKAGE = "com/nona/changeTracking/internal";
+    /** 直连装配路径允许引用的 core 契约类型全名：能力提供者入口、能力契约与追踪入口。 */
+    private static final Set<String> DIRECT_PATH_CONTRACT_TYPES = Set.of(
+            "com/nona/changeTracking/tracking/TrackingCapabilityProvider",
+            "com/nona/changeTracking/tracking/TrackingCapability",
+            "com/nona/changeTracking/tracking/ChangeTracker");
+
+    /** bench 自身类型所在的包前缀，核对契约类型时排除。 */
+    private static final String BENCH_PACKAGE_PREFIX = "com/nona/changeTracking/bench/";
+
+    /** 从常量池 Utf8 条目识别 changeTracking 类型引用的模式，描述符与泛型签名内的 {@code L...;} 形式同样命中。 */
+    private static final Pattern CHANGE_TRACKING_TYPE_PATTERN =
+            Pattern.compile("com/nona/changeTracking/[A-Za-z0-9_$/]+");
 
     /** 冻结的条目总数：2 对 × 2 侧。 */
     private static final int EXPECTED_ENTRY_COUNT = 4;
@@ -321,7 +333,8 @@ class FacadeBenchmarkIntegrationTest {
     }
 
     /**
-     * 校验两条装配路径的字节码引用面：直连侧只经 SPI 扩展点、不引用门面与 internal 包，门面侧只引用门面类型。
+     * 校验两条装配路径的字节码引用面：直连侧只经 SPI 扩展点取得能力实例、且所引用的 core 类型限于契约类型，
+     * 不引用门面；门面侧只引用门面类型。
      *
      * @param jar shade 后的基准 jar
      * @throws IOException 读取 jar 失败
@@ -332,8 +345,12 @@ class FacadeBenchmarkIntegrationTest {
 
         assertThat(directEntries).as("reference surface of the direct path")
                 .anyMatch(entry -> entry.contains(SERVICE_LOADER_TYPE))
-                .noneMatch(entry -> entry.contains("ChangeTrackerFactory"))
-                .noneMatch(entry -> entry.contains(INTERNAL_PACKAGE));
+                .noneMatch(entry -> entry.contains("ChangeTrackerFactory"));
+        final Set<String> directCoreTypes = referencedCoreTypes(directEntries);
+        assertThat(directCoreTypes).as("core types referenced by the direct path").isNotEmpty();
+        assertThat(DIRECT_PATH_CONTRACT_TYPES)
+                .as("contract types covering the direct path's core references")
+                .containsAll(directCoreTypes);
         assertThat(facadeEntries).as("reference surface of the facade path")
                 .anyMatch(entry -> entry.contains(FACADE_TYPE))
                 .noneMatch(entry -> entry.contains("ServiceLoader"));
@@ -380,6 +397,29 @@ class FacadeBenchmarkIntegrationTest {
             }
             return entries;
         }
+    }
+
+    /**
+     * 提取常量池 Utf8 条目中引用的 core 类型全名，排除 bench 自身包。
+     * <p>
+     * 归位后契约与实现同处 {@code tracking} 包，旧的包前缀判据不再可用，故按类型粒度核对；模式同时覆盖
+     * 独立类条目与描述符、数组、泛型签名内的 {@code Lcom/...;} 形式，使新实现类型自动落入禁止面。
+     *
+     * @param constantPoolEntries 常量池 Utf8 条目集合
+     * @return 引用的 core 类型全名集合
+     */
+    private static Set<String> referencedCoreTypes(final Set<String> constantPoolEntries) {
+        final Set<String> types = new HashSet<>();
+        for (final String entry : constantPoolEntries) {
+            final Matcher matcher = CHANGE_TRACKING_TYPE_PATTERN.matcher(entry);
+            while (matcher.find()) {
+                final String type = matcher.group();
+                if (!type.startsWith(BENCH_PACKAGE_PREFIX)) {
+                    types.add(type);
+                }
+            }
+        }
+        return types;
     }
 
     /**

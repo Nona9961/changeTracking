@@ -5,7 +5,7 @@ import com.nona.changeTracking.bench.sample.SampleMutator;
 import com.nona.changeTracking.bench.sample.SampleOrder;
 import com.nona.changeTracking.bench.sample.SampleOrderSummary;
 import com.nona.changeTracking.bench.sample.SampleShape;
-import com.nona.changeTracking.domain.model.changeset.ChangeSet;
+import com.nona.changeTracking.change.ChangeSet;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  * <ol>
  *   <li>{@code tracker().track(sample())} - the sample is untracked after the precondition reset, so
  *       this call dehydrates the whole sample and rebuilds the baseline instead of taking the
- *       idempotent early return of {@link com.nona.changeTracking.domain.model.tracking.ChangeTracker#track(Object)}.</li>
+ *       idempotent early return of {@link com.nona.changeTracking.tracking.ChangeTracker#track(Object)}.</li>
  *   <li>{@code SampleMutator.addItem(sample())} - one in place append of a line item: the collection
  *       instance stays the same, the appended item is created by the frozen sample family, and that
  *       single item allocation belongs to the measured operation, so it is accounted to the time and

@@ -4,8 +4,8 @@ import com.nona.changeTracking.api.ChangeTrackerFactory;
 import com.nona.changeTracking.bench.sample.SampleFamily;
 import com.nona.changeTracking.bench.sample.SampleMutator;
 import com.nona.changeTracking.bench.sample.SampleShape;
-import com.nona.changeTracking.domain.model.changeset.ChangeSet;
-import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
+import com.nona.changeTracking.change.ChangeSet;
+import com.nona.changeTracking.tracking.ChangeTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

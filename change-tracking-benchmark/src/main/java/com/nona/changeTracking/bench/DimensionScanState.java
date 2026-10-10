@@ -3,7 +3,7 @@ package com.nona.changeTracking.bench;
 import com.nona.changeTracking.api.ChangeTrackerFactory;
 import com.nona.changeTracking.bench.sample.SampleFamily;
 import com.nona.changeTracking.bench.sample.SampleShape;
-import com.nona.changeTracking.domain.model.tracking.ChangeTracker;
+import com.nona.changeTracking.tracking.ChangeTracker;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;

@@ -1,0 +1,387 @@
+package com.nona.changeTracking.tracking;
+
+import com.nona.changeTracking.change.Change;
+import com.nona.changeTracking.change.ChangeLocation;
+import com.nona.changeTracking.change.ChangeSet;
+import com.nona.changeTracking.change.ValueChange;
+import com.nona.changeTracking.comparison.ComparisonStrategy;
+import com.nona.changeTracking.snapshot.PrimitiveNode;
+import com.nona.changeTracking.snapshot.Snapshot;
+import com.nona.changeTracking.snapshot.SnapshotStrategy;
+import com.nona.changeTracking.snapshot.ValueNodeSnapshot;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@DisplayName("ChangeTracker 聚合测试")
+@ExtendWith(MockitoExtension.class)
+class ChangeTrackerUnitTest {
+
+    @Mock(lenient = true)
+    private TrackingCapability<ValueNodeSnapshot> capability;
+    @Mock(lenient = true)
+    private SnapshotStrategy<ValueNodeSnapshot> snapshotStrategy;
+    @Mock(lenient = true)
+    private ComparisonStrategy<ValueNodeSnapshot> comparisonStrategy;
+    @Mock(lenient = true)
+    private TrackingCapability<ValueNodeSnapshot> mismatchedCapability;
+    @Mock(lenient = true)
+    private SnapshotStrategy<ValueNodeSnapshot> fakeSnapshotStrategy;
+    @Mock(lenient = true)
+    private ComparisonStrategy<ValueNodeSnapshot> fakeComparisonStrategy;
+
+    private ChangeTracker changeTracker;
+
+    // --- Test Data ---
+    static class User { String name; }
+    private final User user1 = new User();
+    private final User user2 = new User();
+    private final ValueNodeSnapshot oldSnapshot = new ValueNodeSnapshot(null);
+    private final ValueNodeSnapshot newSnapshot = new ValueNodeSnapshot(null);
+    private final ValueNodeSnapshot newerSnapshot = new ValueNodeSnapshot(null);
+    private final List<Change> changeResults = List.of(
+            new ValueChange(ChangeLocation.field(ChangeLocation.root(), "name"), "a", "b"));
+    private final List<Change> noChangeResults = List.of();
+
+
+    @BeforeEach
+    void setUp() {
+        when(capability.getSnapshotStrategy()).thenReturn(snapshotStrategy);
+        doReturn(comparisonStrategy).when(capability).getComparisonStrategy();
+        when(comparisonStrategy.getSupportedSnapshotType()).thenReturn(ValueNodeSnapshot.class);
+        changeTracker = new ChangeTracker(capability);
+    }
+
+    @Nested
+    @DisplayName("基本变更检测")
+    class BasicChangeDetection {
+
+        @Test
+        @DisplayName("对于已变更的 clean 对象，应调用比较策略并生成 ChangeSet")
+        void calculateChanges_forDirtyCleanObject_shouldCallComparisonAndCreateChangeSet() {
+            // --- Arrange ---
+            doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
+            changeTracker.track(user1);
+
+            when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeResults);
+
+            // --- Act ---
+            final ChangeSet changeSet = changeTracker.calculateChanges();
+
+            // --- Assert ---
+            assertFalse(changeSet.isEmpty());
+            assertEquals(1, changeSet.changes().size());
+            assertEquals(user1, changeSet.changes().get(0).target());
+            assertEquals(changeResults, changeSet.changes().get(0).changes());
+
+            verify(snapshotStrategy, times(2)).createSnapshot(user1);
+            verify(comparisonStrategy, times(1)).compare(oldSnapshot, newSnapshot);
+        }
+
+        @Test
+        @DisplayName("连续两次 calculateChanges 应返回相同的变更集（幂等视图特征：不更新基线）")
+        void calculateChanges_repeatedCalls_shouldReturnSameChangeSet() {
+            doReturn(oldSnapshot, newSnapshot).when(snapshotStrategy).createSnapshot(user1);
+            changeTracker.track(user1);
+            when(comparisonStrategy.compare(oldSnapshot, newSnapshot)).thenReturn(changeResults);
+
+            final ChangeSet firstCall = changeTracker.calculateChanges();
+            final ChangeSet secondCall = changeTracker.calculateChanges();
+
+            // 特征：calculateChanges 是幂等视图，不更新基线，重复调用产出相同变更集
+            assertEquals(firstCall, secondCall);
+            assertEquals(1, secondCall.changes().size());
+            verify(comparisonStrategy, times(2)).compare(oldSnapshot, newSnapshot);
+        }
+
+        @Test
+        @DisplayName("对于未变更的 clean 对象，不应生成变更")
+        void calculateChanges_forUnchangedCleanObject_shouldNotCreateChange() {
+            // --- Arrange ---
+            doReturn(oldSnapshot, oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
+            changeTracker.track(user1);
+
+            when(comparisonStrategy.compare(oldSnapshot, oldSnapshot)).thenReturn(noChangeResults);
+
+            // --- Act ---
+            final ChangeSet changeSet = changeTracker.calculateChanges();
+
+            // --- Assert ---
+            assertTrue(changeSet.isEmpty());
+            verify(comparisonStrategy, times(1)).compare(oldSnapshot, oldSnapshot);
+        }
+
+        @Test
+        @DisplayName("对于从未 track 的对象，不应调用比较策略，且不生成变更")
+        void calculateChanges_forNeverTrackedObject_shouldNotCallComparisonAndNotCreateChange() {
+            final ChangeSet changeSet = changeTracker.calculateChanges();
+            assertTrue(changeSet.isEmpty());
+            verifyNoInteractions(snapshotStrategy);
+            // 契约：未追踪对象不触发快照比较（setUp 中类型守卫 stub 不算交互）
+            verify(comparisonStrategy, never()).compare(any(), any());
+        }
+
+        @Test
+        @DisplayName("对于 stopTracking 的对象，不应调用比较策略，且不生成变更")
+        void calculateChanges_forStoppedObject_shouldNotCallComparisonAndNotCreateChange() {
+            doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
+            changeTracker.track(user1);
+            changeTracker.stopTracking(user1);
+            final ChangeSet changeSet = changeTracker.calculateChanges();
+            assertTrue(changeSet.isEmpty());
+            verify(comparisonStrategy, never()).compare(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("注册与停止语义")
+    class DuplicateRegistration {
+
+        @Test
+        @DisplayName("重复注册 clean 对象应被忽略")
+        void track_duplicate_shouldBeIgnored() {
+            doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
+
+            changeTracker.track(user1);
+            changeTracker.track(user1); // 重复注册
+
+            // 只应调用一次快照创建
+            verify(snapshotStrategy, times(1)).createSnapshot(user1);
+        }
+
+        @Test
+        @DisplayName("stopTracking 后重新 track 应恢复追踪（可恢复性）")
+        void stopTracking_thenTrack_shouldResumeTracking() {
+            // 三快照：首次 track 建立基线(oldSnapshot)；停止后重新 track 以调用时刻状态重建基线(newSnapshot)；
+            // calculateChanges 时对恢复后的实体做第三次快照(newerSnapshot)
+            doReturn(oldSnapshot, newSnapshot, newerSnapshot).when(snapshotStrategy).createSnapshot(user1);
+
+            changeTracker.track(user1);
+            changeTracker.stopTracking(user1);
+            changeTracker.track(user1); // 重新登记：以当前状态建立新基线
+
+            // 恢复后的比较基于新基线：newSnapshot（重新 track 时刻状态） vs newerSnapshot（当前状态）
+            when(comparisonStrategy.compare(newSnapshot, newerSnapshot)).thenReturn(changeResults);
+
+            // 恢复追踪后修改应产生变更
+            final ChangeSet changeSet = changeTracker.calculateChanges();
+            assertFalse(changeSet.isEmpty());
+            assertEquals(1, changeSet.changes().size());
+            assertEquals(user1, changeSet.changes().get(0).target());
+            assertEquals(changeResults, changeSet.changes().get(0).changes());
+
+            verify(snapshotStrategy, times(3)).createSnapshot(user1);
+            verify(comparisonStrategy, times(1)).compare(newSnapshot, newerSnapshot);
+        }
+
+        @Test
+        @DisplayName("重复 stopTracking 应被忽略（幂等，无异常）")
+        void stopTracking_duplicate_shouldBeIgnored() {
+            doReturn(oldSnapshot).when(snapshotStrategy).createSnapshot(user1);
+
+            changeTracker.track(user1);
+            changeTracker.stopTracking(user1);
+            changeTracker.stopTracking(user1); // 重复停止
+
+            // 不应抛出异常，变更集应为空
+            final ChangeSet changeSet = changeTracker.calculateChanges();
+            assertTrue(changeSet.isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("多对象追踪")
+    class MultipleObjectTracking {
+
+        @Test
+        @DisplayName("应能同时追踪多个对象的变更")
+        void shouldTrackMultipleObjects() {
+            // 使用不同的 snapshotData 来区分每个快照，避免 record 的 equals() 导致 Mockito 参数匹配混乱
+            final ValueNodeSnapshot oldSnapshot1 = new ValueNodeSnapshot(new PrimitiveNode("old1"));
+            final ValueNodeSnapshot newSnapshot1 = new ValueNodeSnapshot(new PrimitiveNode("new1"));
+            final ValueNodeSnapshot oldSnapshot2 = new ValueNodeSnapshot(new PrimitiveNode("old2"));
+            final ValueNodeSnapshot newSnapshot2 = new ValueNodeSnapshot(new PrimitiveNode("new2"));
+
+            doReturn(oldSnapshot1, newSnapshot1).when(snapshotStrategy).createSnapshot(user1);
+            doReturn(oldSnapshot2, newSnapshot2).when(snapshotStrategy).createSnapshot(user2);
+
+            changeTracker.track(user1);
+            changeTracker.track(user2);
+
+            final List<Change> changeResults1 = List.of(
+                    new ValueChange(ChangeLocation.field(ChangeLocation.root(), "name"), "a", "b"));
+            final List<Change> changeResults2 = List.of(
+                    new ValueChange(ChangeLocation.field(ChangeLocation.root(), "name"), "c", "d"));
+
+            when(comparisonStrategy.compare(oldSnapshot1, newSnapshot1)).thenReturn(changeResults1);
+            when(comparisonStrategy.compare(oldSnapshot2, newSnapshot2)).thenReturn(changeResults2);
+
+            final ChangeSet changeSet = changeTracker.calculateChanges();
+
+            assertEquals(2, changeSet.changes().size());
+        }
+
+        @Test
+        @DisplayName("一个对象变更一个对象未变更时，只应生成一个变更")
+        void oneChangedOneUnchanged_shouldProduceOneChange() {
+            // 使用不同的 snapshotData 来区分每个快照
+            final ValueNodeSnapshot snapshot1 = new ValueNodeSnapshot(new PrimitiveNode("s1"));
+            final ValueNodeSnapshot newSnapshot1 = new ValueNodeSnapshot(new PrimitiveNode("ns1"));
+            final ValueNodeSnapshot snapshot2 = new ValueNodeSnapshot(new PrimitiveNode("s2"));
+
+            doReturn(snapshot1, newSnapshot1).when(snapshotStrategy).createSnapshot(user1);
+            doReturn(snapshot2, snapshot2).when(snapshotStrategy).createSnapshot(user2);
+
+            changeTracker.track(user1);
+            changeTracker.track(user2);
+
+            when(comparisonStrategy.compare(snapshot1, newSnapshot1)).thenReturn(changeResults);
+            when(comparisonStrategy.compare(snapshot2, snapshot2)).thenReturn(noChangeResults);
+
+            final ChangeSet changeSet = changeTracker.calculateChanges();
+
+            assertEquals(1, changeSet.changes().size());
+            assertEquals(user1, changeSet.changes().get(0).target());
+        }
+    }
+
+    @Nested
+    @DisplayName("参数验证")
+    class ParameterValidation {
+
+        @Test
+        @DisplayName("构造函数传入 null 应抛出 NullPointerException")
+        void constructor_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> new ChangeTracker(null));
+        }
+
+        @Test
+        @DisplayName("track 传入 null 应抛出 NullPointerException")
+        void track_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> changeTracker.track(null));
+        }
+
+        @Test
+        @DisplayName("stopTracking 传入 null 应抛出 NullPointerException")
+        void stopTracking_withNull_shouldThrowNPE() {
+            assertThrows(NullPointerException.class, () -> changeTracker.stopTracking(null));
+        }
+    }
+
+    @Nested
+    @DisplayName("类型安全守卫")
+    class TypeSafetyTests {
+
+        /** 与能力单元快照类型不兼容的“外来”快照。 */
+        private record ForeignSnapshot(String data) implements Snapshot<String> {
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public String getSnapshotData() {
+                return data;
+            }
+        }
+
+        @Test
+        @DisplayName("快照类型与比较策略声明不匹配时，应在比较前被类型守卫拒绝")
+        void calculateChanges_incompatibleSnapshotType_shouldBeRejected() {
+            // 人为构造类型不匹配：快照策略返回 ForeignSnapshot，比较策略声明仅支持 ValueNodeSnapshot
+            when(mismatchedCapability.getSnapshotStrategy()).thenReturn(fakeSnapshotStrategy);
+            when(mismatchedCapability.getComparisonStrategy()).thenReturn(fakeComparisonStrategy);
+            when(fakeComparisonStrategy.getSupportedSnapshotType()).thenReturn(ValueNodeSnapshot.class);
+            doReturn(new ForeignSnapshot("foreign")).when(fakeSnapshotStrategy).createSnapshot(user1);
+
+            final ChangeTracker changeTracker = new ChangeTracker(mismatchedCapability);
+            changeTracker.track(user1);
+
+            // 类型守卫应拒绝不兼容的旧快照，抛出清晰的 ClassCastException，而非静默传给比较策略
+            assertThrows(ClassCastException.class, changeTracker::calculateChanges);
+            verify(fakeComparisonStrategy, never()).compare(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("并发访问特征测试（现状非线程安全，仅验证无 JVM 崩溃与死锁）")
+    class ConcurrentAccessTests {
+
+        static class TrackedEntity {
+            String name = "initial";
+        }
+
+        @Test
+        @DisplayName("多线程并发 track 与 calculateChanges 不应导致 JVM 崩溃或死锁")
+        void concurrentAccess_shouldNotCrashOrDeadlock() throws Exception {
+            final DefaultTrackingCapability realCapability = new DefaultTrackingCapability(TrackingConfiguration.empty());
+            final ChangeTracker changeTracker = new ChangeTracker(realCapability);
+
+            // 预注册一批对象，产生 calculateChanges 的比较负载
+            final List<TrackedEntity> preRegistered = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                final TrackedEntity entity = new TrackedEntity();
+                preRegistered.add(entity);
+                changeTracker.track(entity);
+            }
+
+            final int threadCount = 8;
+            final int iterationsPerThread = 200;
+            final ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+            final CountDownLatch ready = new CountDownLatch(threadCount);
+            final CountDownLatch start = new CountDownLatch(1);
+            final AtomicReference<Throwable> jvmError = new AtomicReference<>();
+            final List<Future<?>> futures = new ArrayList<>();
+
+            try {
+                for (int threadIndex = 0; threadIndex < threadCount; threadIndex++) {
+                    futures.add(executor.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        for (int i = 0; i < iterationsPerThread; i++) {
+                            changeTracker.track(new TrackedEntity());
+                            changeTracker.calculateChanges();
+                        }
+                        return null;
+                    }));
+                }
+
+                ready.await();
+                start.countDown();
+                for (final Future<?> future : futures) {
+                    try {
+                        // 带超时获取：超时即死锁信号
+                        future.get(30, TimeUnit.SECONDS);
+                    } catch (ExecutionException e) {
+                        // JVM 级错误（StackOverflowError / OutOfMemoryError 等）才是崩溃信号；
+                        // RuntimeException（如 ConcurrentModificationException）是现状非线程安全的已知特征，不在此列。
+                        if (e.getCause() instanceof Error fatal) {
+                            jvmError.compareAndSet(null, fatal);
+                        }
+                    }
+                }
+
+                assertNull(jvmError.get(), "并发访问不应导致 JVM 级错误: " + jvmError.get());
+            } finally {
+                executor.shutdownNow();
+            }
+        }
+    }
+}
